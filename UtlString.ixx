@@ -2,10 +2,12 @@ module;
 
 // C++
 #include <string>
+#include <tuple>
 #include <type_traits>
 
 // C
 #include <cassert>
+#include <cctype>
 #include <cwctype>
 
 // Platform
@@ -246,3 +248,160 @@ UTIL_GetBinaryStreamExceptKeyword(const char* szFilePath, const char* szKeyword)
 	fclose(pf);
 	return ret;
 }
+
+export int UTIL_GetStringType(const char* src)	// [0 - string] [1 - integer] [2 - float]
+{
+	// is multi char ?
+	if (*src <= 0)
+		return 0;
+
+	// is '-' or digit ?
+	if (*src == '-' || isdigit(*src))
+	{
+		// "1"
+		if (isdigit(*src) && !*(src + 1))
+			return 1;
+
+		++src; // next char
+
+		// "-a" or "0a"
+		if (!isdigit(*src) && *src != '.')
+			return 0;
+
+		while (*src)
+		{
+			// "1." or "-1."
+			if (*src == '.')
+			{
+				++src; // next char
+
+				// we need a digit, "1." not a float
+				if (!*src)
+					return 0;
+
+				while (*src)
+				{
+					// "1.a"
+					if (!isdigit(*src))
+						return 0;
+
+					++src;
+				}
+				// float value
+				return 2;
+			}
+
+			// "10a" not a integer
+			if (!isdigit(*src))
+				return 0;
+
+			++src; // next char
+		}
+
+		// integer value
+		return 1;
+	}
+
+	return 0;
+}
+
+template<typename T, typename U>
+concept ProperContainer = requires(T t, U u) { {t.emplace_back(u)}; };
+
+export template<typename Container_t, typename String_t>
+requires ProperContainer<Container_t, String_t>
+void UTIL_Split(const String_t& s, Container_t& tokens, const String_t& delimiters)
+{
+	typename String_t::size_type lastPos = s.find_first_not_of(delimiters, 0);
+	typename String_t::size_type pos = s.find_first_of(delimiters, lastPos);
+
+	while (String_t::npos != pos || String_t::npos != lastPos)
+	{
+		tokens.emplace_back(s.substr(lastPos, pos - lastPos));
+		lastPos = s.find_first_not_of(delimiters, pos);
+		pos = s.find_first_of(delimiters, lastPos);
+	}
+}
+
+export template<std::integral auto _iValue>
+consteval auto UTIL_CountDigits(void)
+{
+	unsigned iDigits = 0;
+	auto iValue = _iValue;
+
+	while (iValue)
+	{
+		iValue /= 10;
+		iDigits++;
+	}
+
+	return iDigits;
+}
+
+export template<unsigned iWhichDigit, std::integral auto iValue>
+consteval auto UTIL_GetDigit(void) requires(iWhichDigit < UTIL_CountDigits<iValue>())
+{
+	decltype(iValue) iDominator = 1;
+
+	for (unsigned i = 0; i < iWhichDigit; i++)
+		iDominator *= 10;
+
+	return (iValue / iDominator) % 10;
+}
+
+template<unsigned iWhichDigit, std::integral auto iValue>
+consteval auto UTIL_GetDigit_R(void) requires(iWhichDigit < UTIL_CountDigits<iValue>())
+{
+	decltype(iValue) iDominator = 1;
+	constexpr unsigned iWhichDigit_R = UTIL_CountDigits<iValue>() - iWhichDigit - 1U;
+
+	for (unsigned i = 0; i < iWhichDigit_R; i++)
+		iDominator *= 10;
+
+	return (iValue / iDominator) % 10;
+}
+
+export template<std::integral auto iValue>
+requires(iValue >= 0)
+struct UTIL_IntToString
+{
+	// Constructor
+	consteval UTIL_IntToString() noexcept
+	{
+		[&] <size_t... I>(std::index_sequence<I...>)
+		{
+			CopyToCharArray(static_cast<char>('0' + UTIL_GetDigit_R<I, iValue>())...);
+		}
+		(std::make_index_sequence<UTIL_CountDigits<iValue>()>{});
+	}
+
+	// Method
+	template<typename... Args_t>
+	constexpr void CopyToCharArray(Args_t... args) noexcept requires(sizeof...(Args_t) > 0 && ((std::is_same_v<Args_t, char>) && ...))
+	{
+		auto tpl = std::make_tuple(args...);
+
+		auto fnCopyToCharArray = [&]<size_t... I>(std::index_sequence<I...>)
+		{
+			((value[I] = std::get<I>(tpl)), ...);
+		};
+
+		fnCopyToCharArray(std::make_index_sequence<LENGTH>{});	// Not 'count' this time.
+		value[LENGTH] = '\0';
+	}
+
+	// Conversion
+	constexpr operator const char* () const noexcept { return &value[0]; }	// automatically convert to char* if necessary.
+	constexpr operator char* () noexcept { return &value[0]; }
+	constexpr operator std::string() const noexcept { return std::string(&value[0], COUNT); }
+
+	// Operator
+	constexpr decltype(auto) operator[] (std::size_t index) const noexcept { assert(index < COUNT); return value[index]; }
+
+	// Constants
+	static constexpr size_t COUNT = UTIL_CountDigits<iValue>() + 1U;	// Additional '\0'
+	static constexpr size_t LENGTH = UTIL_CountDigits<iValue>();
+
+	// Member
+	char value[COUNT];
+};

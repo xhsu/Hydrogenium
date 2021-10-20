@@ -95,17 +95,17 @@ public:
 		return false;
 	}
 
-	int getc(void) noexcept
+	char getc(void) noexcept
 	{
 		if (m_pbuf && m_seek < m_size)
 		{
 			byte* p = m_pbuf + m_seek;
 			m_seek++;
 
-			return *p;
+			return (char)*p;
 		}
 
-		return EOF;
+		return '\0';
 	}
 
 	bool Seek(seek pos, int ofs) noexcept
