@@ -9,7 +9,7 @@ export template<typename T>
 struct FunctionTraits;
 
 export template<typename R, typename ...Args>
-struct FunctionTraits<std::function<R(Args...)>>	// #UNDONE
+struct FunctionTraits<std::function<R(Args...)>>	// #UNDONE_LONG_TERM
 {
 	// Reflection
 	using Result_t = R;

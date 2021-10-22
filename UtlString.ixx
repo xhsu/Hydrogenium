@@ -405,3 +405,24 @@ struct UTIL_IntToString
 	// Member
 	char value[COUNT];
 };
+
+export template<typename Char_t>
+Char_t* UTIL_VarArgs(const Char_t* format, ...) noexcept
+{
+	static_assert(std::is_same_v<Char_t, char> || std::is_same_v<Char_t, wchar_t>, "This function supports only 'char' and 'wchar_t'.");
+
+	va_list argptr;
+	static constexpr size_t BUF_LEN = 2048;
+	static Char_t rgsz[BUF_LEN];
+
+	va_start(argptr, format);
+
+	if constexpr (std::is_same_v<Char_t, char>)
+		_vsnprintf_s(rgsz, BUF_LEN, format, argptr);
+	else if constexpr (std::is_same_v<Char_t, wchar_t>)
+		_vsnwprintf_s(rgsz, BUF_LEN, format, argptr);
+
+	va_end(argptr);
+
+	return rgsz;
+}
