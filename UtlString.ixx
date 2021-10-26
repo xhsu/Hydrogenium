@@ -32,6 +32,7 @@ struct StringLiteral
 	constexpr operator Char_t* () noexcept { return &value[0]; }
 	constexpr operator String_t() const noexcept { return String_t(&value[0], N); }
 	constexpr decltype(auto) operator[] (std::size_t index) const noexcept { assert(index < N); return value[index]; }
+	constexpr bool operator== (const String_t& rhs) const noexcept { return String_t(value, N) == rhs; }
 	template<typename chTyOther, size_t sizeOther> constexpr bool operator== (const StringLiteral<chTyOther, sizeOther>& rhs) const noexcept
 	{
 		if constexpr (!std::is_same_v<Char_t, chTyOther> || N != sizeOther)
@@ -425,4 +426,47 @@ Char_t* UTIL_VarArgs(const Char_t* format, ...) noexcept
 	va_end(argptr);
 
 	return rgsz;
+}
+
+export
+auto stristr(auto str, auto substr) noexcept requires(std::is_pointer_v<decltype(str)> && std::is_pointer_v<decltype(substr)>)
+{
+	decltype(str) p1 = str;
+	decltype(substr) p2 = substr;
+	auto r = *p2 == '\0' ? str : nullptr;
+
+	while (*p1 != '\0' && *p2 != '\0')
+	{
+		if (tolower((unsigned char)*p1) == tolower((unsigned char)*p2))
+		{
+			if (!r)
+			{
+				r = p1;
+			}
+
+			p2++;
+		}
+		else
+		{
+			p2 = substr;
+			if (r)
+			{
+				p1 = r + 1;
+			}
+
+			if (tolower((unsigned char)*p1) == tolower((unsigned char)*p2))
+			{
+				r = p1;
+				p2++;
+			}
+			else
+			{
+				r = nullptr;
+			}
+		}
+
+		p1++;
+	}
+
+	return *p2 == '\0' ? r : nullptr;
 }
