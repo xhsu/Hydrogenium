@@ -15,7 +15,10 @@ module;
 
 export module UtlString;
 
-export template<typename chTy, size_t N>
+export template<typename T>
+concept StringType = std::is_same_v<T, char> || std::is_same_v<T, char8_t> || std::is_same_v<T, wchar_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
+
+export template<StringType chTy, size_t N>
 struct StringLiteral
 {
 	// Reflection
@@ -26,6 +29,7 @@ struct StringLiteral
 
 	// Constructor
 	constexpr StringLiteral(const chTy(&str)[N]) noexcept { std::copy_n(str, N, value); }
+	explicit constexpr StringLiteral(const chTy* psz) noexcept { std::copy_n(psz, N, value); }
 
 	// Operators
 	constexpr operator const Char_t* () const noexcept { return &value[0]; }	// automatically convert to char* if necessary.
@@ -44,6 +48,22 @@ struct StringLiteral
 			return [&] <size_t... I>(std::index_sequence<I...>) -> bool { return ((value[I] == rhs.value[I]) && ...); }(IDX_SEQ);	// Static strcmp.
 		}
 	}
+	template<size_t sizeOther> constexpr decltype(auto) operator+ (const StringLiteral<Char_t, sizeOther>& rhs) const noexcept
+	{
+		constexpr auto IDX_SEQ_LHS = std::make_index_sequence<N>{};
+		constexpr auto IDX_SEQ_RHS = std::make_index_sequence<sizeOther>{};
+		constexpr auto NEW_COUNT = sizeOther + N - 1;	// Remove the dup '\0'
+
+		Char_t rgsz[NEW_COUNT] = "\0";
+
+		// Static strcpy.
+		[&] <size_t... I>(std::index_sequence<I...>) { ((rgsz[I] = value[I]), ...); }(IDX_SEQ_LHS);
+		[&] <size_t... I>(std::index_sequence<I...>) { ((rgsz[length + I] = rhs.value[I]), ...); }(IDX_SEQ_RHS);
+
+		rgsz[NEW_COUNT - 1] = '\0';
+
+		return StringLiteral<Char_t, NEW_COUNT>(rgsz);
+	}
 
 	// Constants
 	static constexpr std::size_t length = N - 1U;	// Remove the '\0' at the end.
@@ -52,8 +72,20 @@ struct StringLiteral
 	Char_t value[N];
 };
 
+export template<StringLiteral A>	// C++ 20 feature.
+constexpr auto operator"" _s(void) noexcept
+{
+	return A;
+}
+
+export template<StringType Char_t>
+consteval auto ToStringLiteral(const Char_t* psz)
+{
+	return StringLiteral<Char_t, strlen_c(psz)>(psz);
+}
+
 export template<typename Ty>
-void UTIL_Trim(Ty& str)
+void UTIL_Trim(Ty& str) noexcept
 {
 	using Char_t = std::decay_t<decltype(std::declval<Ty&>()[size_t{}])>;
 
@@ -70,7 +102,7 @@ void UTIL_Trim(Ty& str)
 }
 
 export template<typename Ty>
-void UTIL_ReplaceAll(Ty& str, const Ty& from, const Ty& to)
+void UTIL_ReplaceAll(Ty& str, const Ty& from, const Ty& to) noexcept
 {
 	if (from.empty())
 		return;
@@ -85,7 +117,7 @@ void UTIL_ReplaceAll(Ty& str, const Ty& from, const Ty& to)
 
 export template<typename Ty>
 [[nodiscard]]
-auto UTIL_RemoveBrackets(const Ty& str)
+auto UTIL_RemoveBrackets(const Ty& str) noexcept
 {
 	using Char_t = std::decay_t<decltype(std::declval<Ty&>()[size_t{}])>;
 	using String_t = std::basic_string<Char_t, std::char_traits<Char_t>, std::allocator<Char_t>>;	// This is how std::string and stuff like that defined in <xstring>
@@ -98,7 +130,7 @@ auto UTIL_RemoveBrackets(const Ty& str)
 }
 
 export template<typename Ty>
-auto UTIL_GetSpaceCount(const Ty& str)
+auto UTIL_GetSpaceCount(const Ty& str) noexcept
 {
 	using Char_t = std::decay_t<decltype(std::declval<Ty&>()[size_t{}]) > ;
 
@@ -115,7 +147,7 @@ auto UTIL_GetSpaceCount(const Ty& str)
 
 // a safe variant of sprintf which formatting strings.
 export template <size_t size, typename ... Args>
-decltype(auto) UTIL_sprintf(char(&dest)[size], const char* format, Args ... args)
+decltype(auto) UTIL_sprintf(char(&dest)[size], const char* format, Args ... args) noexcept
 {
 	auto _return = _snprintf_s(dest, size - 1U, format, args ...);
 	dest[size - 1U] = '\0';
@@ -124,7 +156,7 @@ decltype(auto) UTIL_sprintf(char(&dest)[size], const char* format, Args ... args
 
 // a safe variant of swprintf which formatting strings.
 export template <size_t size, typename ... Args>
-decltype(auto) UTIL_swprintf(wchar_t(&dest)[size], const wchar_t* format, Args ... args)
+decltype(auto) UTIL_swprintf(wchar_t(&dest)[size], const wchar_t* format, Args ... args) noexcept
 {
 	auto _return = _snwprintf(dest, size - 1U, format, args ...);
 	dest[size - 1U] = L'\0';
@@ -132,7 +164,7 @@ decltype(auto) UTIL_swprintf(wchar_t(&dest)[size], const wchar_t* format, Args .
 }
 
 export template<typename Ty>
-auto UTIL_RemoveXmlNode(const Ty& sz)
+auto UTIL_RemoveXmlNode(const Ty& sz) noexcept
 {
 	using Char_t = std::decay_t<decltype(std::declval<Ty&>()[size_t{}])>;
 	using String_t = std::basic_string<Char_t, std::char_traits<Char_t>, std::allocator<Char_t>>;
@@ -197,9 +229,9 @@ struct DividedFile_t
 	BYTE* m_pBinBefore{ nullptr };
 	BYTE* m_pBinAfter{ nullptr };
 
-	void Free(void) { if (m_pBinAfter) std::free(m_pBinAfter); if (m_pBinBefore) std::free(m_pBinBefore); m_pBinAfter = m_pBinBefore = nullptr; m_iSizeAfter = m_iSizeBefore = 0U; }
+	void Free(void) noexcept { if (m_pBinAfter) std::free(m_pBinAfter); if (m_pBinBefore) std::free(m_pBinBefore); m_pBinAfter = m_pBinBefore = nullptr; m_iSizeAfter = m_iSizeBefore = 0U; }
 }
-UTIL_GetBinaryStreamExceptKeyword(const char* szFilePath, const char* szKeyword)	// #RET_HEAP_MEM
+UTIL_GetBinaryStreamExceptKeyword(const char* szFilePath, const char* szKeyword) noexcept	// #RET_HEAP_MEM
 {
 	const long KEYWORD_LENGTH = static_cast<long>(std::strlen(szKeyword));
 	BYTE* pszBuf = new BYTE[KEYWORD_LENGTH];	// #MEM_ALLOC
@@ -250,7 +282,7 @@ UTIL_GetBinaryStreamExceptKeyword(const char* szFilePath, const char* szKeyword)
 	return ret;
 }
 
-export int UTIL_GetStringType(const char* src)	// [0 - string] [1 - integer] [2 - float]
+export int UTIL_GetStringType(const char* src) noexcept	// [0 - string] [1 - integer] [2 - float]
 {
 	// is multi char ?
 	if (*src <= 0)
@@ -311,7 +343,7 @@ concept ProperContainer = requires(T t, U u) { {t.emplace_back(u)}; };
 
 export template<typename Container_t, typename String_t>
 requires ProperContainer<Container_t, String_t>
-void UTIL_Split(const String_t& s, Container_t& tokens, const String_t& delimiters)
+void UTIL_Split(const String_t& s, Container_t& tokens, const String_t& delimiters) noexcept
 {
 	typename String_t::size_type lastPos = s.find_first_not_of(delimiters, 0);
 	typename String_t::size_type pos = s.find_first_of(delimiters, lastPos);
@@ -325,7 +357,7 @@ void UTIL_Split(const String_t& s, Container_t& tokens, const String_t& delimite
 }
 
 export template<std::integral auto _iValue>
-consteval auto UTIL_CountDigits(void)
+consteval auto UTIL_CountDigits(void) noexcept
 {
 	unsigned iDigits = 0;
 	auto iValue = _iValue;
@@ -340,7 +372,7 @@ consteval auto UTIL_CountDigits(void)
 }
 
 export template<unsigned iWhichDigit, std::integral auto iValue>
-consteval auto UTIL_GetDigit(void) requires(iWhichDigit < UTIL_CountDigits<iValue>())
+consteval auto UTIL_GetDigit(void) noexcept requires(iWhichDigit < UTIL_CountDigits<iValue>())
 {
 	decltype(iValue) iDominator = 1;
 
@@ -351,7 +383,7 @@ consteval auto UTIL_GetDigit(void) requires(iWhichDigit < UTIL_CountDigits<iValu
 }
 
 template<unsigned iWhichDigit, std::integral auto iValue>
-consteval auto UTIL_GetDigit_R(void) requires(iWhichDigit < UTIL_CountDigits<iValue>())
+consteval auto UTIL_GetDigit_R(void) noexcept requires(iWhichDigit < UTIL_CountDigits<iValue>())
 {
 	decltype(iValue) iDominator = 1;
 	constexpr unsigned iWhichDigit_R = UTIL_CountDigits<iValue>() - iWhichDigit - 1U;
@@ -408,10 +440,8 @@ struct UTIL_IntToString
 };
 
 export template<typename Char_t>
-Char_t* UTIL_VarArgs(const Char_t* format, ...) noexcept
+Char_t* UTIL_VarArgs(const Char_t* format, ...) noexcept requires(std::is_same_v<Char_t, char> || std::is_same_v<Char_t, wchar_t>)
 {
-	static_assert(std::is_same_v<Char_t, char> || std::is_same_v<Char_t, wchar_t>, "This function supports only 'char' and 'wchar_t'.");
-
 	va_list argptr;
 	static constexpr size_t BUF_LEN = 2048;
 	static Char_t rgsz[BUF_LEN];
@@ -469,4 +499,10 @@ auto stristr(auto str, auto substr) noexcept requires(std::is_pointer_v<decltype
 	}
 
 	return *p2 == '\0' ? r : nullptr;
+}
+
+export
+consteval size_t strlen_c(const StringType auto* str) noexcept
+{
+	return *str ? 1 + strlen_c(str + 1) : 0;
 }
