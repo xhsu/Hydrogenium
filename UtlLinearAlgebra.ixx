@@ -19,6 +19,7 @@ module;
 #include <bit>
 #include <cassert>
 #include <concepts>
+#include <format>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -31,12 +32,9 @@ export module UtlLinearAlgebra;
 
 
 import UtlArithmetic;
-
-// Completement of std::is_pointer.
-template<typename T> concept IsIterator = std::is_pointer_v<typename std::iterator_traits<T>::pointer>;
+import UtlConcepts;
 
 // Concepts for this module.
-template<typename T> concept ProperIter = requires(T iter) { *iter++; };
 template<typename A> concept ProperArray2 = requires(A array) { requires array.max_size() >= 2U; };
 template<typename A> concept ProperArray3 = requires(A array) { requires array.max_size() >= 3U; };
 
@@ -1111,6 +1109,7 @@ export struct Quaternion
 		c = (m[0][2] - m[2][0]) / (4 * a);
 		d = (m[1][0] - m[0][1]) / (4 * a);
 	}
+	constexpr Quaternion(std::initializer_list<qtn_t>&& lst) noexcept { assert(lst.size() >= 4U); auto it = lst.begin(); a = *it++; b = *it++; c = *it++; d = *it++; }
 
 	// Static Methods
 	static constexpr decltype(auto) Zero() noexcept { return Quaternion(0, 0, 0, 0); }
@@ -1137,6 +1136,9 @@ export struct Quaternion
 	constexpr decltype(auto) operator/=(Arithmetic auto x) noexcept { return (*this = *this / x); }
 
 	constexpr decltype(auto) operator*(const Vector& v) const noexcept { return v + ((CrossProduct(Pure(), v) * a) + CrossProduct(Pure(), CrossProduct(Pure(), v))) * 2.0f; }	// Rotate a vector by this quaternion.
+
+	constexpr qtn_t& operator[](std::integral auto index) noexcept { assert(index < 4); return ((qtn_t*)(&a))[index]; }
+	constexpr const qtn_t operator[](std::integral auto index) const noexcept { assert(index < 4); return ((const qtn_t*)(&a))[index]; }
 
 	// Conversion
 	constexpr Vector Euler() const noexcept

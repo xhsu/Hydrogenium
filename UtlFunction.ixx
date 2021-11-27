@@ -6,10 +6,10 @@ module;
 export module UtlFunction;
 
 export template<typename T>
-struct FunctionTraits;
+struct FunctionTraits : public std::false_type {};
 
 export template<typename R, typename ...Args>
-struct FunctionTraits<std::function<R(Args...)>>	// #UNDONE_LONG_TERM
+struct FunctionTraits<R(Args...)> : public std::true_type
 {
 	// Reflection
 	using Result_t = R;
@@ -18,3 +18,6 @@ struct FunctionTraits<std::function<R(Args...)>>	// #UNDONE_LONG_TERM
 	// Constants
 	static constexpr size_t ArgCount = sizeof...(Args);
 };
+
+export template<typename T>
+concept IsFunction = FunctionTraits<T>::value;

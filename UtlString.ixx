@@ -1,6 +1,7 @@
 module;
 
 // C++
+#include <array>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -15,8 +16,7 @@ module;
 
 export module UtlString;
 
-export template<typename T>
-concept StringType = std::is_same_v<T, char> || std::is_same_v<T, char8_t> || std::is_same_v<T, wchar_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
+import UtlConcepts;
 
 export template<StringType chTy, size_t N>
 struct StringLiteral
@@ -73,15 +73,9 @@ struct StringLiteral
 };
 
 export template<StringLiteral A>	// C++ 20 feature.
-constexpr auto operator"" _s(void) noexcept
+consteval auto operator"" _s(void) noexcept
 {
 	return A;
-}
-
-export template<StringType Char_t>
-consteval auto ToStringLiteral(const Char_t* psz)
-{
-	return StringLiteral<Char_t, strlen_c(psz)>(psz);
 }
 
 export template<typename Ty>
@@ -506,3 +500,68 @@ consteval size_t strlen_c(const StringType auto* str) noexcept
 {
 	return *str ? 1 + strlen_c(str + 1) : 0;
 }
+
+export template<typename T>
+requires(std::is_arithmetic_v<T>)
+auto UTIL_StrToNum(const auto& sz) noexcept
+{
+	using U = std::decay_t<T>;
+	using String_t = std::decay_t<decltype(sz)>;
+	using Char_t = std::decay_t<decltype(std::declval<String_t>()[0])>;
+
+	if (std::basic_string_view<Char_t, std::char_traits<Char_t>>(sz).length() == 0)
+		return static_cast<U>(0);
+
+	if constexpr (std::same_as<U, long>)
+		return std::stol(sz);
+	else if constexpr (std::same_as<U, long long>)
+		return std::stoll(sz);
+	else if constexpr (std::same_as<U, unsigned long>)
+		return std::stoul(sz);
+	else if constexpr (std::same_as<U, unsigned long long>)
+		return std::stoull(sz);
+	else if constexpr (std::same_as<U, float>)
+		return std::stof(sz);
+	else if constexpr (std::same_as<U, double>)
+		return std::stod(sz);
+	else if constexpr (std::same_as<U, long double>)
+		return std::stold(sz);
+
+	// Fallback methods.
+	else if constexpr (std::is_integral_v<U> && std::is_signed_v<U>)
+		return static_cast<U>(std::atoi(sz));
+	else if constexpr (std::is_integral_v<U> && std::is_unsigned_v<U>)
+		return static_cast<U>(std::stoul(sz));
+	else if constexpr (std::floating_point<U>)
+		return static_cast<U>(std::atof(sz));
+}
+
+export template<size_t N>
+struct UTIL_SpacedFormatter
+{
+	consteval UTIL_SpacedFormatter() noexcept {}
+
+	constexpr operator std::string_view() const noexcept { return value; }
+	constexpr operator const char* () const noexcept { return _impl_rgc.data(); }
+
+	template<size_t C>
+	static consteval std::array<char, C * 3> _impl_fn(void) noexcept
+	{
+		std::array<char, C * 3> rgc;
+
+		[&] <size_t... I>(std::index_sequence<I...> seq)
+		{
+			((rgc[0 + I * 3] = '{'), ...);
+			((rgc[1 + I * 3] = '}'), ...);
+			((rgc[2 + I * 3] = ' '), ...);
+
+			rgc.back() = '\0';
+		}
+		(std::make_index_sequence<C>{});
+
+		return rgc;
+	}
+
+	constexpr static auto _impl_rgc = _impl_fn<N>();
+	constexpr static std::string_view value = std::string_view(_impl_rgc.data());
+};

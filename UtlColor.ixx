@@ -14,7 +14,7 @@ module;
 export module UtlColor;
 
 
-import UtlArithmetic;
+import UtlConcepts;
 
 using uint8 = unsigned __int8;
 using uint16 = unsigned __int16;
@@ -33,12 +33,13 @@ union color32_helper_t
 export struct Color4b
 {
 	// constructors
-	constexpr Color4b() noexcept : _color() { *((int*)this) = 0; }
+	constexpr Color4b() noexcept : _color() { *((uint32*)this) = 0U; }
 	constexpr Color4b(uint8 r, uint8 g, uint8 b) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = 0; }
 	constexpr Color4b(uint8 r, uint8 g, uint8 b, uint8 a) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = a; }
 	constexpr Color4b(uint32 ulRGB, uint8 a) noexcept : _color() { _color[0] = (ulRGB & 0xFF0000) >> 16; _color[1] = (ulRGB & 0xFF00) >> 8; _color[2] = ulRGB & 0xFF; _color[3] = a; }
 	constexpr Color4b(uint32 color32) noexcept : _color() { SetRawColor(color32); }
-	
+	constexpr Color4b(std::initializer_list<uint8>&& lst) noexcept { uint8 c = 0; for (auto it = lst.begin(); it != lst.end() && c < 4; ++c) _color[c] = *it++; }
+
 	// set the color
 	// r - red component (0-255)
 	// g - green component (0-255)
@@ -78,7 +79,7 @@ export struct Color4b
 
 	constexpr void SetRawColor(uint32 hexColorAGBR) noexcept
 	{
-		*((int*)this) = hexColorAGBR;
+		*((uint32*)this) = hexColorAGBR;
 	}
 
 	constexpr void SetRawColor(uint32 ulRGB, uint8 a) noexcept
@@ -119,11 +120,14 @@ private:
 export struct Color4f
 {
 	constexpr Color4f() noexcept : _r(0), _g(0), _b(0), _a(0) {}
-	constexpr Color4f(uint8 r, uint8 g, uint8 b) noexcept : _r(static_cast<double>(r) / 255.0), _g(static_cast<double>(g) / 255.0), _b(static_cast<double>(b) / 255.0), _a(0) {}
-	constexpr Color4f(uint8 r, uint8 g, uint8 b, uint8 a) noexcept : _r(static_cast<double>(r) / 255.0), _g(static_cast<double>(g) / 255.0), _b(static_cast<double>(b) / 255.0), _a(static_cast<double>(a) / 255.0) {}
+	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b) noexcept : _r(std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0)), _g(std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0)), _b(std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0)), _a(0) {}
+	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b, std::integral auto a) noexcept : _r(std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0)), _g(std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0)), _b(std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0)), _a(std::clamp(static_cast<double>(a) / 255.0, 0.0, 1.0)) {}
+	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b) noexcept : _r(std::clamp((double)r, 0.0, 1.0)), _g(std::clamp((double)g, 0.0, 1.0)), _b(std::clamp((double)b, 0.0, 1.0)), _a(0) {}
+	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b, std::floating_point auto a) noexcept : _r(std::clamp((double)r, 0.0, 1.0)), _g(std::clamp((double)g, 0.0, 1.0)), _b(std::clamp((double)b, 0.0, 1.0)), _a(std::clamp((double)a, 0.0, 1.0)) {}
 	constexpr Color4f(uint32 ulRGB, uint8 a) noexcept : _r(), _g(), _b(), _a() { SetRawColor(ulRGB, a); }
 	constexpr Color4f(uint32 hexColorAGBR) noexcept : _r(), _g(), _b(), _a() { SetRawColor(hexColorAGBR); }
 	constexpr Color4f(const Color4b& color4ub) noexcept : _r(), _g(), _b(), _a() { SetRawColor(color4ub); }
+	constexpr Color4f(std::initializer_list<double>&& lst) noexcept { uint8 c = 0; for (auto it = lst.begin(); it != lst.end() && c < 4; ++c) (*this)[c] = *it++; }
 
 	constexpr void SetRGB(std::floating_point auto& r, std::floating_point auto& g, std::floating_point auto& b) noexcept
 	{
@@ -149,23 +153,6 @@ export struct Color4f
 		r = static_cast<std::remove_reference_t<decltype(r)>>(_r * 255.0);
 		g = static_cast<std::remove_reference_t<decltype(g)>>(_g * 255.0);
 		b = static_cast<std::remove_reference_t<decltype(b)>>(_b * 255.0);
-	}
-
-	static constexpr Color4f RGB(std::integral auto r, std::integral auto g, std::integral auto b) noexcept
-	{
-		Color4f obj;
-		obj.SetRGB(r, g, b);
-		return obj;
-	}
-
-	static constexpr Color4f RGB(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b) noexcept
-	{
-		Color4f obj;
-		obj['r'] = static_cast<double>(r);
-		obj['g'] = static_cast<double>(g);
-		obj['b'] = static_cast<double>(b);
-
-		return obj;
 	}
 
 	constexpr void SetRawColor(uint32 hexColorAGBR) noexcept
@@ -529,8 +516,8 @@ export struct Color4f
 	constexpr Color4f& operator=(const Color4f& rhs) noexcept { _r = rhs._r; _g = rhs._g; _b = rhs._b; _a = rhs._a; return *this; }	// Shame on C++, 'memcpy' should be a constexpr function.
 	constexpr Color4f& operator=(const Color4b& rhs) noexcept { SetRawColor(rhs); return *this; }
 
-	constexpr decltype(auto) operator+(const Color4f& v) const noexcept { return RGB(_r + v._r, _g + v._g, _b + v._b); }
-	constexpr decltype(auto) operator-(const Color4f& v) const noexcept { return RGB(_r - v._r, _g - v._g, _b - v._b); }
+	constexpr decltype(auto) operator+(const Color4f& v) const noexcept { return Color4f(_r + v._r, _g + v._g, _b + v._b); }
+	constexpr decltype(auto) operator-(const Color4f& v) const noexcept { return Color4f(_r - v._r, _g - v._g, _b - v._b); }
 	constexpr decltype(auto) operator+=(const Color4f& v) noexcept { return (*this = *this + v); }
 	constexpr decltype(auto) operator-=(const Color4f& v) noexcept { return (*this = *this - v); }
 
@@ -539,8 +526,8 @@ export struct Color4f
 	constexpr decltype(auto) operator+=(const Color4b& v) noexcept { return (*this = *this + v); }
 	constexpr decltype(auto) operator-=(const Color4b& v) noexcept { return (*this = *this - v); }
 
-	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept { return RGB(_r * fl, _g * fl, _b * fl); }
-	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept { return RGB(_r / fl, _g / fl, _b / fl); }
+	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept { return Color4f(_r * fl, _g * fl, _b * fl); }
+	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept { return Color4f(_r / fl, _g / fl, _b / fl); }
 	constexpr decltype(auto) operator*=(Arithmetic auto fl) noexcept { return (*this = *this * fl); }
 	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
 
@@ -565,3 +552,8 @@ export inline constexpr decltype(auto) operator+= (Color4b& lhs, const Color4f& 
 export inline constexpr decltype(auto) operator-= (Color4b& lhs, const Color4f& rhs) noexcept { return (lhs = (lhs - rhs).GetColor4ubObj()); }
 export inline constexpr decltype(auto) operator* (float fl, const Color4f& c) noexcept { return c * fl; }
 export inline constexpr decltype(auto) operator/ (float fl, const Color4f& c) noexcept { return c / fl; }
+
+// Helper concepts
+export
+template<typename T>
+concept IsColor = std::same_as<std::decay_t<T>, Color4b> || std::same_as<std::decay_t<T>, Color4f>;

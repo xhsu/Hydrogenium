@@ -6,6 +6,7 @@ module;
 
 // C++
 #include <concepts>	// std::integral, etc...
+#include <format>	// std::format
 #include <string>	// stof
 
 // C
@@ -17,8 +18,17 @@ module;
 
 export module UtlKeyValues;
 
+import UtlArithmetic;
 import UtlBuffer;
+import UtlColor;
+import UtlConcepts;
+import UtlLinearAlgebra;
 import UtlString;
+
+template<typename T> concept ConvertibleToArray2 = std::same_as<std::decay_t<T>, Vector2D>;
+template<typename T> concept ConvertibleToArray3 = std::same_as<std::decay_t<T>, Vector>;
+template<typename T> concept ConvertibleToArray4 = std::same_as<std::decay_t<T>, Quaternion> || std::same_as<std::decay_t<T>, Color4b> || std::same_as<std::decay_t<T>, Color4f>;
+template<typename T> concept Savables = ConvertibleToArray2<T> || ConvertibleToArray3<T> || ConvertibleToArray4<T>;
 
 // Entry - Subkey or KeyValue
 // Subkey - Contains only Entries, but no value for itself.
@@ -33,11 +43,6 @@ export struct ValveKeyValues
 		Init();
 		SetName(pszName);
 	}
-	//ValveKeyValues(const std::integral auto& index) noexcept
-	//{
-	//	Init();
-	//	SetName(std::to_string(index).c_str());
-	//}
 	virtual ~ValveKeyValues(void) noexcept
 	{
 		RemoveEverything();
@@ -179,7 +184,7 @@ export struct ValveKeyValues
 		return true;
 	}
 
-	// find a entry
+	// find an entry
 	ValveKeyValues* FindEntry(const char* pszName, bool bCreate = false) noexcept
 	{
 		if (!pszName || !pszName[0])
@@ -222,7 +227,7 @@ export struct ValveKeyValues
 		return dat;
 	}
 
-	// craete a entry
+	// craete an entry
 	ValveKeyValues* CreateEntry(const char* pszName = nullptr) noexcept	// nullptr on pszName to represent a auto-index entry name.
 	{
 		ValveKeyValues* dat = nullptr;
@@ -244,6 +249,26 @@ export struct ValveKeyValues
 
 		AddEntry(dat);
 		return dat;
+	}
+
+	// Deletes an entry
+	bool DeleteEntry(const char* pszName) noexcept
+	{
+		if (!pszName || !pszName[0])
+			return false;
+
+		ValveKeyValues* dat = nullptr;
+		for (dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
+		{
+			if (!strcmp(pszName, dat->m_pszName))
+				break;
+		}
+
+		if (!dat)
+			return false;
+
+		delete dat;
+		return true;
 	}
 
 	// add/remove an existing entry
@@ -362,7 +387,7 @@ export struct ValveKeyValues
 	}
 
 	// value, nullptr if inquerying self.
-	template<typename T> T GetValue(const char* pszSubkeyName = nullptr) noexcept requires(std::integral<T> || std::floating_point<T> || std::convertible_to<T, std::string>)
+	template<typename T> T GetValue(const char* pszSubkeyName = nullptr) noexcept
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
 		if (!dat || !dat->m_pszValue)
@@ -370,7 +395,7 @@ export struct ValveKeyValues
 			if constexpr (std::convertible_to<T, std::string>)
 				return "";
 			else
-				return 0;
+				return T{};
 		}
 
 		if constexpr (std::floating_point<T>)
@@ -381,12 +406,140 @@ export struct ValveKeyValues
 		{
 			return static_cast<T>(std::round(dat->m_flValue));
 		}
-		else
+		else if constexpr (std::convertible_to<T, std::string_view>)
 		{
 			return dat->m_pszValue;
 		}
+		else
+		{
+			if (!dat->m_pszValue)
+				return T();
+
+			char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC
+			const char* pEnd = p0 + strlen(p0) + 1;
+			short iCount = 0;
+			T ret;
+
+			const auto fnCheckBoundary = [&](void) -> bool
+			{
+				if constexpr (ResizableContainer<T>)
+					return true;
+				else if constexpr (Iterable<T>)
+					return iCount < std::distance(std::begin(ret), std::end(ret));
+				else if constexpr (ConvertibleToArray4<T>)
+					return iCount < 4;
+				else if constexpr (ConvertibleToArray3<T>)
+					return iCount < 3;
+				else if constexpr (ConvertibleToArray2<T>)
+					return iCount < 2;
+				else
+					static_assert(std::false_type::value, "Unsupported type involved.");
+			};
+
+			for (char* p = p0, *p1 = p0; p && p != pEnd && fnCheckBoundary(); /* Do nothing */)
+			{
+				switch (*p)
+				{
+				case ' ':
+				case '\f':
+				case '\n':
+				case '\r':
+				case '\t':
+				case '\v':
+					*p = '\0';
+					[[fallthrough]];
+
+				case '\0':	// The last one.
+					if constexpr (ResizableContainer<T>)
+						ret.emplace_back(UTIL_StrToNum<std::decay_t<decltype(std::declval<T&>()[size_t{}])>>(p1));
+					else
+						ret[iCount++] = UTIL_StrToNum<std::decay_t<decltype(std::declval<T&>()[size_t{}])>>(p1);
+
+					p1 = ++p;
+					break;
+
+				default:
+					++p;
+					break;
+				}
+			}
+
+			free(p0); p0 = nullptr;	// #MEM_FREED
+			return ret;
+		}
 	}
-	template<typename T> bool SetValue(const char* pszSubkeyName, const T& Value) noexcept requires(std::integral<T> || std::floating_point<T> || std::convertible_to<T, std::string>)	// Create new entry on no found.
+	template<typename... Tys> std::tuple<Tys...> GetValue(const char* pszSubkeyName = nullptr) noexcept requires(sizeof...(Tys) > 1)
+	{
+		ValveKeyValues* dat = FindEntry(pszSubkeyName);
+		if (!dat || !dat->m_pszValue)
+			return {};
+
+		char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC
+		bool bStrtokInited = false;
+		const auto fnStrtokWrapper = [&](void) -> const char*
+		{
+			char* pRet = nullptr;
+
+			if (!bStrtokInited)
+			{
+				bStrtokInited = true;
+				pRet = std::strtok(p0, " \f\n\r\t\v");
+			}
+			else
+				pRet = std::strtok(nullptr, " \f\n\r\t\v");
+
+			return pRet ? pRet : "";
+		};
+
+		// Fuck C++.
+		// So much trouble was caused due to that order of evaluation of arguments is unspecified.
+		// https://stackoverflow.com/questions/2934904/order-of-evaluation-in-c-function-parameters
+
+		const auto fn = [&]<typename T>(void) -> T
+		{
+			if constexpr (Arithmetic<T>)
+				return UTIL_StrToNum<T>(fnStrtokWrapper());
+			else if constexpr (std::convertible_to<T, std::string_view>)
+				return fnStrtokWrapper();
+			else if constexpr (Savables<T>)
+			{
+				// Something went off here with MSVC or C++ standard.
+				// When I move this line into lambda fn2(), MemTy will guaranteed to be type 'double'
+				// WHY??? #POTENTIAL_BUG
+				using MemTy = std::decay_t<decltype(std::declval<T>()[0])>;
+
+				const auto fn2 = [&]<size_t... I>(std::index_sequence<I...> seq) -> T
+				{
+					std::array<MemTy, seq.size()> rg{};
+					((rg[I] = UTIL_StrToNum<MemTy>(fnStrtokWrapper())), ...);
+					return T(rg[I]...);
+				};
+
+				if constexpr (ConvertibleToArray2<T>)
+					return fn2(std::make_index_sequence<2>{});
+				else if constexpr (ConvertibleToArray3<T>)
+					return fn2(std::make_index_sequence<3>{});
+				else if constexpr (ConvertibleToArray4<T>)
+					return fn2(std::make_index_sequence<4>{});
+			}
+			else
+				static_assert(std::false_type::value, "Unsupported type involved!");
+		};
+
+		using Return_t = std::tuple<Tys...>;
+
+		Return_t tpl;
+
+		[&] <size_t... I>(std::index_sequence<I...>)
+		{
+			((std::get<I>(tpl) = fn.template operator() <std::tuple_element_t<I, Return_t>> ()), ...);
+		}
+		(std::make_index_sequence<std::tuple_size_v<Return_t>>{});
+
+		free(p0);	// #MEM_FREED
+		return tpl;
+	}
+	template<typename T> bool SetValue(const char* pszSubkeyName, const T& Value) noexcept	// Create new entry on no found.
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName, true);
 		if (!dat)
@@ -400,13 +553,36 @@ export struct ValveKeyValues
 
 		if constexpr (std::integral<T> || std::floating_point<T>)
 		{
-			std::string szValue = std::to_string(Value);
-			dat->m_pszValue = (char*)malloc(szValue.length() + 1);
-			strcpy_s(dat->m_pszValue, szValue.length() + 1, szValue.c_str());
+			const auto iCount = std::formatted_size("{}", Value) + 1;
+			dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
+			std::format_to_n(dat->m_pszValue, iCount - 1, "{}", Value);
 
 			dat->m_flValue = static_cast<double>(Value);
 		}
-		else	// i.e. strings.
+		else if constexpr (Savables<T>)
+		{
+			const auto fn = [&]<size_t... I>(std::index_sequence<I...> seq)
+			{
+				const auto iCount = std::formatted_size(UTIL_SpacedFormatter<seq.size()>(), Value[I]...) + 1;
+				dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
+				std::format_to_n(dat->m_pszValue, iCount - 1, UTIL_SpacedFormatter<seq.size()>(), Value[I]...);
+			};
+
+			if constexpr (ConvertibleToArray2<T>)
+				fn(std::make_index_sequence<2>{});
+			else if constexpr (ConvertibleToArray3<T>)
+				fn(std::make_index_sequence<3>{});
+			else
+			{
+				if (IsColor<T> && Value[3] == 0)
+					fn(std::make_index_sequence<3>{});
+				else
+					fn(std::make_index_sequence<4>{});
+			}
+
+			dat->m_flValue = 0;
+		}
+		else if constexpr (std::convertible_to<T, std::string_view>)
 		{
 			if constexpr (std::is_same_v<std::decay_t<T>, char*>)
 			{
@@ -417,7 +593,7 @@ export struct ValveKeyValues
 			else	// i.e. std::string.
 			{
 				dat->m_pszValue = (char*)malloc(Value.length() + 1);
-				strcpy_s(dat->m_pszValue, Value.length() + 1, Value.c_str());
+				strcpy_s(dat->m_pszValue, Value.length() + 1, Value.data());
 			}
 
 			switch (UTIL_GetStringType(dat->m_pszValue))
@@ -433,6 +609,55 @@ export struct ValveKeyValues
 				break;
 			}
 		}
+		else if constexpr (Array<T>)	// Take fixed arrays first.
+		{
+			constexpr auto iArraySize = std::size(T{});	// Had to create one instance here. std::decltype<> doesn't work. But this is compile-time thing, it's alright I guess..?
+
+			[&] <size_t... I>(std::index_sequence<I...>)
+			{
+				const auto iCount = std::formatted_size(UTIL_SpacedFormatter<iArraySize>(), Value[I]...) + 1;
+				dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
+				std::format_to_n(dat->m_pszValue, iCount - 1, UTIL_SpacedFormatter<iArraySize>(), Value[I]...);
+			}
+			(std::make_index_sequence<iArraySize>{});
+		}
+		else if constexpr (Iterable<T>)	// For dynamic containers.
+		{
+			std::string szBuf;
+			for (auto it = std::begin(Value); it != std::end(Value); ++it)
+				szBuf += std::format("{} ", *it);
+
+			szBuf.pop_back();	// Remove the last ' '.
+
+			dat->m_pszValue = (char*)calloc(szBuf.length() + 1, sizeof(char));
+			strcpy_s(dat->m_pszValue, szBuf.length() + 1, szBuf.c_str());
+		}
+		else
+		{
+			static_assert(std::false_type::value, "Unsupported type involved.");
+		}
+
+		return true;
+	}
+	template<typename... Tys> bool SetValue(const char* pszSubkeyName, const Tys&... Values) noexcept requires(sizeof...(Values) > 1)	// Create new entry on no found.
+	{
+		ValveKeyValues* dat = FindEntry(pszSubkeyName, true);
+		if (!dat)
+			return false;
+
+		if (dat->m_pszValue)
+		{
+			free(dat->m_pszValue);
+			dat->m_pszValue = nullptr;
+		}
+
+		constexpr std::string_view pszFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
+		const auto iCount = std::formatted_size(pszFormatter, Values...) + 1;
+
+		dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
+		std::format_to_n(dat->m_pszValue, iCount - 1, pszFormatter, Values...);
+
+		dat->m_flValue = 0;
 
 		return true;
 	}

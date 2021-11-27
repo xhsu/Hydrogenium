@@ -10,8 +10,7 @@ module;
 
 export module UtlArithmetic;
 
-// Completement of std::integral and std::floating_point.
-export template<typename T> concept Arithmetic = std::is_arithmetic_v<T>;
+import UtlConcepts;
 
 namespace Hydrogenium
 {
