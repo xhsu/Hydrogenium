@@ -10,6 +10,7 @@ module;
 #include <string>	// stof
 
 // C
+#include <cassert>	// assert
 #include <cctype>	// isspace isdigit
 #include <cmath>	// roundf
 #include <cstdio>	// fopen fclose fread fwrite
@@ -105,7 +106,7 @@ export struct ValveKeyValues
 			return false;
 
 		CBuffer buf(0x10000); // 64KB
-		RecursiveSaveToBuffer(buf, 0);
+		RecursiveSaveToBuffer(buf);
 
 		fwrite(buf.Get(), buf.Tell(), 1, f);
 
@@ -175,7 +176,7 @@ export struct ValveKeyValues
 	bool SaveToBuffer(char* pBuffer, size_t* piSize) noexcept
 	{
 		CBuffer buf(0x10000);
-		RecursiveSaveToBuffer(buf, 0);
+		RecursiveSaveToBuffer(buf);
 
 		memcpy(pBuffer, buf.Get(), buf.Tell());
 
@@ -757,7 +758,7 @@ private:
 			}
 		}
 	}
-	void RecursiveSaveToBuffer(CBuffer& buf, int indentLevel) noexcept
+	void RecursiveSaveToBuffer(CBuffer& buf, size_t indentLevel = 0) noexcept
 	{
 		WriteIndents(buf, indentLevel);
 		buf.Write("\"", 1);
@@ -766,18 +767,41 @@ private:
 		WriteIndents(buf, indentLevel);
 		buf.Write("{\n", 2);
 
+		int iBlockAlignedCharCount = 0;
+		for (ValveKeyValues* dat = GetFirstKeyValue(); dat != nullptr; dat = dat->GetNextKeyValue())	// Skip all subkeys. Only keyvalues involved.
+		{
+			int iCurTotalStrlen = (int)strlen(dat->GetName()) + 2;	// Plus "" on both side.
+
+			if (iBlockAlignedCharCount < iCurTotalStrlen)
+				iBlockAlignedCharCount = iCurTotalStrlen;
+		}
+
+		if ((iBlockAlignedCharCount % 4) == 0)
+			++iBlockAlignedCharCount;	// Plus one. This is becuase we have to got at least one indent, the "key" and "value" cannot concatenate with each other.
+
+		while (iBlockAlignedCharCount % 4)	// And then find the next perfect aligned pos.
+			iBlockAlignedCharCount++;
+
 		for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 		{
-			if (dat->m_pSub)
+			if (dat->m_pSub)	// This is a Subkey
 			{
 				dat->RecursiveSaveToBuffer(buf, indentLevel + 1);
 			}
-			else
+			else	// This is a Keyvalue pair.
 			{
 				WriteIndents(buf, indentLevel + 1);
+
+				// Key
 				buf.Write("\"", 1);
 				buf.Write(dat->GetName(), strlen(dat->GetName()));
-				buf.Write("\"\t\t\"", 4);
+				buf.Write("\"", 1);
+
+				// Indent(s)
+				WriteIndents(buf, dat->GetIndentCountBetweenKeyAndValue(iBlockAlignedCharCount));
+
+				// Value
+				buf.Write("\"", 1);
 				buf.Write(dat->GetValue<const char*>(), strlen(dat->GetValue<const char*>()));
 				buf.Write("\"\n", 2);
 			}
@@ -787,9 +811,22 @@ private:
 		buf.Write("}\n", 2);
 	}
 
-	void WriteIndents(CBuffer& buf, int indentLevel) noexcept
+	size_t GetIndentCountBetweenKeyAndValue(int iBlockAlignedCharCount) noexcept
 	{
-		for (int i = 0; i < indentLevel; ++i)
+		int iTotalKeyStrlen = (int)strlen(GetName()) + 2;	// Plus "" on both side.
+		int iDelta = iBlockAlignedCharCount - iTotalKeyStrlen;	// Have to be signed.
+
+		assert(iDelta >= 0);
+
+		int iIndentCount = 0;
+		for (; iDelta > 0; iDelta -= 4)
+			++iIndentCount;
+
+		return std::max(iIndentCount, 1);
+	}
+	void WriteIndents(CBuffer& buf, size_t indentLevel) noexcept
+	{
+		for (size_t i = 0; i < indentLevel; ++i)
 		{
 			buf.Write("\t", 1);
 		}

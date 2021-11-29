@@ -418,9 +418,8 @@ struct UTIL_IntToString
 	}
 
 	// Conversion
+	constexpr operator std::string_view () const noexcept { return std::string_view(&value[0]); }
 	constexpr operator const char* () const noexcept { return &value[0]; }	// automatically convert to char* if necessary.
-	constexpr operator char* () noexcept { return &value[0]; }
-	constexpr operator std::string() const noexcept { return std::string(&value[0], COUNT); }
 
 	// Operator
 	constexpr decltype(auto) operator[] (std::size_t index) const noexcept { assert(index < COUNT); return value[index]; }
@@ -563,5 +562,27 @@ struct UTIL_SpacedFormatter
 	}
 
 	constexpr static auto _impl_rgc = _impl_fn<N>();
+	constexpr static std::string_view value = std::string_view(_impl_rgc.data());
+};
+
+export template<size_t N>
+struct UTIL_Indent
+{
+	consteval UTIL_Indent(void) noexcept {}
+
+	constexpr operator std::string_view() const noexcept { return value; }
+	constexpr operator const char* () const noexcept { return _impl_rgc.data(); }
+
+	static consteval std::array<char, N + 1> _impl_fn(void) noexcept
+	{
+		std::array<char, N + 1> rgc;
+
+		rgc.fill('\t');
+		rgc.back() = '\0';
+
+		return rgc;
+	}
+
+	constexpr static auto _impl_rgc = _impl_fn();
 	constexpr static std::string_view value = std::string_view(_impl_rgc.data());
 };
