@@ -13,7 +13,7 @@ template<typename E>	// Why lacking this?!
 concept Enumerator = std::is_enum_v<E>;
 
 template<typename T>	// Why lacking this 2: Electric boogaloo
-concept Arithmetic = std::is_arithmetic_v<T>;
+concept _internal_SEO_Arithmetic = std::is_arithmetic_v<T>;
 
 template<typename E>	// replacement of C++23 std::is_scpoed_enum<>
 concept ScopedEnum = requires(E e)
@@ -34,7 +34,7 @@ concept ArithmeticOrEnum = std::is_arithmetic_v<T> || std::is_enum_v<T>;
 template<typename T>
 struct _DecayOrUnderlying_Helper : public std::false_type {};
 
-template<Arithmetic T>
+template<_internal_SEO_Arithmetic T>
 struct _DecayOrUnderlying_Helper<T>
 {
 	using type = std::decay_t<T>;
@@ -51,7 +51,7 @@ using DecayOrUnderlying = _DecayOrUnderlying_Helper<T>::type;
 
 
 
-#pragma region Arithmetic operators
+#pragma region _internal_SEO_Arithmetic operators
 
 // Addition
 template<ArithmeticOrEnum T, ArithmeticOrEnum U>
@@ -117,7 +117,7 @@ constexpr E& operator++ (E& i) noexcept { return i = (E)(static_cast<std::underl
 template<ScopedEnum E>
 constexpr E& operator-- (E& i) noexcept { return i = (E)(static_cast<std::underlying_type_t<E>>(i) - 1); }
 
-#pragma endregion Arithmetic operators
+#pragma endregion _internal_SEO_Arithmetic operators
 
 #pragma region Comparison operators/relational operators
 

@@ -118,7 +118,7 @@ auto UTIL_RemoveBrackets(const Ty& str) noexcept
 
 	String_t ret = str;
 	ret.erase(0, 1);
-	ret.erase(ret.length() - 1, 1);
+	ret.pop_back();
 
 	return ret;
 }
@@ -136,7 +136,7 @@ auto UTIL_GetSpaceCount(const Ty& str) noexcept
 			return !std::iswspace(c);
 	};
 
-	return std::distance(str.begin(), find_if(str.begin(), str.end(), fnNotSpace));	// L Space
+	return std::distance(str.begin(), std::find_if(str.begin(), str.end(), fnNotSpace));	// L Space
 }
 
 // a safe variant of sprintf which formatting strings.
@@ -500,39 +500,42 @@ consteval size_t strlen_c(const StringType auto* str) noexcept
 	return *str ? 1 + strlen_c(str + 1) : 0;
 }
 
-export template<typename T>
-requires(std::is_arithmetic_v<T>)
+export template<Arithmetic T>
 auto UTIL_StrToNum(const auto& sz) noexcept
 {
 	using U = std::decay_t<T>;
 	using String_t = std::decay_t<decltype(sz)>;
 	using Char_t = std::decay_t<decltype(std::declval<String_t>()[0])>;
 
-	if (std::basic_string_view<Char_t, std::char_traits<Char_t>>(sz).length() == 0)
+	try
+	{
+		if constexpr (std::same_as<U, long>)
+			return std::stol(sz);
+		else if constexpr (std::same_as<U, long long>)
+			return std::stoll(sz);
+		else if constexpr (std::same_as<U, unsigned long>)
+			return std::stoul(sz);
+		else if constexpr (std::same_as<U, unsigned long long>)
+			return std::stoull(sz);
+		else if constexpr (std::same_as<U, float>)
+			return std::stof(sz);
+		else if constexpr (std::same_as<U, double>)
+			return std::stod(sz);
+		else if constexpr (std::same_as<U, long double>)
+			return std::stold(sz);
+
+		// Fallback methods.
+		else if constexpr (std::is_integral_v<U> && std::is_signed_v<U>)
+			return static_cast<U>(std::stoi(sz));
+		else if constexpr (std::is_integral_v<U> && std::is_unsigned_v<U>)
+			return static_cast<U>(std::stoul(sz));
+		else if constexpr (std::floating_point<U>)
+			return static_cast<U>(std::stof(sz));
+	}
+	catch (...)
+	{
 		return static_cast<U>(0);
-
-	if constexpr (std::same_as<U, long>)
-		return std::stol(sz);
-	else if constexpr (std::same_as<U, long long>)
-		return std::stoll(sz);
-	else if constexpr (std::same_as<U, unsigned long>)
-		return std::stoul(sz);
-	else if constexpr (std::same_as<U, unsigned long long>)
-		return std::stoull(sz);
-	else if constexpr (std::same_as<U, float>)
-		return std::stof(sz);
-	else if constexpr (std::same_as<U, double>)
-		return std::stod(sz);
-	else if constexpr (std::same_as<U, long double>)
-		return std::stold(sz);
-
-	// Fallback methods.
-	else if constexpr (std::is_integral_v<U> && std::is_signed_v<U>)
-		return static_cast<U>(std::atoi(sz));
-	else if constexpr (std::is_integral_v<U> && std::is_unsigned_v<U>)
-		return static_cast<U>(std::stoul(sz));
-	else if constexpr (std::floating_point<U>)
-		return static_cast<U>(std::atof(sz));
+	}
 }
 
 export template<size_t N>

@@ -7,14 +7,13 @@ module;
 // C++
 #include <concepts>	// std::integral, etc...
 #include <format>	// std::format
-#include <string>	// stof
+#include <string>	// std::string
 
 // C
 #include <cassert>	// assert
 #include <cctype>	// isspace isdigit
 #include <cmath>	// roundf
 #include <cstdio>	// fopen fclose fread fwrite
-#include <cstdlib>	// atoi atof
 #include <cstring>	// malloc free strlen
 
 export module UtlKeyValues;
@@ -239,7 +238,7 @@ export struct ValveKeyValues
 
 			for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 			{
-				if (auto val = atoi(dat->GetName()); index <= val)
+				if (auto val = UTIL_StrToNum<int>(dat->GetName()); index <= val)
 					index = val + 1;
 			}
 
@@ -606,7 +605,7 @@ export struct ValveKeyValues
 
 			case 1:	// Integer
 			case 2:	// Floating point
-				dat->m_flValue = std::atof(dat->m_pszValue);
+				dat->m_flValue = UTIL_StrToNum<decltype(dat->m_flValue)>(dat->m_pszValue);
 				break;
 			}
 		}
@@ -664,14 +663,10 @@ export struct ValveKeyValues
 	}
 
 	// remove all key/value
-	virtual void Clear(void) noexcept
+	void Clear(void) noexcept
 	{
 		delete m_pSub;
 		m_pSub = nullptr;
-	}
-	virtual void deleteThis(void) noexcept
-	{
-		delete this;
 	}
 
 private:
