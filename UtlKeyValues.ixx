@@ -28,7 +28,8 @@ import UtlString;
 template<typename T> concept ConvertibleToArray2 = std::same_as<std::decay_t<T>, Vector2D>;
 template<typename T> concept ConvertibleToArray3 = std::same_as<std::decay_t<T>, Vector>;
 template<typename T> concept ConvertibleToArray4 = std::same_as<std::decay_t<T>, Quaternion> || std::same_as<std::decay_t<T>, Color4b> || std::same_as<std::decay_t<T>, Color4f>;
-template<typename T> concept Savables = ConvertibleToArray2<T> || ConvertibleToArray3<T> || ConvertibleToArray4<T>;
+template<typename T> concept TreatableAsIfArray = requires(T t) { {t[size_t{}]}; };
+template<typename T> concept SpecialStructs = ConvertibleToArray2<T> || ConvertibleToArray3<T> || ConvertibleToArray4<T>;
 
 // Entry - Subkey or KeyValue
 // Subkey - Contains only Entries, but no value for itself.
@@ -432,6 +433,8 @@ export struct ValveKeyValues
 					return iCount < 3;
 				else if constexpr (ConvertibleToArray2<T>)
 					return iCount < 2;
+				else if constexpr (TreatableAsIfArray<T>)
+					return true;	// #POTENTIAL_BUG
 				else
 					static_assert(std::false_type::value, "Unsupported type involved.");
 			};
@@ -501,7 +504,7 @@ export struct ValveKeyValues
 				return UTIL_StrToNum<T>(fnStrtokWrapper());
 			else if constexpr (std::convertible_to<T, std::string_view>)
 				return fnStrtokWrapper();
-			else if constexpr (Savables<T>)
+			else if constexpr (SpecialStructs<T>)
 			{
 				// Something went off here with MSVC or C++ standard.
 				// When I move this line into lambda fn2(), MemTy will guaranteed to be type 'double'
@@ -559,7 +562,7 @@ export struct ValveKeyValues
 
 			dat->m_flValue = static_cast<double>(Value);
 		}
-		else if constexpr (Savables<T>)
+		else if constexpr (SpecialStructs<T>)
 		{
 			const auto fn = [&]<size_t... I>(std::index_sequence<I...> seq)
 			{
@@ -584,7 +587,7 @@ export struct ValveKeyValues
 		}
 		else if constexpr (std::convertible_to<T, std::string_view>)
 		{
-			if constexpr (std::is_same_v<std::decay_t<T>, char*>)
+			if constexpr (std::is_pointer_v<std::decay_t<T>>)
 			{
 				size_t len = strlen(Value);
 				dat->m_pszValue = (char*)malloc(len + 1);
@@ -662,11 +665,17 @@ export struct ValveKeyValues
 		return true;
 	}
 
-	// remove all key/value
+	// remove all key/value (except name)
 	void Clear(void) noexcept
 	{
-		delete m_pSub;
+		if (m_pSub)
+			delete m_pSub;
 		m_pSub = nullptr;
+
+		if (m_pszValue)
+			delete m_pszValue;
+		m_pszValue = nullptr;
+		m_flValue = 0;
 	}
 
 private:
