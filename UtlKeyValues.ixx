@@ -556,9 +556,9 @@ export struct ValveKeyValues
 
 		if constexpr (std::integral<T> || std::floating_point<T>)
 		{
-			const auto iCount = std::formatted_size("{}", Value) + 1;
-			dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
-			std::format_to_n(dat->m_pszValue, iCount - 1, "{}", Value);
+			const auto sz = std::to_string(Value);
+			dat->m_pszValue = (char*)calloc(sz.length() + 1, sizeof(char));
+			strcpy(dat->m_pszValue, sz.c_str());
 
 			dat->m_flValue = static_cast<double>(Value);
 		}
