@@ -2,6 +2,9 @@ module;
 
 #include <array>
 #include <concepts>
+#include <fstream>
+#include <iostream>
+#include <string>
 
 export module UtlConcepts;
 
@@ -51,3 +54,28 @@ struct _impl_ArrayDect<T[N]> : public std::true_type {};
 export template<typename T> concept Array = _impl_ArrayDect<T>::value;
 
 #pragma endregion Data structure related
+
+#pragma region Template detector
+
+template<typename T>
+struct _impl_OutStreamDect : public std::false_type {};
+
+template<typename T>
+struct _impl_OutStreamDect<std::basic_ostream<T, std::char_traits<T>>> : public std::true_type {};
+
+template<typename T>
+struct _impl_OutStreamDect<std::basic_ofstream<T, std::char_traits<T>>> : public std::true_type {};
+
+export template<typename T>
+concept OStream = _impl_OutStreamDect<T>::value;
+
+template<typename T>
+struct _impl_StringDect : public std::false_type {};
+
+template<typename T>
+struct _impl_StringDect<std::basic_string<T, std::char_traits<T>, std::allocator<T>>> : public std::true_type {};
+
+export template<typename T>
+concept StlString = _impl_StringDect<T>::value;
+
+#pragma endregion Template detector

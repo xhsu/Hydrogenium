@@ -335,16 +335,31 @@ export int UTIL_GetStringType(const char* src) noexcept	// [0 - string] [1 - int
 template<typename T, typename U>
 concept ProperContainer = requires(T t, U u) { {t.emplace_back(u)}; };
 
-export template<typename Container_t, typename String_t>
+export template<typename Container_t, StlString String_t>
 requires ProperContainer<Container_t, String_t>
-void UTIL_Split(const String_t& s, Container_t& tokens, const String_t& delimiters) noexcept
+void UTIL_Split(const String_t& s, Container_t& tokens, const auto& delimiters) noexcept
 {
-	typename String_t::size_type lastPos = s.find_first_not_of(delimiters, 0);
-	typename String_t::size_type pos = s.find_first_of(delimiters, lastPos);
+	auto lastPos = s.find_first_not_of(delimiters, 0);
+	auto pos = s.find_first_of(delimiters, lastPos);
 
 	while (String_t::npos != pos || String_t::npos != lastPos)
 	{
 		tokens.emplace_back(s.substr(lastPos, pos - lastPos));
+		lastPos = s.find_first_not_of(delimiters, pos);
+		pos = s.find_first_of(delimiters, lastPos);
+	}
+}
+
+export template<Arithmetic T, typename Container_t>
+requires ProperContainer<Container_t, T>
+void UTIL_SplitIntoNums(const StlString auto& s, Container_t& tokens, const auto& delimiters) noexcept
+{
+	auto lastPos = s.find_first_not_of(delimiters, 0);
+	auto pos = s.find_first_of(delimiters, lastPos);
+
+	while (s.npos != pos || s.npos != lastPos)
+	{
+		tokens.emplace_back(UTIL_StrToNum<T>(s.substr(lastPos, pos - lastPos)));
 		lastPos = s.find_first_not_of(delimiters, pos);
 		pos = s.find_first_of(delimiters, lastPos);
 	}
