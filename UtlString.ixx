@@ -33,8 +33,7 @@ struct StringLiteral
 
 	// Operators
 	constexpr operator const Char_t* () const noexcept { return &value[0]; }	// automatically convert to char* if necessary.
-	constexpr operator Char_t* () noexcept { return &value[0]; }
-	constexpr operator String_t() const noexcept { return String_t(&value[0], N); }
+	constexpr operator String_t() const noexcept { return String_t(&value[0], length); }	// use length, or the '\0' thing will fall into the std::string itself. (terminator in the middle)
 	constexpr decltype(auto) operator[] (std::size_t index) const noexcept { assert(index < N); return value[index]; }
 	constexpr bool operator== (const String_t& rhs) const noexcept { return String_t(value, N) == rhs; }
 	template<typename chTyOther, size_t sizeOther> constexpr bool operator== (const StringLiteral<chTyOther, sizeOther>& rhs) const noexcept
@@ -65,8 +64,22 @@ struct StringLiteral
 		return StringLiteral<Char_t, NEW_COUNT>(rgsz);
 	}
 
+	// Methods
+	constexpr This_t Replace(Char_t from, Char_t to) const noexcept
+	{
+		Char_t ret[N];
+		std::copy_n(value, N, ret);
+
+		for (auto& c : ret)
+			if (c == from)
+				c = to;
+
+		return ret;
+	}
+
 	// Constants
 	static constexpr std::size_t length = N - 1U;	// Remove the '\0' at the end.
+	static constexpr std::size_t size = N;
 
 	// Members
 	Char_t value[N];
@@ -554,6 +567,7 @@ auto UTIL_StrToNum(const auto& sz) noexcept
 }
 
 export template<size_t N>
+requires(N > 1)
 struct UTIL_SpacedFormatter
 {
 	consteval UTIL_SpacedFormatter() noexcept {}
@@ -584,6 +598,43 @@ struct UTIL_SpacedFormatter
 };
 
 export template<size_t N>
+requires(N > 1)
+struct UTIL_SpaceCommaFormatter
+{
+	consteval UTIL_SpaceCommaFormatter() noexcept {}
+
+	constexpr operator std::string_view() const noexcept { return value; }
+	constexpr operator const char* () const noexcept { return _impl_rgc.data(); }
+
+	template<size_t C>
+	static consteval std::array<char, C * 4 - 1> _impl_fn(void) noexcept
+	{
+		std::array<char, C * 4 - 1> rgc;
+
+		[&] <size_t... I>(std::index_sequence<I...> seq)
+		{
+			((rgc[0 + I * 4] = '{'), ...);
+			((rgc[1 + I * 4] = '}'), ...);
+		}
+		(std::make_index_sequence<C>{});
+
+		[&] <size_t... I>(std::index_sequence<I...> seq)
+		{
+			((rgc[2 + I * 4] = ','), ...);
+			((rgc[3 + I * 4] = ' '), ...);
+		}
+		(std::make_index_sequence<C - 1>{});
+
+		rgc.back() = '\0';
+		return rgc;
+	}
+
+	constexpr static auto _impl_rgc = _impl_fn<N>();
+	constexpr static std::string_view value = std::string_view(_impl_rgc.data());
+};
+
+export template<size_t N>
+requires(N > 0)
 struct UTIL_Indent
 {
 	consteval UTIL_Indent(void) noexcept {}
@@ -604,3 +655,44 @@ struct UTIL_Indent
 	constexpr static auto _impl_rgc = _impl_fn();
 	constexpr static std::string_view value = std::string_view(_impl_rgc.data());
 };
+
+export template<StringLiteral STR>
+auto strnicmp_c(const char* pszOther) noexcept
+{
+	return _strnicmp(STR, pszOther, STR.length);
+}
+
+export
+constexpr char toupper_c(char c) noexcept
+{
+	if (c >= 'a' && c <= 'z')
+		return static_cast<char>(c - 'a' + 'A');
+
+	return c;
+}
+
+export
+constexpr char tolower_c(char c) noexcept
+{
+	if (c >= 'A' && c <= 'Z')
+		return static_cast<char>(c - 'A' + 'a');
+
+	return c;
+}
+
+export template<size_t iSizeLhs, size_t iSizeRhs>
+constexpr auto stricmp_c(const char (&lhs)[iSizeLhs], const char (&rhs)[iSizeRhs])
+{
+	if constexpr (iSizeLhs != iSizeRhs)
+		return iSizeLhs <=> iSizeRhs;
+
+	constexpr auto iSize = iSizeLhs;	// Since they are the same...
+
+	for (size_t i = 0; i < iSize; ++i)
+	{
+		if (auto ret = tolower_c(lhs[i]) <=> tolower_c(rhs[i]); ret != std::strong_ordering::equal)
+			return ret;
+	}
+
+	return std::strong_ordering::equal;
+}

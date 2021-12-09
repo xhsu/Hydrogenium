@@ -5,16 +5,51 @@ module;
 #include <cstdlib>
 
 #include <algorithm>
-#include <bit>
 #include <concepts>
 #include <limits>
-#include <memory>
 #include <type_traits>
 
 export module UtlColor;
 
 
 import UtlConcepts;
+
+export enum
+{
+	WINCON_TEXT_BLACK = 0x0,
+	WINCON_TEXT_BLUE = 0x1,
+	WINCON_TEXT_GREEN,
+	WINCON_TEXT_SKY_BLUE,
+	WINCON_TEXT_RED,
+	WINCON_TEXT_PLUM,
+	WINCON_TEXT_GOLD,
+	WINCON_TEXT_SILVER,
+	WINCON_TEXT_GRAY,
+	WINCON_TEXT_CORNFLOWER_BLUE,
+	WINCON_TEXT_LIME,
+	WINCON_TEXT_CYAN,
+	WINCON_TEXT_PINK,
+	WINCON_TEXT_MAGENTA,
+	WINCON_TEXT_BEIGE,
+	WINCON_TEXT_WHITE,
+
+	WINCON_BG_BLACK = 0x00,
+	WINCON_BG_BLUE = 0x10,
+	WINCON_BG_GREEN = 0x20,
+	WINCON_BG_SKY_BLUE = 0x30,
+	WINCON_BG_RED = 0x40,
+	WINCON_BG_PLUM = 0x50,
+	WINCON_BG_GOLD = 0x60,
+	WINCON_BG_SILVER = 0x70,
+	WINCON_BG_GRAY = 0x80,
+	WINCON_BG_CORNFLOWER_BLUE = 0x90,
+	WINCON_BG_LIME = 0xA0,
+	WINCON_BG_CYAN = 0xB0,
+	WINCON_BG_PINK = 0xC0,
+	WINCON_BG_MAGENTA = 0xD0,
+	WINCON_BG_BEIGE = 0xE0,
+	WINCON_BG_WHITE = 0xF0,
+};
 
 using uint8 = unsigned __int8;
 using uint16 = unsigned __int16;
