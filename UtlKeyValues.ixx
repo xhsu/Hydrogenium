@@ -388,15 +388,15 @@ export struct ValveKeyValues
 	}
 
 	// value, nullptr if inquerying self.
-	template<typename T> T GetValue(const char* pszSubkeyName = nullptr) noexcept
+	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const T& DefValue = T {}) noexcept
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
 		if (!dat || !dat->m_pszValue)
 		{
-			if constexpr (std::convertible_to<T, std::string>)
-				return "";
+			if constexpr (std::convertible_to<T, std::string> && std::is_pointer_v<T>)
+				return DefValue == nullptr ? "" : DefValue;
 			else
-				return T{};
+				return DefValue;
 		}
 
 		if constexpr (std::floating_point<T>)
@@ -414,12 +414,12 @@ export struct ValveKeyValues
 		else
 		{
 			if (!dat->m_pszValue)
-				return T();
+				return DefValue;
 
 			char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC
 			const char* pEnd = p0 + strlen(p0) + 1;
 			short iCount = 0;
-			T ret;
+			T ret = DefValue;
 
 			const auto fnCheckBoundary = [&](void) -> bool
 			{
@@ -887,10 +887,25 @@ private:
 
 			if (ch == '"')
 			{
-				do { *pw = buf.getc(); } while (*(pw++) != '"');
+				__int8 iEscapingCount = 0;
+			LAB_LOOP:;
+				*pw = buf.getc();
 
-				*(--pw) = 0;
+				if (*pw == '\\')
+					iEscapingCount = iEscapingCount ? 0 : 2;	// Since the escape check is after flag reduction. So there were 2 characters we need to cover. The '\\' itself and the symbol next to it.
+				else if (iEscapingCount)
+					--iEscapingCount;
 
+				if (iEscapingCount == 2)	// The very '\\' causes escape must be overwrite. It can't be appear in the text.
+					goto LAB_LOOP;
+				else if (!iEscapingCount && *pw == '"')
+					goto LAB_LOOP_END;
+
+				++pw;
+				goto LAB_LOOP;
+
+			LAB_LOOP_END:;
+				*pw = 0;	// Remove the '"' used in pairing.
 				return true;
 			}
 
