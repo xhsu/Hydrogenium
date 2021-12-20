@@ -6,6 +6,7 @@ module;
 
 // C
 #include <cassert>
+#include <sys/stat.h>
 
 // Platform
 #include <windows.h>
@@ -166,4 +167,10 @@ std::string UnicodeToASCII(const std::wstring& unicodeString)
 		throw std::exception("La falla!");
 
 	return std::string(_pcBuffer);
+}
+
+export auto UTIL_GetFileSize(const char* psz) noexcept
+{
+	static struct stat stat_buf;
+	return stat(psz, &stat_buf) == 0 ? stat_buf.st_size : -1;
 }

@@ -70,6 +70,18 @@ export template<typename T>
 concept OStream = _impl_OutStreamDect<T>::value;
 
 template<typename T>
+struct _impl_InStreamDect : public std::false_type {};
+
+template<typename T>
+struct _impl_InStreamDect<std::basic_istream<T, std::char_traits<T>>> : public std::true_type {};
+
+template<typename T>
+struct _impl_InStreamDect<std::basic_ifstream<T, std::char_traits<T>>> : public std::true_type {};
+
+export template<typename T>
+concept IStream = _impl_InStreamDect<T>::value;
+
+template<typename T>
 struct _impl_StringDect : public std::false_type {};
 
 template<typename T>
@@ -79,3 +91,10 @@ export template<typename T>
 concept StlString = _impl_StringDect<T>::value;
 
 #pragma endregion Template detector
+
+#pragma region Type traits
+
+export template<typename T>
+concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]}; };
+
+#pragma endregion Type traits

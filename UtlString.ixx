@@ -17,6 +17,7 @@ module;
 export module UtlString;
 
 import UtlConcepts;
+import UtlColor;
 
 export template<StringType chTy, size_t N>
 struct StringLiteral
@@ -656,6 +657,11 @@ struct UTIL_Indent
 	constexpr static std::string_view value = std::string_view(_impl_rgc.data());
 };
 
+export std::string UTIL_IndentDyn(size_t iIndentCount) noexcept
+{
+	return std::string(iIndentCount, '\t');
+}
+
 export template<StringLiteral STR>
 auto strnicmp_c(const char* pszOther) noexcept
 {
@@ -695,4 +701,43 @@ constexpr auto stricmp_c(const char (&lhs)[iSizeLhs], const char (&rhs)[iSizeRhs
 	}
 
 	return std::strong_ordering::equal;
+}
+
+export template<HasIndexOperator T>
+T UTIL_Parse(const StlString auto& s, const auto& delimiters) noexcept
+{
+	using Cell_t = std::decay_t<decltype(std::declval<T&>()[size_t{}]) > ;
+	
+	static_assert(Arithmetic<Cell_t>, "Must be an arithmetic cell type.");
+
+	T ret;
+	auto lastPos = s.find_first_not_of(delimiters, 0);
+	auto pos = s.find_first_of(delimiters, lastPos);
+
+	// Support 4 cells at max.
+	for (size_t i = 0; i < 4 && (s.npos != pos || s.npos != lastPos); ++i)
+	{
+		ret[i] = UTIL_StrToNum<Cell_t>(s.substr(lastPos, pos - lastPos));
+		lastPos = s.find_first_not_of(delimiters, pos);
+		pos = s.find_first_of(delimiters, lastPos);
+	}
+
+	return ret;
+}
+
+export template<StringType T>
+size_t strrep(T* psz, T from, T to) noexcept
+{
+	size_t iCount = 0;
+
+	for (; psz && *psz != '\0'; ++psz)
+	{
+		if (*psz == from)
+		{
+			*psz = to;
+			++iCount;
+		}
+	}
+
+	return iCount;
 }
