@@ -8,7 +8,7 @@ export module UtlWinConsole;
 
 import UtlConcepts;
 
-export enum
+export enum : WORD
 {
 	WINCON_TEXT_BLACK = 0x0,
 	WINCON_TEXT_BLUE = 0x1,
@@ -46,13 +46,47 @@ export enum
 };
 
 static void* s_hConsole = nullptr;
+static WORD s_iBackgroundColor = WINCON_BG_BLACK;
+
+export void clear_console(void) noexcept
+{
+	if (!s_hConsole)
+		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	COORD tl = { 0, 0 };
+	CONSOLE_SCREEN_BUFFER_INFO s;
+	GetConsoleScreenBufferInfo(s_hConsole, &s);
+
+	DWORD written, cells = s.dwSize.X * s.dwSize.Y;
+	FillConsoleOutputCharacter(s_hConsole, ' ', cells, tl, &written);
+	FillConsoleOutputAttribute(s_hConsole, s.wAttributes, cells, tl, &written);
+	SetConsoleCursorPosition(s_hConsole, tl);
+}
+
+export void set_bg(WORD bg_color = WINCON_BG_BLACK) noexcept { s_iBackgroundColor = bg_color; }
+export auto __CLRCALL_OR_CDECL black_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_BLACK; }
+export auto __CLRCALL_OR_CDECL blue_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_BLUE; }
+export auto __CLRCALL_OR_CDECL green_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_GREEN; }
+export auto __CLRCALL_OR_CDECL sky_blue_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_SKY_BLUE; }
+export auto __CLRCALL_OR_CDECL red_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_RED; }
+export auto __CLRCALL_OR_CDECL plum_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_PLUM; }
+export auto __CLRCALL_OR_CDECL gold_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_GOLD; }
+export auto __CLRCALL_OR_CDECL silver_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_SILVER; }
+export auto __CLRCALL_OR_CDECL gray_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_GRAY; }
+export auto __CLRCALL_OR_CDECL cb_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_CORNFLOWER_BLUE; }
+export auto __CLRCALL_OR_CDECL lime_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_LIME; }
+export auto __CLRCALL_OR_CDECL cyan_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_CYAN; }
+export auto __CLRCALL_OR_CDECL pink_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_PINK; }
+export auto __CLRCALL_OR_CDECL magenta_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_MAGENTA; }
+export auto __CLRCALL_OR_CDECL beige_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_BEIGE; }
+export auto __CLRCALL_OR_CDECL white_bg(OStream auto& _Ostr) noexcept -> decltype(_Ostr) { s_iBackgroundColor = WINCON_BG_WHITE; }
 
 export auto __CLRCALL_OR_CDECL white_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_WHITE);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_WHITE);
 	return _Ostr;
 }
 
@@ -61,7 +95,7 @@ export auto __CLRCALL_OR_CDECL blue_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_BLUE);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_BLUE);
 	return _Ostr;
 }
 
@@ -70,7 +104,7 @@ export auto __CLRCALL_OR_CDECL green_text(OStream auto& _Ostr) noexcept -> declt
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_GREEN);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_GREEN);
 	return _Ostr;
 }
 
@@ -79,7 +113,7 @@ export auto __CLRCALL_OR_CDECL skyblue_text(OStream auto& _Ostr) noexcept -> dec
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_SKY_BLUE);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_SKY_BLUE);
 	return _Ostr;
 }
 
@@ -88,7 +122,7 @@ export auto __CLRCALL_OR_CDECL red_text(OStream auto& _Ostr) noexcept -> decltyp
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_RED);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_RED);
 	return _Ostr;
 }
 
@@ -97,7 +131,7 @@ export auto __CLRCALL_OR_CDECL plum_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_PLUM);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_PLUM);
 	return _Ostr;
 }
 
@@ -106,7 +140,7 @@ export auto __CLRCALL_OR_CDECL gold_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_GOLD);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_GOLD);
 	return _Ostr;
 }
 
@@ -115,7 +149,7 @@ export auto __CLRCALL_OR_CDECL silver_text(OStream auto& _Ostr) noexcept -> decl
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_SILVER);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_SILVER);
 	return _Ostr;
 }
 
@@ -124,7 +158,7 @@ export auto __CLRCALL_OR_CDECL gray_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_GRAY);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_GRAY);
 	return _Ostr;
 }
 
@@ -133,7 +167,7 @@ export auto __CLRCALL_OR_CDECL cornflower_blue_text(OStream auto& _Ostr) noexcep
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_CORNFLOWER_BLUE);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_CORNFLOWER_BLUE);
 	return _Ostr;
 }
 
@@ -142,7 +176,7 @@ export auto __CLRCALL_OR_CDECL lime_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_LIME);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_LIME);
 	return _Ostr;
 }
 
@@ -151,7 +185,7 @@ export auto __CLRCALL_OR_CDECL cyan_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_CYAN);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_CYAN);
 	return _Ostr;
 }
 
@@ -160,7 +194,7 @@ export auto __CLRCALL_OR_CDECL pink_text(OStream auto& _Ostr) noexcept -> declty
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_PINK);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_PINK);
 	return _Ostr;
 }
 
@@ -169,7 +203,7 @@ export auto __CLRCALL_OR_CDECL magenta_text(OStream auto& _Ostr) noexcept -> dec
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_MAGENTA);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_MAGENTA);
 	return _Ostr;
 }
 
@@ -178,7 +212,7 @@ export auto __CLRCALL_OR_CDECL beige_text(OStream auto& _Ostr) noexcept -> declt
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	SetConsoleTextAttribute(s_hConsole, WINCON_BG_BLACK + WINCON_TEXT_BEIGE);
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_BEIGE);
 	return _Ostr;
 }
 
