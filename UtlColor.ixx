@@ -14,10 +14,6 @@ export module UtlColor;
 
 import UtlConcepts;
 
-using uint8 = unsigned __int8;
-using uint16 = unsigned __int16;
-using uint32 = unsigned __int32;
-
 union color32_helper_t
 {
 	uint32 hexColor;

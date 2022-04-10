@@ -436,7 +436,7 @@ export struct ValveKeyValues
 				else if constexpr (TreatableAsIfArray<T>)
 					return true;	// #POTENTIAL_BUG
 				else
-					static_assert(std::false_type::value, "Unsupported type involved.");
+					static_assert(!sizeof(T), "Unsupported type involved.");
 			};
 
 			for (char* p = p0, *p1 = p0; p && p != pEnd && fnCheckBoundary(); /* Do nothing */)
@@ -526,7 +526,7 @@ export struct ValveKeyValues
 					return fn2(std::make_index_sequence<4>{});
 			}
 			else
-				static_assert(std::false_type::value, "Unsupported type involved!");
+				static_assert(!sizeof(T), "Unsupported type involved!");
 		};
 
 		using Return_t = std::tuple<Tys...>;
@@ -637,7 +637,7 @@ export struct ValveKeyValues
 		}
 		else
 		{
-			static_assert(std::false_type::value, "Unsupported type involved.");
+			static_assert(!sizeof(T), "Unsupported type involved.");
 		}
 
 		return true;

@@ -19,7 +19,7 @@ export module UtlString;
 import UtlConcepts;
 import UtlColor;
 
-export template<StringType chTy, size_t N>
+export template<CharacterType chTy, size_t N>
 struct StringLiteral
 {
 	// Reflection
@@ -524,7 +524,7 @@ auto stristr(auto str, auto substr) noexcept requires(std::is_pointer_v<decltype
 }
 
 export
-consteval size_t strlen_c(const StringType auto* str) noexcept
+consteval size_t strlen_c(const CharacterType auto* str) noexcept
 {
 	return *str ? 1 + strlen_c(str + 1) : 0;
 }
@@ -706,7 +706,7 @@ constexpr auto stricmp_c(const char (&lhs)[iSizeLhs], const char (&rhs)[iSizeRhs
 export template<HasIndexOperator T>
 T UTIL_Parse(const StlString auto& s, const auto& delimiters) noexcept
 {
-	using Cell_t = std::decay_t<decltype(std::declval<T&>()[size_t{}]) > ;
+	using Cell_t = std::decay_t<decltype(std::declval<T&>()[size_t {}])>;
 	
 	static_assert(Arithmetic<Cell_t>, "Must be an arithmetic cell type.");
 
@@ -725,7 +725,7 @@ T UTIL_Parse(const StlString auto& s, const auto& delimiters) noexcept
 	return ret;
 }
 
-export template<StringType T>
+export template<CharacterType T>
 size_t strrep(T* psz, T from, T to) noexcept
 {
 	size_t iCount = 0;
