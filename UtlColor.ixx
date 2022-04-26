@@ -1,5 +1,7 @@
 module;
 
+//#define ENABLE_HSL_COLOR
+
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -7,7 +9,11 @@ module;
 #include <algorithm>
 #include <concepts>
 #include <limits>
+#include <tuple>
 #include <type_traits>
+
+// Static math lib
+#include "gcem/include/gcem.hpp"
 
 export module UtlColor;
 
@@ -142,11 +148,13 @@ export struct Color4f
 		_b = std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0);
 	}
 
-	constexpr void GetRGB(Arithmetic auto& r, Arithmetic auto& g, Arithmetic auto& b) const noexcept
+	constexpr std::tuple<uint8, uint8, uint8> GetRGB(void) const noexcept
 	{
-		r = static_cast<std::remove_reference_t<decltype(r)>>(_r * 255.0);
-		g = static_cast<std::remove_reference_t<decltype(g)>>(_g * 255.0);
-		b = static_cast<std::remove_reference_t<decltype(b)>>(_b * 255.0);
+		return std::make_tuple(
+			static_cast<uint8>(std::round(_r * 255.0)),
+			static_cast<uint8>(std::round(_g * 255.0)),
+			static_cast<uint8>(std::round(_b * 255.0))
+		);
 	}
 
 	constexpr void SetRawColor(uint32 hexColorAGBR) noexcept
@@ -176,32 +184,29 @@ export struct Color4f
 		_a = static_cast<double>(color4ub[3]) / 255.0;
 	}
 
-	constexpr uint32 GetRawColor() const noexcept	// Returns 0xAABBGGRR
+	constexpr uint32 GetRawColor(void) const noexcept	// Returns 0xAABBGGRR
 	{
 		color32_helper_t color;
-		color.ubColors[0] = static_cast<uint8>(_r * 255.0);
-		color.ubColors[1] = static_cast<uint8>(_g * 255.0);
-		color.ubColors[2] = static_cast<uint8>(_b * 255.0);
-		color.ubColors[3] = static_cast<uint8>(_a * 255.0);
+		color.ubColors[0] = r;
+		color.ubColors[1] = g;
+		color.ubColors[2] = b;
+		color.ubColors[3] = a;
 
 		return color.hexColor;
 	}
 
-	constexpr uint32 GetRawRGB() const noexcept	// Returns 0xRRGGBB
+	constexpr uint32 GetRawRGB(void) const noexcept	// Returns 0xRRGGBB
 	{
-		auto r = static_cast<uint8>(_r * 255.0);
-		auto g = static_cast<uint8>(_g * 255.0);
-		auto b = static_cast<uint8>(_b * 255.0);
-
 		return static_cast<uint32>(r << 16 | g << 8 | b);
 	}
 
 	constexpr Color4b GetColor4ubObj() const noexcept
 	{
 		color32_helper_t color;
-		GetRGB(color.ubColors[0], color.ubColors[1], color.ubColors[2]);
-
-		color.ubColors[3] = static_cast<uint8>(_a * 255.0);
+		color.ubColors[0] = r;
+		color.ubColors[1] = g;
+		color.ubColors[2] = b;
+		color.ubColors[3] = a;
 
 		return Color4b(color.hexColor);
 	}
@@ -270,52 +275,41 @@ export struct Color4f
 		}
 	}
 
-	constexpr void GetHSV(Arithmetic auto& h, Arithmetic auto& s, Arithmetic auto& v) const noexcept
+	constexpr std::tuple<double, double, double> GetHSV(void) const noexcept
 	{
-		using hueTy = std::remove_reference_t<decltype(h)>;
-		using saturationTy = std::remove_reference_t<decltype(s)>;
-		using valueTy = std::remove_reference_t<decltype(v)>;
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
 
-		double r = _r * 255.0, g = _g * 255.0, b = _b * 255.0;	// mask the function call.
-		auto min = std::min({ r, g, b });
-		auto max = std::max({ r, g, b });
-
-		v = std::max({ _r, _g, _b });	// v
-
-		double delta = max - min;
-		if (delta < DBL_EPSILON)
+		if (delta < DBL_EPSILON || max < DBL_EPSILON)
 		{
-			s = 0;
-			h = std::numeric_limits<hueTy>::quiet_NaN();	// undefined
+			// Hue is undefined when saturation is 0, i.e. achromatic situation.
 
-			return;
+			return std::make_tuple(
+				std::numeric_limits<double>::quiet_NaN(),	// Hue
+				0.0,	// Saturation
+				max	// Brightness
+			);
 		}
 
-		if (max > 0.0)	// NOTE: if Max is == 0, this divide would cause a crash
-		{
-			s = (delta / max);	// s
-		}
+		double _h = 60.0;	// hue is in degrees
+		if (_r >= max)					// > is bogus, just keeps compilor happy
+			_h *= (_g - _b) / delta;	// between yellow & magenta
+		else if (_g >= max)
+			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
 		else
-		{
-			// if max is 0, then r = g = b = 0              
-			// s = 0, h is undefined
-			s = 0.0;
-			h = std::numeric_limits<hueTy>::quiet_NaN();	// its now undefined
+			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
 
-			return;
-		}
+		if (_h < 0.0)
+			_h += 360.0;
+		else if (_h >= 360.0)
+			_h -= 360.0;	// hue should be [0, 360)
 
-		if (r >= max)					// > is bogus, just keeps compilor happy
-			h = (g - b) / delta;	// between yellow & magenta
-		else if (g >= max)
-			h = 2.0 + (b - r) / delta;	// between cyan & yellow
-		else
-			h = 4.0 + (r - g) / delta;	// between magenta & cyan
-
-		h *= 60.0;	// degrees
-
-		if (h < 0.0)
-			h += 360.0;
+		return std::make_tuple(
+			_h,	// Hue
+			delta / max,	// Saturation
+			max	// Brightness
+		);
 	}
 
 	static constexpr Color4f HSV(const double& h, const double& s, const double& v) noexcept
@@ -325,6 +319,7 @@ export struct Color4f
 		return obj;
 	}
 
+#ifdef ENABLE_HSL_COLOR
 	constexpr void SetHSL(const double& h, const double& s, const double& l) noexcept	// HSV to RGB. H[0-360], S[0-1], V[0-1]
 	{
 		if (s < DBL_EPSILON)
@@ -353,7 +348,7 @@ export struct Color4f
 		}
 	}
 
-	constexpr void GetHSL(Arithmetic auto& h, Arithmetic auto& s, Arithmetic auto& l) const noexcept
+	constexpr void GetHSL(Arithmetic auto& h, std::floating_point auto& s, std::floating_point auto& l) const noexcept
 	{
 		using hueTy = std::remove_reference_t<decltype(h)>;
 		using saturationTy = std::remove_reference_t<decltype(s)>;
@@ -391,6 +386,7 @@ export struct Color4f
 		obj.SetHSL(h, s, l);
 		return obj;
 	}
+#endif
 
 	// Check function.
 	constexpr void Rationalize() noexcept
@@ -403,38 +399,150 @@ export struct Color4f
 
 	// Color component assigning functions.
 	// RGB type.
-	inline constexpr void SetR(std::integral auto r) noexcept { _r = static_cast<double>(r) / 255.0; }
-	inline constexpr void SetG(std::integral auto g) noexcept { _g = static_cast<double>(g) / 255.0; }
-	inline constexpr void SetB(std::integral auto b) noexcept { _b = static_cast<double>(b) / 255.0; }
-	inline constexpr void SetA(std::integral auto a) noexcept { _a = static_cast<double>(a) / 255.0; }
+	inline constexpr void SetR(std::integral auto R) noexcept { _r = std::clamp(static_cast<double>(R) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetG(std::integral auto G) noexcept { _g = std::clamp(static_cast<double>(G) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetB(std::integral auto B) noexcept { _b = std::clamp(static_cast<double>(B) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetA(std::integral auto A) noexcept { _a = std::clamp(static_cast<double>(A) / 255.0, 0.0, 1.0); }
 
 	// HSV/HSL type.
-	inline constexpr void SetH(Arithmetic auto h) noexcept { _UpdateHSVBuffer(); SetHSV(static_cast<double>(h), _s, _v); }
-	inline constexpr void SetS_hsv(std::floating_point auto s) noexcept { _UpdateHSVBuffer(); SetHSV(_h, static_cast<double>(s), _v); }
-	inline constexpr void SetV(std::floating_point auto v) noexcept { _UpdateHSVBuffer(); SetHSV(_h, _s, static_cast<double>(v)); }
-	inline constexpr void SetS_hsl(std::floating_point auto s) noexcept { _UpdateHSLBuffer(); SetHSL(_h, static_cast<double>(s), _l); }
-	inline constexpr void SetL(std::floating_point auto l) noexcept { _UpdateHSLBuffer(); SetHSL(_h, _s, static_cast<double>(l)); }
+	constexpr void SetH(Arithmetic auto _h) noexcept
+	{
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
+
+		SetHSV(
+			std::clamp<decltype(_h)>(_h, 0, 360),
+			max < DBL_EPSILON ? 0 : delta / max,
+			max
+		);
+	}
+	constexpr void SetS(std::floating_point auto _s) noexcept
+	{
+		if (_s < std::numeric_limits<decltype(_s)>::epsilon())
+		{
+			_r = _g = _b = v;	// achromatic
+			return;
+		}
+
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
+
+		double _h = 60;	// degrees
+
+		if (r >= max)					// > is bogus, just keeps compilor happy
+			_h *= (_g - _b) / delta;	// between yellow & magenta
+		else if (g >= max)
+			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+		else
+			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+
+		if (_h < 0.0)
+			_h += 360.0;
+
+		SetHSV(
+			_h,
+			std::min<decltype(_s)>(_s, 1.0),
+			max
+		);
+	}
+	constexpr void SetV(std::floating_point auto _v) noexcept
+	{
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
+
+		double _h = 60;	// degrees
+
+		if (r >= max)					// > is bogus, just keeps compilor happy
+			_h *= (_g - _b) / delta;	// between yellow & magenta
+		else if (g >= max)
+			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+		else
+			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+
+		if (_h < 0.0)
+			_h += 360.0;
+
+		SetHSV(
+			_h,
+			(delta <= DBL_EPSILON || max <= DBL_EPSILON) ? 0.0 : delta / max,
+			std::clamp<decltype(_v)>(_v, 0, 1)
+		);
+	}
+#ifdef ENABLE_HSL_COLOR
+	constexpr void SetS_hsl(std::floating_point auto _s) noexcept
+	{
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
+
+		double _h = 60;	// degrees
+
+		if (r >= max)					// > is bogus, just keeps compilor happy
+			_h *= (_g - _b) / delta;	// between yellow & magenta
+		else if (g >= max)
+			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+		else
+			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+
+		if (_h < 0.0)
+			_h += 360.0;
+
+		SetHSL(
+			_h,
+			std::clamp<decltype(_s)>(_s, 0, 1),
+			(max + min) / 2.0
+		);
+	}
+	constexpr void SetL(std::floating_point auto _l) noexcept
+	{
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
+
+		double _h = 60;	// degrees
+
+		if (r >= max)					// > is bogus, just keeps compilor happy
+			_h *= (_g - _b) / delta;	// between yellow & magenta
+		else if (g >= max)
+			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+		else
+			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+
+		if (_h < 0.0)
+			_h += 360.0;
+
+		SetHSL(
+			_h,
+			delta < DBL_EPSILON ? 0 : delta / (1.0 - gcem::abs(max + min - 1.0)),	// Theoratically this would be abs(2L-1), but should I use the new lightness value?
+			std::clamp<decltype(_l)>(_l, 0, 1)
+		);
+	}
+#endif
 
 	// Color component retrieve functions.
 	// RGB type.
-	inline constexpr uint8 r() const noexcept { return static_cast<uint8>(_r * 255.0); }
-	inline constexpr uint8 g() const noexcept { return static_cast<uint8>(_g * 255.0); }
-	inline constexpr uint8 b() const noexcept { return static_cast<uint8>(_b * 255.0); }
-	inline constexpr uint8 a() const noexcept { return static_cast<uint8>(_a * 255.0); }
+	inline constexpr uint8 GetR() const noexcept { return static_cast<uint8>(gcem::round(_r * 255.0)); }
+	inline constexpr uint8 GetG() const noexcept { return static_cast<uint8>(gcem::round(_g * 255.0)); }
+	inline constexpr uint8 GetB() const noexcept { return static_cast<uint8>(gcem::round(_b * 255.0)); }
+	inline constexpr uint8 GetA() const noexcept { return static_cast<uint8>(gcem::round(_a * 255.0)); }
+
+	__declspec(property(get = GetR, put = SetR)) uint8 r;
+	__declspec(property(get = GetG, put = SetG)) uint8 g;
+	__declspec(property(get = GetB, put = SetB)) uint8 b;
+	__declspec(property(get = GetA, put = SetA)) uint8 a;
 
 	// HSV/HSL type.
-	constexpr double h() const noexcept	// Degree: [0-360]
+	constexpr double GetH() const noexcept	// Degree: [0-360]
 	{
-		double r = _r * 255.0, g = _g * 255.0, b = _b * 255.0;	// mask the function call.
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
 
-		auto min = std::min({ r, g, b });
-		auto max = std::max({ r, g, b });
-
-		double delta = max - min;
 		if (delta < DBL_EPSILON)
-		{
 			return std::numeric_limits<double>::quiet_NaN();	// In this case, h value is undefined.
-		}
 
 		if (max < DBL_EPSILON)
 		{
@@ -443,60 +551,60 @@ export struct Color4f
 			return std::numeric_limits<double>::quiet_NaN();	// its now undefined
 		}
 
-		double h = 0.0;
+		double _h = 60;	// degrees
 
 		if (r >= max)					// > is bogus, just keeps compilor happy
-			h = (g - b) / delta;	// between yellow & magenta
+			_h *= (_g - _b) / delta;	// between yellow & magenta
 		else if (g >= max)
-			h = 2.0 + (b - r) / delta;	// between cyan & yellow
+			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
 		else
-			h = 4.0 + (r - g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
 
-		h *= 60.0;	// degrees
+		if (_h < 0.0)
+			_h += 360.0;
 
-		if (h < 0.0)
-			h += 360.0;
-
-		return h;
+		return _h;
 	}
-	constexpr double s_hsv() const noexcept	// Percentage: [0.0-1.0]
-	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
-
-		double delta = max - min;
-		if (delta < DBL_EPSILON)
-		{
-			return 0.0;
-		}
-
-		if (max > DBL_EPSILON)	// NOTE: if Max is == 0, this divide would cause a crash
-		{
-			return (delta / max);	// s
-		}
-		else
-		{
-			// if max is 0, then r = g = b = 0              
-			// s = 0, h is undefined
-			return 0.0;
-		}
-	}
-	constexpr double v() const noexcept	// Percentage: [0.0-1.0]
-	{
-		return std::max({ _r, _g, _b });	// v
-	}
-	constexpr double s_hsl() const noexcept
+	constexpr double GetS() const noexcept	// Percentage: [0.0-1.0]
 	{
 		auto min = std::min({ _r, _g, _b });
 		auto max = std::max({ _r, _g, _b });
 		auto delta = max - min;
 
-		return l() > 0.5 ? delta / (2.0 - max - min) : delta / (max + min);
+		if (delta < DBL_EPSILON || max < DBL_EPSILON)
+		{
+			// delta == 0 means achromatic
+			return 0.0;
+		}
+
+		return delta / max;	// NOTE: if Max is == 0, this divide would cause a crash
 	}
-	constexpr double l() const noexcept	// Percentage: [0.0-1.0]
+	constexpr double GetV() const noexcept	// Percentage: [0.0-1.0]
+	{
+		return std::max({ _r, _g, _b });	// v
+	}
+#ifdef ENABLE_HSL_COLOR
+	constexpr double GetS_hsl() const noexcept
+	{
+		auto min = std::min({ _r, _g, _b });
+		auto max = std::max({ _r, _g, _b });
+		auto delta = max - min;
+
+		return l > 0.5 ? delta / (2.0 - max - min) : delta / (max + min);
+	}
+	constexpr double GetL() const noexcept	// Percentage: [0.0-1.0]
 	{
 		return 0.5 * (std::min({ _r, _g, _b }) + std::max({ _r, _g, _b }));	// Use [0-1] floating color here.
 	}
+#endif
+
+	__declspec(property(get = GetH, put = SetH)) double h;
+	__declspec(property(get = GetS, put = SetS)) double s;
+	__declspec(property(get = GetV, put = SetV)) double v;
+#ifdef ENABLE_HSL_COLOR
+	__declspec(property(get = GetS_hsl, put = SetS_hsl)) double s_hsl;
+	__declspec(property(get = GetL, put = SetL)) double l;
+#endif
 
 	// Operators.
 	// Retrieve these actually returns you the original floating color value.
@@ -525,17 +633,10 @@ export struct Color4f
 	constexpr decltype(auto) operator*=(Arithmetic auto fl) noexcept { return (*this = *this * fl); }
 	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
 
-	constexpr decltype(auto) operator~() const noexcept { return Color4f(GetRawRGB() ^ 0xFFFFFF); }	// Inverse color. By definition it is the hue that actually 'reversed'. i.e. (hue + 180) % 360.
+	constexpr decltype(auto) operator~() const noexcept { return Color4f(GetRawRGB() ^ 0xFFFFFF, a); }	// Inverse color. By definition it is the hue that actually 'reversed'. i.e. (hue + 180) % 360.
 
 private:
 	double _r, _g, _b, _a;
-
-	// Private static members.
-private:
-	static inline double _h = 0, _s = 0, _v = 0, _l = 0;
-
-	inline constexpr void _UpdateHSVBuffer() const noexcept { GetHSV(_h, _s, _v); }
-	inline constexpr void _UpdateHSLBuffer() const noexcept { GetHSL(_h, _s, _l); }
 };
 
 export inline constexpr bool operator== (const Color4b& lhs, const Color4f& rhs) noexcept { return rhs == lhs; }
