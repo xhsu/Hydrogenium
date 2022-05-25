@@ -65,6 +65,9 @@ struct _impl_ArrayDect<T[N]> : public std::true_type {};
 export template<typename T>
 concept Array = _impl_ArrayDect<T>::value;
 
+export template<typename T>
+concept Pointer = std::is_pointer_v<T>;
+
 #pragma endregion Data structure related
 
 #pragma region Template detector
@@ -117,5 +120,11 @@ concept NonVoid = _impl_NonVoidType<T>::value;
 
 export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
+
+export template <typename T, typename... Tys>
+constexpr bool AnySame = (std::is_same_v<T, Tys> || ...) || AnySame<Tys...>;
+
+export template <typename T>
+constexpr bool AnySame<T> = false;
 
 #pragma endregion Type traits

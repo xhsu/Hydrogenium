@@ -200,7 +200,7 @@ export struct Color4f
 		return static_cast<uint32>(r << 16 | g << 8 | b);
 	}
 
-	constexpr Color4b GetColor4ubObj() const noexcept
+	constexpr Color4b GetColor4ubObj(void) const noexcept
 	{
 		color32_helper_t color;
 		color.ubColors[0] = r;

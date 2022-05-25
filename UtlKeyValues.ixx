@@ -6,6 +6,7 @@ module;
 
 // C++
 #include <concepts>	// std::integral, etc...
+#include <filesystem>	// std::filesystem::path
 #include <format>	// std::format
 #include <string>	// std::string
 
@@ -39,10 +40,22 @@ template<typename T> concept SpecialStructs = ConvertibleToArray2<T> || Converti
 
 export struct ValveKeyValues
 {
-	ValveKeyValues(const char* pszName) noexcept
+	ValveKeyValues(void) noexcept
 	{
-		Init();
+		m_pszName = (char*)malloc(1 * sizeof(char));
+		m_pszName[0] = '\0';
+	}
+	explicit ValveKeyValues(const char* pszName) noexcept
+	{
 		SetName(pszName);
+	}
+	explicit ValveKeyValues(const std::filesystem::path& hPath) noexcept
+	{
+#ifdef _DEBUG
+		assert(LoadFromFile(hPath.string().c_str()));
+#else
+		LoadFromFile(hPath.string().c_str());
+#endif
 	}
 	virtual ~ValveKeyValues(void) noexcept
 	{
@@ -69,7 +82,7 @@ export struct ValveKeyValues
 		}
 
 		size_t len = strlen(pszName);
-		m_pszName = (char*)malloc(len + 1);
+		m_pszName = (char*)calloc(len + 1, sizeof(char));
 		strcpy(m_pszName, pszName);
 	}
 
@@ -836,25 +849,6 @@ private:
 		}
 	}
 
-	void Init(void) noexcept
-	{
-		if (m_pszName)
-		{
-			free(m_pszName);
-			m_pszName = nullptr;
-		}
-
-		if (m_pszValue)
-		{
-			free(m_pszValue);
-			m_pszValue = nullptr;
-		}
-
-		m_flValue = 0;
-
-		m_pPeer = nullptr;
-		m_pSub = nullptr;
-	}
 	bool ReadToken(char* token, CBuffer& buf) noexcept
 	{
 		char* pw = token;
