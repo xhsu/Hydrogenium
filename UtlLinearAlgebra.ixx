@@ -59,7 +59,7 @@ export struct Vector2D
 	constexpr std::strong_ordering operator<=> (const Vector2D& v) const noexcept { auto const lhs = Length(), rhs = v.Length(); return lhs < rhs ? std::strong_ordering::less : lhs > rhs ? std::strong_ordering::greater : std::strong_ordering::equal; }
 	constexpr std::strong_ordering operator<=> (Arithmetic auto fl) const noexcept { auto const l = static_cast<decltype(fl)>(Length()); return l < fl ? std::strong_ordering::less : l > fl ? std::strong_ordering::greater : std::strong_ordering::equal; }
 
-	constexpr decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
+	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
 
 	constexpr decltype(auto) operator+(const Vector2D& v) const noexcept { return Vector2D(x + v.x, y + v.y); }
 	constexpr decltype(auto) operator-(const Vector2D& v) const noexcept { return Vector2D(x - v.x, y - v.y); }
@@ -72,9 +72,9 @@ export struct Vector2D
 	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
 
 	// Static methods
-	static constexpr Vector2D Zero() noexcept { return Vector2D(0, 0); }
-	static constexpr Vector2D I() noexcept { return Vector2D(1, 0); }
-	static constexpr Vector2D J() noexcept { return Vector2D(0, 1); }
+	static consteval Vector2D Zero() noexcept { return Vector2D(0, 0); }
+	static consteval Vector2D I() noexcept { return Vector2D(1, 0); }
+	static consteval Vector2D J() noexcept { return Vector2D(0, 1); }
 
 	// Methods
 	inline void Clear() { x = 0; y = 0; }
@@ -211,7 +211,7 @@ export struct Vector
 	constexpr std::strong_ordering operator<=> (const Vector& v) const noexcept { auto const lhs = Length(), rhs = v.Length(); return lhs < rhs ? std::strong_ordering::less : lhs > rhs ? std::strong_ordering::greater : std::strong_ordering::equal; }
 	constexpr std::strong_ordering operator<=> (Arithmetic auto fl) const noexcept { auto const l = static_cast<decltype(fl)>(Length()); return l < fl ? std::strong_ordering::less : l > fl ? std::strong_ordering::greater : std::strong_ordering::equal; }
 
-	constexpr decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
+	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
 
 	constexpr decltype(auto) operator+(const Vector& v) const noexcept { return Vector(x + v.x, y + v.y, z + v.z); }
 	constexpr decltype(auto) operator-(const Vector& v) const noexcept { return Vector(x - v.x, y - v.y, z - v.z); }
@@ -224,10 +224,10 @@ export struct Vector
 	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
 
 	// Static methods
-	static constexpr Vector Zero() noexcept { return Vector(0, 0, 0); }
-	static constexpr Vector I() noexcept { return Vector(1, 0, 0); }
-	static constexpr Vector J() noexcept { return Vector(0, 1, 0); }
-	static constexpr Vector K() noexcept { return Vector(0, 0, 1); }
+	static consteval Vector Zero() noexcept { return Vector(0, 0, 0); }
+	static consteval Vector I() noexcept { return Vector(1, 0, 0); }
+	static consteval Vector J() noexcept { return Vector(0, 1, 0); }
+	static consteval Vector K() noexcept { return Vector(0, 0, 1); }
 
 	// Methods
 	inline void Clear() { x = y = z = 0; }
@@ -546,7 +546,7 @@ struct Matrix
 	}
 
 	// Static Methods
-	static constexpr decltype(auto) Identity() noexcept requires(SQUARE_MX)
+	static consteval decltype(auto) Identity() noexcept requires(SQUARE_MX)
 	{
 		this_t m;
 
@@ -555,7 +555,7 @@ struct Matrix
 
 		return m;
 	}
-	static constexpr decltype(auto) Zero() noexcept { static const this_t m; return m; }
+	static consteval decltype(auto) Zero() noexcept { static const this_t m; return m; }
 	static constexpr decltype(auto) Rotation(Arithmetic auto degree) noexcept	// 2D rotation. Ideally generates a 2x2 matrix.
 	{
 		const auto rad = degree / 180.0 * std::numbers::pi;
@@ -1112,8 +1112,8 @@ export struct Quaternion
 	constexpr Quaternion(std::initializer_list<qtn_t>&& lst) noexcept { assert(lst.size() >= 4U); auto it = lst.begin(); a = *it++; b = *it++; c = *it++; d = *it++; }
 
 	// Static Methods
-	static constexpr decltype(auto) Zero() noexcept { return Quaternion(0, 0, 0, 0); }
-	static constexpr decltype(auto) Identity() noexcept { return Quaternion(1, 0, 0, 0); }
+	static consteval decltype(auto) Zero() noexcept { return Quaternion(0, 0, 0, 0); }
+	static consteval decltype(auto) Identity() noexcept { return Quaternion(1, 0, 0, 0); }
 
 	// Properties
 	inline constexpr decltype(auto) Norm() const noexcept { return gcem::sqrt(a * a + b * b + c * c + d * d); }

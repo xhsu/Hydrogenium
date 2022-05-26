@@ -105,6 +105,18 @@ struct _impl_StringDect<std::basic_string<T, std::char_traits<T>, std::allocator
 export template<typename T>
 concept StlString = _impl_StringDect<T>::value;
 
+template<typename T>
+struct _impl_StringViewDect : public std::false_type {};
+
+template<typename T>
+struct _impl_StringViewDect<std::basic_string_view<T, std::char_traits<T>>> : public std::true_type {};
+
+export template<typename T>
+concept StlStringView = _impl_StringViewDect<T>::value;
+
+export template<typename T>
+concept StlStringClass = _impl_StringDect<T>::value || _impl_StringViewDect<T>::value;
+
 #pragma endregion Template detector
 
 #pragma region Type traits
