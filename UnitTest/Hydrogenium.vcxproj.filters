@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Modules">
+      <UniqueIdentifier>{99194f12-df84-49ef-8fa8-5a449665cf43}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="UnitTest.cpp" />
+    <ClCompile Include="..\UtlArithmetic.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlBuffer.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlColor.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlConcepts.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlFileSystem.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlFunction.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlLinearAlgebra.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlRandom.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlString.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlWinConsole.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\ScopedEnumOperator.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\UtlFormatter.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

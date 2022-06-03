@@ -15,8 +15,7 @@ import UtlConcepts;
 namespace Hydrogenium
 {
 	// Exclusively to single float.
-	export template<std::floating_point T> requires(std::is_same_v<T, float>)
-	constexpr float rsqrt(const T& x) noexcept
+	export constexpr float rsqrt(float x) noexcept
 	{
 #ifdef __SSE__
 		return _mm_rsqrt_ps(_mm_set1_ps(x))[0];

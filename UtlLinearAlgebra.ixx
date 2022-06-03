@@ -35,8 +35,7 @@ import UtlArithmetic;
 import UtlConcepts;
 
 // Concepts for this module.
-template<typename A> concept ProperArray2 = requires(A array) { requires array.max_size() >= 2U; };
-template<typename A> concept ProperArray3 = requires(A array) { requires array.max_size() >= 3U; };
+template<typename A, size_t X> concept ProperArray = requires(A array) { requires array.max_size() >= X; };
 
 export using vec_t = float;
 constexpr auto VEC_EPSILON = std::numeric_limits<vec_t>::epsilon();
@@ -50,14 +49,15 @@ export struct Vector2D
 	constexpr Vector2D() noexcept : x(0), y(0) {}
 	constexpr Vector2D(Arithmetic auto X, Arithmetic auto Y) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)) {}
 	explicit constexpr Vector2D(Arithmetic auto sideLength) noexcept : width(static_cast<vec_t>(sideLength)), height(static_cast<vec_t>(sideLength)) {}
-	template<Arithmetic T, std::size_t size> requires(size >= 2U) explicit constexpr Vector2D(const T (&rgfl)[size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
+	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const T (&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
+	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
 	constexpr Vector2D(std::initializer_list<vec_t>&& lst) noexcept { assert(lst.size() >= 2U); auto it = lst.begin(); x = *it++; y = *it++; }
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector2D(-x, -y); }
 	constexpr bool operator==(const Vector2D& v) const noexcept { return gcem::abs(x - v.x) < VEC_EPSILON && gcem::abs(y - v.y) < VEC_EPSILON; }
-	constexpr std::strong_ordering operator<=> (const Vector2D& v) const noexcept { auto const lhs = Length(), rhs = v.Length(); return lhs < rhs ? std::strong_ordering::less : lhs > rhs ? std::strong_ordering::greater : std::strong_ordering::equal; }
-	constexpr std::strong_ordering operator<=> (Arithmetic auto fl) const noexcept { auto const l = static_cast<decltype(fl)>(Length()); return l < fl ? std::strong_ordering::less : l > fl ? std::strong_ordering::greater : std::strong_ordering::equal; }
+	constexpr auto operator<=> (const Vector2D& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
+	constexpr auto operator<=> (Arithmetic auto fl) const noexcept { return Length() <=> fl; }
 
 	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
 
@@ -78,8 +78,8 @@ export struct Vector2D
 
 	// Methods
 	inline void Clear() { x = 0; y = 0; }
-	inline void CopyToIter(ProperIter auto it) const noexcept { *it++ = x; *it++ = y; }
-	inline void CopyToArray(ProperArray2 auto arr) const noexcept { arr[0] = x; arr[1] = y; }
+	inline void CopyToIter(ProperIter auto it) const noexcept { using T = std::decay_t<decltype(*it)>; *it++ = static_cast<T>(x); *it++ = static_cast<T>(y); }
+	inline void CopyToArray(ProperArray<2> auto& arr) const noexcept { using T = std::decay_t<decltype(arr[std::declval<size_t>()])>; arr[0] = static_cast<T>(x); arr[1] = static_cast<T>(y); }
 	constexpr float Length() const noexcept { return 1.0f / Hydrogenium::rsqrt(x * x + y * y); }	// Get the vector's magnitude
 	constexpr vec_t LengthSquared() const noexcept { return x * x + y * y; }	// Get the vector's magnitude squared
 	constexpr Vector2D Normalize() const noexcept
@@ -147,7 +147,7 @@ export struct Vector2D
 	explicit constexpr operator float() const noexcept { return Length(); }
 
 	// Linear Algebra
-	// Rotate in counter-clockwise. Angles in degree.
+	// Rotate in counter-clockwise. Angle is in degree.
 	constexpr Vector2D Rotate(Arithmetic auto angle) const noexcept
 	{
 		auto a = (static_cast<double>(angle) * std::numbers::pi / 180.0);
@@ -159,6 +159,79 @@ export struct Vector2D
 			s * x + c * y
 		);
 	}
+
+	// Angle with Vector2D::I. Return in degree.
+	constexpr auto Angle(void) const noexcept
+	{
+		// Increase precision to at least f64.
+		using MathType_t = std::conditional_t<sizeof(vec_t) <= sizeof(float), double, vec_t>;
+		
+		return gcem::atan2<MathType_t, MathType_t>(y, x) * 180.0 / std::numbers::pi;
+	}
+
+	// STL Containers Compatibility
+	// Iterators
+	using iterator = _STD _Array_iterator<vec_t, 2>;
+	using const_iterator = _STD _Array_const_iterator<vec_t, 2>;
+	using reverse_iterator = _STD reverse_iterator<iterator>;
+	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(&x, 0); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(&x, 0); }
+	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(&x, 2); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(&x, 2); }
+	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+
+	// Element Access
+	using reference = vec_t&;
+	using const_reference = const vec_t&;
+	[[nodiscard]] constexpr reference at(std::size_t pos)
+	{
+		switch (pos)
+		{
+		case 0:
+			return x;
+		case 1:
+			return y;
+		[[unlikely]] default:
+			throw std::out_of_range(std::format("[Vector2D::at] Invalid accessing pos: {}.", pos));
+		}
+	}
+	[[nodiscard]] constexpr const_reference at(std::size_t pos) const	// #UPDATE_AT_CPP23 explict this
+	{
+		switch (pos)
+		{
+		case 0:
+			return x;
+		case 1:
+			return y;
+		[[unlikely]] default:
+			throw std::out_of_range(std::format("[Vector2D::at] Invalid accessing pos: {}.", pos));
+		}
+	}
+	//[[nodiscard]] constexpr reference operator[] (std::size_t pos) noexcept { return *((&x) + pos); }
+	//[[nodiscard]] constexpr const_reference operator[] (std::size_t pos) const noexcept { return *((&x) + pos); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr vec_t* data(void) noexcept { return &x; }
+	[[nodiscard]] constexpr const vec_t* data(void) const noexcept { return &x; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference front(void) noexcept { return x; }
+	[[nodiscard]] constexpr const_reference front(void) const noexcept { return x; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference back(void) noexcept { return y; }
+	[[nodiscard]] constexpr const_reference back(void) const noexcept { return y; }	// #UPDATE_AT_CPP23 explict this
+
+	// Capacity
+	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
+	[[nodiscard]] static consteval std::size_t size(void) noexcept { return static_cast<std::size_t>(2); }
+	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(2); }
+
+	// Modifiers
+	constexpr void fill(const vec_t& val) noexcept { x = y = val; }
+	constexpr void swap(Vector2D& other) noexcept { _STD _Swap_ranges_unchecked(&x, (&x) + 2, &other.x); }
 
 	// Members
 	union { vec_t x; vec_t width; };
@@ -232,7 +305,7 @@ export struct Vector
 	// Methods
 	inline void Clear() { x = y = z = 0; }
 	inline void CopyToIter(ProperIter auto it) const noexcept { *it++ = x; *it++ = y; *it++ = z; }
-	inline void CopyToArray(ProperArray3 auto arr) const noexcept { arr[0] = x; arr[1] = y; arr[2] = z; }
+	inline void CopyToArray(ProperArray<3> auto arr) const noexcept { arr[0] = x; arr[1] = y; arr[2] = z; }
 	constexpr float Length() const noexcept { return 1.0f / Hydrogenium::rsqrt(x * x + y * y + z * z); }	// Get the vector's magnitude
 	constexpr vec_t LengthSquared() const noexcept { return (x * x + y * y + z * z); }	// Get the vector's magnitude squared
 	constexpr float Length2D() const noexcept { return 1.0f / Hydrogenium::rsqrt(x * x + y * y); }	// Get the vector's magnitude, but only consider its X and Y component
