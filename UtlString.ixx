@@ -347,10 +347,9 @@ export int UTIL_GetStringType(const char* src) noexcept	// [0 - string] [1 - int
 }
 
 template<typename T, typename U>
-concept ProperContainer = requires(T t, U u) { {t.emplace_back(u)}; };
+concept ProperContainer = requires(T t, U&& u) { {t.emplace_back(u)}; };
 
-export template<typename Container_t, StlStringClass String_t>
-requires ProperContainer<Container_t, String_t>
+export template<StlStringClass String_t, ProperContainer<String_t> Container_t>
 void UTIL_Split(const String_t& s, Container_t& tokens, const auto& delimiters) noexcept
 {
 	auto lastPos = s.find_first_not_of(delimiters, 0);
@@ -364,8 +363,7 @@ void UTIL_Split(const String_t& s, Container_t& tokens, const auto& delimiters) 
 	}
 }
 
-export template<Arithmetic T, typename Container_t>
-requires ProperContainer<Container_t, T>
+export template<Arithmetic T, ProperContainer<T> Container_t>
 void UTIL_SplitIntoNums(StlStringClass auto const& s, Container_t& tokens, const auto& delimiters) noexcept
 {
 	auto lastPos = s.find_first_not_of(delimiters, 0);

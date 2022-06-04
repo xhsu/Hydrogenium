@@ -38,6 +38,7 @@ import UtlConcepts;
 template<typename A, size_t X> concept ProperArray = requires(A array) { requires array.max_size() >= X; };
 
 export using vec_t = float;
+export using real_t = std::conditional_t<sizeof(vec_t) <= 4, double, vec_t>;
 constexpr auto VEC_EPSILON = std::numeric_limits<vec_t>::epsilon();
 constexpr auto VEC_NAN = std::numeric_limits<vec_t>::quiet_NaN();
 constexpr auto VEC_INFINITY = std::numeric_limits<vec_t>::infinity();
@@ -55,11 +56,11 @@ export struct Vector2D
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector2D(-x, -y); }
-	constexpr bool operator==(const Vector2D& v) const noexcept { return gcem::abs(x - v.x) < VEC_EPSILON && gcem::abs(y - v.y) < VEC_EPSILON; }
-	constexpr auto operator<=> (const Vector2D& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
-	constexpr auto operator<=> (Arithmetic auto fl) const noexcept { return Length() <=> fl; }
+	constexpr bool operator==(const Vector2D& v) const noexcept { return Approx(v); }
+	constexpr decltype(auto) operator<=> (const Vector2D& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
+	constexpr decltype(auto) operator<=> (Arithmetic auto fl) const noexcept { return LengthSquared() <=> (fl * fl); }
 
-	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
+	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return (*this = Zero()); }
 
 	constexpr decltype(auto) operator+(const Vector2D& v) const noexcept { return Vector2D(x + v.x, y + v.y); }
 	constexpr decltype(auto) operator-(const Vector2D& v) const noexcept { return Vector2D(x - v.x, y - v.y); }
@@ -77,55 +78,45 @@ export struct Vector2D
 	static consteval Vector2D J() noexcept { return Vector2D(0, 1); }
 
 	// Methods
-	inline void Clear() { x = 0; y = 0; }
-	inline void CopyToIter(ProperIter auto it) const noexcept { using T = std::decay_t<decltype(*it)>; *it++ = static_cast<T>(x); *it++ = static_cast<T>(y); }
-	inline void CopyToArray(ProperArray<2> auto& arr) const noexcept { using T = std::decay_t<decltype(arr[std::declval<size_t>()])>; arr[0] = static_cast<T>(x); arr[1] = static_cast<T>(y); }
-	constexpr float Length() const noexcept { return 1.0f / Hydrogenium::rsqrt(x * x + y * y); }	// Get the vector's magnitude
-	constexpr vec_t LengthSquared() const noexcept { return x * x + y * y; }	// Get the vector's magnitude squared
+	constexpr void Clear() noexcept { x = 0; y = 0; }
+	constexpr void CopyToIter(ProperIter auto it) const noexcept { using T = std::decay_t<decltype(*it)>; *it++ = static_cast<T>(x); *it++ = static_cast<T>(y); }
+	constexpr void CopyToArray(ProperArray<2> auto& arr) const noexcept { using T = std::decay_t<decltype(arr[std::declval<size_t>()])>; arr[0] = static_cast<T>(x); arr[1] = static_cast<T>(y); }
+	constexpr real_t Length() const noexcept { return Hydrogenium::sqrt(x * x + y * y); }	// Get the vector's magnitude
+	constexpr real_t LengthSquared() const noexcept { return x * x + y * y; }	// Get the vector's magnitude squared
 	constexpr Vector2D Normalize() const noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
 
-		auto invsqrt = Hydrogenium::rsqrt(x * x + y * y);
-		return Vector2D(x * invsqrt, y * invsqrt);
+		const auto len = Length();
+		return Vector2D(x / len, y / len);
 	}
-	constexpr float NormalizeInPlace() noexcept
+	constexpr real_t NormalizeInPlace() noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
-		{
-			x = 1;
-			y = 0;
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
+			return (real_t)0;
 
-			return 0.0f;
-		}
+		const auto len = Length();
 
-		auto fl = Hydrogenium::rsqrt(x * x + y * y);
+		x = vec_t(x / len);
+		y = vec_t(y / len);
 
-		x *= fl;
-		y *= fl;
-
-		return 1.0f / fl;
+		return len;
 	}
 	constexpr Vector2D SetLength(Arithmetic auto newlen) const noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
 
-		auto fl = static_cast<float>(newlen) * Hydrogenium::rsqrt(x * x + y * y);
+		const auto fl = static_cast<real_t>(newlen) / Length();
 		return Vector2D(x * fl, y * fl);
 	}
 	constexpr void SetLengthInPlace(Arithmetic auto newlen) noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
-		{
-			x = 0;
-			y = 0;
-
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return;
-		}
 
-		auto fl = static_cast<float>(newlen) * Hydrogenium::rsqrt(x * x + y * y);
+		const auto fl = static_cast<real_t>(newlen) / Length();
 
 		x *= fl;
 		y *= fl;
@@ -138,21 +129,28 @@ export struct Vector2D
 		);
 	}
 	constexpr bool IsNaN() const noexcept { return Hydrogenium::is_nan(x, y); }
+	constexpr bool Approx(const Vector2D& rhs, vec_t tolerance = VEC_EPSILON) const noexcept
+	{
+		return
+			gcem::abs(x - rhs.x) < tolerance &&
+			gcem::abs(y - rhs.y) < tolerance;
+	}
 
 	// Conversion
-	constexpr operator float* () noexcept { return &x; } // Vectors will now automatically convert to float * when needed
-	constexpr operator const float* () const noexcept { return &x; } // Vectors will now automatically convert to float * when needed
+	constexpr operator vec_t* () noexcept { return &x; } // Vectors will now automatically convert to float * when needed
+	constexpr operator const vec_t* () const noexcept { return &x; } // Vectors will now automatically convert to float * when needed
 
 	explicit constexpr operator bool () const noexcept { return !IsZero(); }	// Can be placed in if() now.
-	explicit constexpr operator float() const noexcept { return Length(); }
+	explicit constexpr operator vec_t() const noexcept { return (vec_t)Length(); }
+	explicit constexpr operator real_t() const noexcept { return Length(); }
 
 	// Linear Algebra
 	// Rotate in counter-clockwise. Angle is in degree.
 	constexpr Vector2D Rotate(Arithmetic auto angle) const noexcept
 	{
-		auto a = (static_cast<double>(angle) * std::numbers::pi / 180.0);
-		auto c = gcem::cos(a);
-		auto s = gcem::sin(a);
+		const auto a = (static_cast<real_t>(angle) * std::numbers::pi / 180.0);
+		const auto c = gcem::cos(a);
+		const auto s = gcem::sin(a);
 
 		return Vector2D(
 			c * x - s * y,
@@ -163,10 +161,7 @@ export struct Vector2D
 	// Angle with Vector2D::I. Return in degree.
 	constexpr auto Angle(void) const noexcept
 	{
-		// Increase precision to at least f64.
-		using MathType_t = std::conditional_t<sizeof(vec_t) <= sizeof(float), double, vec_t>;
-		
-		return gcem::atan2<MathType_t, MathType_t>(y, x) * 180.0 / std::numbers::pi;
+		return gcem::atan2<real_t, real_t>(y, x) * 180.0 / std::numbers::pi;
 	}
 
 	// STL Containers Compatibility
@@ -238,7 +233,7 @@ export struct Vector2D
 	union { vec_t y; vec_t height; };
 };
 
-export constexpr auto DotProduct(const Vector2D& a, const Vector2D& b) noexcept
+export constexpr real_t DotProduct(const Vector2D& a, const Vector2D& b) noexcept
 {
 	return (a.x * b.x + a.y * b.y);
 }
@@ -250,10 +245,10 @@ export constexpr Vector2D operator*(Arithmetic auto fl, const Vector2D& v) noexc
 
 export constexpr decltype(auto) operator^(const Vector2D& lhs, const Vector2D& rhs) noexcept	// Get the angle between two vectors. Returns an angle in degree.
 {
-	double length_ab = lhs.Length() * rhs.Length();
+	const real_t length_ab = gcem::sqrt(lhs.LengthSquared() * rhs.LengthSquared());	// sqrt(a) * sqrt(b) == sqrt(a*b)
 
-	if (length_ab < DBL_EPSILON)
-		return 0.0;
+	if (length_ab < std::numeric_limits<real_t>::epsilon())
+		return (real_t)0;
 
 	return gcem::acos(DotProduct(lhs, rhs) / length_ab) * (180.0 / std::numbers::pi);
 }
@@ -261,8 +256,8 @@ export constexpr decltype(auto) operator^(const Vector2D& lhs, const Vector2D& r
 #ifdef _IOSTREAM_
 export std::ostream& operator<<(std::ostream& o, const Vector2D& v) noexcept
 {
-	o << "X: " << v.x << std::endl;
-	o << "Y: " << v.y << std::endl;
+	o << "X: " << v.x << '\n';
+	o << "Y: " << v.y << '\n';
 	return o;
 }
 #endif // _IOSTREAM_
@@ -275,16 +270,17 @@ export struct Vector
 	constexpr Vector() noexcept : x(0), y(0), z(0) {}
 	constexpr Vector(Arithmetic auto X, Arithmetic auto Y, Arithmetic auto Z) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)), z(static_cast<vec_t>(Z)) {}
 	constexpr Vector(const Vector2D& v2d, Arithmetic auto Z) noexcept : x(v2d.x), y(v2d.y), z(static_cast<vec_t>(Z)) {}
-	template<Arithmetic T, std::size_t size> requires(size >= 3U) explicit constexpr Vector(const T(&rgfl)[size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
+	template<Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const T(&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
+	template<Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
 	constexpr Vector(std::initializer_list<vec_t>&& lst) noexcept { assert(lst.size() >= 3U); auto it = lst.begin(); x = *it++; y = *it++; z = *it++; }
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector(-x, -y, -z); }
-	constexpr bool operator==(const Vector& v) const noexcept { return gcem::abs(x - v.x) < VEC_EPSILON && gcem::abs(y - v.y) < VEC_EPSILON && gcem::abs(z - v.z) < VEC_EPSILON; }
-	constexpr std::strong_ordering operator<=> (const Vector& v) const noexcept { auto const lhs = Length(), rhs = v.Length(); return lhs < rhs ? std::strong_ordering::less : lhs > rhs ? std::strong_ordering::greater : std::strong_ordering::equal; }
-	constexpr std::strong_ordering operator<=> (Arithmetic auto fl) const noexcept { auto const l = static_cast<decltype(fl)>(Length()); return l < fl ? std::strong_ordering::less : l > fl ? std::strong_ordering::greater : std::strong_ordering::equal; }
+	constexpr bool operator==(const Vector& v) const noexcept { return Approx(v); }
+	constexpr decltype(auto) operator<=> (const Vector& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
+	constexpr decltype(auto) operator<=> (Arithmetic auto fl) const noexcept { return LengthSquared() <=> (fl * fl); }
 
-	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return Zero(); }
+	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return (*this = Zero()); }
 
 	constexpr decltype(auto) operator+(const Vector& v) const noexcept { return Vector(x + v.x, y + v.y, z + v.z); }
 	constexpr decltype(auto) operator-(const Vector& v) const noexcept { return Vector(x - v.x, y - v.y, z - v.z); }
@@ -303,60 +299,48 @@ export struct Vector
 	static consteval Vector K() noexcept { return Vector(0, 0, 1); }
 
 	// Methods
-	inline void Clear() { x = y = z = 0; }
-	inline void CopyToIter(ProperIter auto it) const noexcept { *it++ = x; *it++ = y; *it++ = z; }
-	inline void CopyToArray(ProperArray<3> auto arr) const noexcept { arr[0] = x; arr[1] = y; arr[2] = z; }
-	constexpr float Length() const noexcept { return 1.0f / Hydrogenium::rsqrt(x * x + y * y + z * z); }	// Get the vector's magnitude
-	constexpr vec_t LengthSquared() const noexcept { return (x * x + y * y + z * z); }	// Get the vector's magnitude squared
-	constexpr float Length2D() const noexcept { return 1.0f / Hydrogenium::rsqrt(x * x + y * y); }	// Get the vector's magnitude, but only consider its X and Y component
-	constexpr float Length2DSquared() const noexcept { return (x * x + y * y); }
+	constexpr void Clear() noexcept { x = y = z = 0; }
+	constexpr void CopyToIter(ProperIter auto it) const noexcept { using T = std::decay_t<decltype(*it)>; *it++ = static_cast<T>(x); *it++ = static_cast<T>(y); *it++ = static_cast<T>(z); }
+	constexpr void CopyToArray(ProperArray<3> auto& arr) const noexcept { using T = std::decay_t<decltype(arr[std::declval<size_t>()])>; arr[0] = static_cast<T>(x); arr[1] = static_cast<T>(y); arr[2] = static_cast<T>(z); }
+	constexpr real_t Length() const noexcept { return Hydrogenium::sqrt<real_t>(x * x + y * y + z * z); }	// Get the vector's magnitude
+	constexpr real_t LengthSquared() const noexcept { return (x * x + y * y + z * z); }	// Get the vector's magnitude squared
+	constexpr real_t Length2D() const noexcept { return Hydrogenium::sqrt(x * x + y * y); }	// Get the vector's magnitude, but only consider its X and Y component
+	constexpr real_t Length2DSquared() const noexcept { return (x * x + y * y); }
 	constexpr Vector Normalize() const noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
 
-		auto invsqrt = Hydrogenium::rsqrt(x * x + y * y + z * z);
-		return Vector(x * invsqrt, y * invsqrt, z * invsqrt);
+		const auto len = Length();
+		return Vector(x / len, y / len, z / len);
 	}
-	constexpr float NormalizeInPlace() noexcept
+	constexpr real_t NormalizeInPlace() noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
-		{
-			x = 1;
-			y = 0;
-			z = 0;
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
+			return (real_t)0;
 
-			return 0.0f;
-		}
+		const auto len = Length();
 
-		auto fl = Hydrogenium::rsqrt(x * x + y * y + z * z);
+		x = vec_t(x / len);
+		y = vec_t(y / len);
+		z = vec_t(z / len);
 
-		x *= fl;
-		y *= fl;
-		z *= fl;
-
-		return 1.0f / fl;
+		return len;
 	}
 	constexpr Vector SetLength(Arithmetic auto newlen) const noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
 
-		auto fl = static_cast<float>(newlen) * Hydrogenium::rsqrt(x * x + y * y + z * z);
+		const auto fl = static_cast<real_t>(newlen) / Length();
 		return Vector(x * fl, y * fl, z * fl);
 	}
 	constexpr void SetLengthInPlace(Arithmetic auto newlen) noexcept
 	{
-		if (LengthSquared() <= VEC_EPSILON)
-		{
-			x = 0;
-			y = 0;
-			z = 0;
-
+		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return;
-		}
 
-		auto fl = static_cast<float>(newlen) * Hydrogenium::rsqrt(x * x + y * y + z * z);
+		const auto fl = static_cast<real_t>(newlen) / Length();
 
 		x *= fl;
 		y *= fl;
@@ -372,30 +356,101 @@ export struct Vector
 	}
 	constexpr bool IsNaN() const noexcept { return Hydrogenium::is_nan(x, y, z); }
 	constexpr Vector2D Make2D() const noexcept { return Vector2D(x, y); }
+	constexpr bool Approx(const Vector& rhs, vec_t tolerance = VEC_EPSILON) const noexcept
+	{
+		return
+			gcem::abs(x - rhs.x) < tolerance &&
+			gcem::abs(y - rhs.y) < tolerance &&
+			gcem::abs(z - rhs.z) < tolerance;
+	}
 
 	// Conversion
-	constexpr operator float* () noexcept { return &x; } // Vectors will now automatically convert to float * when needed
-	constexpr operator const float* () const noexcept { return &x; } // Vectors will now automatically convert to float * when needed
+	constexpr operator vec_t* () noexcept { return &x; } // Vectors will now automatically convert to float * when needed
+	constexpr operator const vec_t* () const noexcept { return &x; } // Vectors will now automatically convert to float * when needed
 	
 	explicit constexpr operator bool() const noexcept { return !IsZero(); }	// Can be placed in if() now.
-	explicit constexpr operator float() const noexcept { return Length(); }
+	explicit constexpr operator vec_t() const noexcept { return (vec_t)Length(); }
+	explicit constexpr operator real_t() const noexcept { return Length(); }
 
 	// Linear Algebra
-	// Convert Eular angles to its 'forward' vector.
-	constexpr Vector MakeVector() const noexcept
+
+	constexpr Vector Forward() const noexcept
 	{
-		auto rad_pitch = (pitch * std::numbers::pi / 180.0f);
-		auto rad_yaw = (yaw * std::numbers::pi / 180.0f);
-		auto tmp = gcem::cos(rad_pitch);
+		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
+		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
+		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw);
+		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw);
 
 		return Vector(
-			-tmp * -gcem::cos(rad_yaw),	// x
-			gcem::sin(rad_yaw) * tmp,	// y
-			-gcem::sin(rad_pitch)		// z
+			cp * cy,	// x
+			cp * sy,	// y
+			-sp		// z
+		);
+	}
+	constexpr Vector Right() const noexcept
+	{
+		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
+		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
+		const auto rad_roll = (roll * std::numbers::pi / 180.0);
+		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw), sr = gcem::sin(rad_roll);
+		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw), cr = gcem::cos(rad_roll);
+
+		return Vector(
+			-(sr * sp * cy) + cr * sy,	// x
+			-(sr * sp * sy) - cr * cy,	// y
+			-(sr * cp)		// z
+		);
+	}
+	constexpr Vector Up() const noexcept
+	{
+		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
+		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
+		const auto rad_roll = (roll * std::numbers::pi / 180.0);
+		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw), sr = gcem::sin(rad_roll);
+		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw), cr = gcem::cos(rad_roll);
+
+		return Vector(
+			cr * sp * cy + sr * sy,	// x
+			cr * sp * sy - sr * cy,	// y
+			cr * cp		// z
 		);
 	}
 
-	// Convert an forward vector to a set of Eular angles.
+	// Dismantle an set of Eular angles to three vectors.
+	constexpr std::tuple<Vector, Vector, Vector> AngleVectors() const noexcept
+	{
+		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
+		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
+		const auto rad_roll = (roll * std::numbers::pi / 180.0);
+		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw), sr = gcem::sin(rad_roll);
+		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw), cr = gcem::cos(rad_roll);
+
+		return std::make_tuple(
+
+			// Forward
+			Vector(
+				cp * cy,	// x
+				cp * sy,	// y
+				-sp		// z
+			),
+
+			// Right
+			Vector(
+				-(sr * sp * cy) + cr * sy,	// x
+				-(sr * sp * sy) - cr * cy,	// y
+				-(sr * cp)		// z
+			),
+
+			// Up
+			Vector(
+				cr * sp * cy + sr * sy,	// x
+				cr * sp * sy - sr * cy,	// y
+				cr * cp		// z
+			)
+		);
+	}
+
+	// Convert an forward vector to a set of Eular angles. Note: The ROLL into ALWAYS lost in the process.
 	constexpr Vector VectorAngles(void) const noexcept
 	{
 		Vector a;
@@ -413,14 +468,12 @@ export struct Vector
 		}
 		else
 		{
-			a.yaw = vec_t(gcem::atan2(-y, x) * 180.0 / std::numbers::pi);
+			a.yaw = vec_t(gcem::atan2<real_t>(y, x) * 180.0 / std::numbers::pi);
 			if (a.yaw < 0)
 				a.yaw += 360;
 
-			a.yaw = 360.0f - a.yaw;	// LUNA: why???
-
-			auto tmp = Hydrogenium::rsqrt(x * x + y * y);
-			a.pitch = vec_t(gcem::atan(z * tmp) * 180.0 / std::numbers::pi);
+			const auto tmp = gcem::sqrt<real_t>(x * x + y * y);
+			a.pitch = vec_t(gcem::atan2<real_t>(z, tmp) * 180.0 / std::numbers::pi);
 			if (a.pitch < 0)
 				a.pitch += 360;
 		}
@@ -428,11 +481,35 @@ export struct Vector
 		return a;
 	}
 
-	constexpr Vector RotateX(float angle) const noexcept
+	// Unify three vectors into one Eular angles.
+	static constexpr Vector VectorsAngles(const Vector& vecForward, const Vector& vecRight, const Vector& vecUp) noexcept
 	{
-		auto a = (angle * std::numbers::pi / 180.0);
-		auto c = gcem::cos(a);
-		auto s = gcem::sin(a);
+		Vector ret;
+		const auto p = -gcem::asin<real_t>(vecForward.z);
+		auto cp = gcem::cos(p);
+
+		if (gcem::abs(cp) > VEC_EPSILON)	// gimball lock?
+		{
+			cp = 1.0f / cp;
+			ret.pitch = vec_t(p * 180.0 / std::numbers::pi);
+			ret.yaw = vec_t(gcem::atan2<real_t>(vecForward.y * cp, vecForward.x * cp) * 180.0 / std::numbers::pi);
+			ret.roll = vec_t(gcem::atan2<real_t>(-vecRight.z * cp, vecUp.z * cp) * 180.0 / std::numbers::pi);
+		}
+		else
+		{
+			ret.pitch = (vec_t)gcem::copysign(90, vecForward.z);
+			ret.yaw = vec_t(gcem::atan2<real_t>(vecRight.x, -vecRight.y));
+			ret.roll = 180.0f;
+		}
+
+		return ret;
+	}
+
+	constexpr Vector RotateX(real_t angle) const noexcept
+	{
+		const auto a = (angle * std::numbers::pi / 180.0);
+		const auto c = gcem::cos(a);
+		const auto s = gcem::sin(a);
 
 		return Vector(
 			x,
@@ -440,12 +517,11 @@ export struct Vector
 			s * y + c * z
 		);
 	}
-
-	constexpr Vector RotateY(float angle) const noexcept
+	constexpr Vector RotateY(real_t angle) const noexcept
 	{
-		auto a = (angle * std::numbers::pi / 180.0);
-		auto c = gcem::cos(a);
-		auto s = gcem::sin(a);
+		const auto a = (angle * std::numbers::pi / 180.0);
+		const auto c = gcem::cos(a);
+		const auto s = gcem::sin(a);
 
 		return Vector(
 			c * x + s * z,
@@ -453,12 +529,11 @@ export struct Vector
 			-s * x + c * z
 		);
 	}
-
-	constexpr Vector RotateZ(float angle) const noexcept
+	constexpr Vector RotateZ(real_t angle) const noexcept
 	{
-		auto a = (angle * std::numbers::pi / 180.0);
-		auto c = gcem::cos(a);
-		auto s = gcem::sin(a);
+		const auto a = (angle * std::numbers::pi / 180.0);
+		const auto c = gcem::cos(a);
+		const auto s = gcem::sin(a);
 
 		return Vector(
 			c * x - s * y,
@@ -466,6 +541,82 @@ export struct Vector
 			z
 		);
 	}
+
+	// Euler
+	//constexpr decltype(auto) _impl_pitch_get() const noexcept { return x; }
+	//constexpr decltype(auto) _impl_pitch_put(vec_t&& P) noexcept { x = P; }
+	//constexpr decltype(auto) _impl_yaw_get() const noexcept { return y; }
+	//constexpr decltype(auto) _impl_yaw_put(vec_t&& Y) noexcept { y = Y; }
+	//constexpr decltype(auto) _impl_roll_get() const noexcept { return z; }
+	//constexpr decltype(auto) _impl_roll_put(vec_t&& R) noexcept { z = R; }
+
+	// STL Containers Compatibility
+	// Iterators
+	using iterator = _STD _Array_iterator<vec_t, 3>;
+	using const_iterator = _STD _Array_const_iterator<vec_t, 3>;
+	using reverse_iterator = _STD reverse_iterator<iterator>;
+	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(&x, 0); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(&x, 0); }
+	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(&x, 3); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(&x, 3); }
+	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+
+	// Element Access
+	using reference = vec_t&;
+	using const_reference = const vec_t&;
+	[[nodiscard]] constexpr reference at(std::size_t pos)
+	{
+		switch (pos)
+		{
+		case 0:
+			return x;
+		case 1:
+			return y;
+		case 2:
+			return z;
+		[[unlikely]] default:
+			throw std::out_of_range(std::format("[Vector2D::at] Invalid accessing pos: {}.", pos));
+		}
+	}
+	[[nodiscard]] constexpr const_reference at(std::size_t pos) const	// #UPDATE_AT_CPP23 explict this
+	{
+		switch (pos)
+		{
+		case 0:
+			return x;
+		case 1:
+			return y;
+		case 2:
+			return z;
+		[[unlikely]] default:
+			throw std::out_of_range(std::format("[Vector2D::at] Invalid accessing pos: {}.", pos));
+		}
+	}
+	//[[nodiscard]] constexpr reference operator[] (std::size_t pos) noexcept { return *((&x) + pos); }
+	//[[nodiscard]] constexpr const_reference operator[] (std::size_t pos) const noexcept { return *((&x) + pos); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr vec_t* data(void) noexcept { return &x; }
+	[[nodiscard]] constexpr const vec_t* data(void) const noexcept { return &x; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference front(void) noexcept { return x; }
+	[[nodiscard]] constexpr const_reference front(void) const noexcept { return x; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference back(void) noexcept { return z; }
+	[[nodiscard]] constexpr const_reference back(void) const noexcept { return z; }	// #UPDATE_AT_CPP23 explict this
+
+	// Capacity
+	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
+	[[nodiscard]] static consteval std::size_t size(void) noexcept { return static_cast<std::size_t>(3); }
+	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(3); }
+
+	// Modifiers
+	constexpr void fill(const vec_t& val) noexcept { x = y = z = val; }
+	constexpr void swap(Vector& other) noexcept { _STD _Swap_ranges_unchecked(&x, (&x) + 3, &other.x); }
 
 	// Members
 	union { vec_t x; vec_t pitch;	};
@@ -478,17 +629,17 @@ export constexpr Vector operator*(Arithmetic auto fl, const Vector& v) noexcept
 	return v * fl;
 }
 
-export constexpr auto DotProduct(const Vector& a, const Vector& b) noexcept
+export constexpr real_t DotProduct(const Vector& a, const Vector& b) noexcept
 {
 	return (a.x * b.x + a.y * b.y + a.z * b.z);
 }
 
-export constexpr auto DotProduct2D(const Vector& a, const Vector& b) noexcept
+export constexpr real_t DotProduct2D(const Vector& a, const Vector& b) noexcept
 {
 	return (a.x * b.x + a.y * b.y);
 }
 
-export constexpr auto CrossProduct(const Vector& a, const Vector& b) noexcept
+export constexpr Vector CrossProduct(const Vector& a, const Vector& b) noexcept
 {
 	return Vector(
 		a.y * b.z - a.z * b.y,
@@ -497,13 +648,22 @@ export constexpr auto CrossProduct(const Vector& a, const Vector& b) noexcept
 	);
 }
 
-// Get the angle between two vectors. Returns an angle in degree.
-export constexpr auto operator^(const Vector& a, const Vector& b) noexcept
+export constexpr Vector CrossProduct(const Vector2D& a, const Vector2D& b) noexcept
 {
-	double length_ab = static_cast<double>(a.Length() * b.Length());
+	return Vector(
+		0,
+		0,
+		a.x * b.y - a.y * b.x
+	);
+}
 
-	if (gcem::abs(length_ab) < std::numeric_limits<double>::epsilon())
-		return 0.0;
+// Get the angle between two vectors. Returns an angle in degree.
+export constexpr decltype(auto) operator^(const Vector& a, const Vector& b) noexcept
+{
+	const real_t length_ab = gcem::sqrt(a.LengthSquared() * b.LengthSquared());	// sqrt(a) * sqrt(b) == sqrt(a*b)
+
+	if (length_ab < std::numeric_limits<real_t>::epsilon())
+		return (real_t)0;
 
 	return gcem::acos(DotProduct(a, b) / length_ab) * (180.0 / std::numbers::pi);
 }
@@ -704,46 +864,23 @@ struct Matrix
 			}));
 		}
 	}
-	static constexpr decltype(auto) Scale(mxs_t scale) noexcept requires(SQUARE_MX)
+	static constexpr decltype(auto) Scale(Arithmetic auto&&... scale) noexcept requires(SQUARE_MX && sizeof...(scale) == ROWS)
 	{
-		this_t m;
+		return [scale...] <size_t... I>(std::index_sequence<I...>&&) { this_t m; ((m[I][I] = static_cast<mxs_t>(scale)), ...); return m; }(std::make_index_sequence<sizeof...(scale)>{});
+	}
+	static constexpr decltype(auto) Translate(Arithmetic auto&&... deltas) noexcept requires(COLUMNS == ROWS + 1 || SQUARE_MX)
+	{
+		static_assert(sizeof...(deltas) == ROWS - SQUARE_MX,
+			"The amount of arguments must be exactly as rows (with squared matrix) or one less (with things like matrix 4x3)!"
+		);
 
-		for (size_t i = 0; i < ROWS; i++)
-			m[i][i] = scale;
-
-		return m;
-	}
-	static constexpr decltype(auto) Scale(mxs_t x = 1, mxs_t y = 1) noexcept requires(ROWS == 2U && COLUMNS == 2U)
-	{
-		return this_t({
-			{x, 0},
-			{0, y}
-		});
-	}
-	static constexpr decltype(auto) Scale(mxs_t x = 1, mxs_t y = 1, mxs_t z = 1) noexcept requires(ROWS == 3U && COLUMNS == 3U)
-	{
-		return this_t({
-			{x, 0, 0},
-			{0, y, 0},
-			{0, 0, z}
-		});
-	}
-	static constexpr decltype(auto) Translate(mxs_t x = 0, mxs_t y = 0) noexcept requires(ROWS == 3U && COLUMNS == 3U)	// 2D. Translate requires an extra dimension on matrix.
-	{
-		return this_t({
-			{1, 0, x},
-			{0, 1, y},
-			{0, 0, 1}
-		});
-	}
-	static constexpr decltype(auto) Translate(mxs_t x = 0, mxs_t y = 0, mxs_t z = 0) noexcept requires(ROWS == 4U && COLUMNS == 4U)	// 3D. Translate requires an extra dimension on matrix.
-	{
-		return this_t({
-			{1, 0, 0, x},
-			{0, 1, 0, y},
-			{0, 0, 1, z},
-			{0, 0, 0, 1}
-		});
+		return [deltas...] <size_t... I>(std::index_sequence<I...>&&)
+		{
+			this_t m = Identity();
+			((m[I][COLUMNS - 1] = deltas), ...);
+			return m;
+		}
+		(std::make_index_sequence<ROWS - SQUARE_MX>{});
 	}
 
 	// Properties
@@ -1132,6 +1269,7 @@ export template<size_t _rows, size_t _cols> std::ostream& operator<<(std::ostrea
 		o << std::endl << std::left;
 	}
 
+	o << '\n' << std::left;
 	return o;
 }
 #endif // _IOSTREAM_

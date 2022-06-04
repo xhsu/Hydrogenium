@@ -2,9 +2,17 @@ module;
 
 #include <array>
 #include <concepts>
+#include <deque>
+#include <forward_list>
 #include <fstream>
 #include <iostream>
+#include <list>
+#include <map>
+#include <set>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 export module UtlConcepts;
 
@@ -46,12 +54,47 @@ requires(T t)
 	{ std::end(t) } -> ProperIter;
 };*/
 
-export template<typename T>
-concept ResizableContainer = requires(T t)
-{
-	{ t.size() } -> std::integral;
-	{ t.emplace_back };
-};
+template <typename T>
+constexpr bool _impl_ResizableContainer = false;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::vector<T>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::deque<T>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::forward_list<T>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::list<T>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::set<T>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::multiset<T>> = true;
+
+template <typename T, typename U>
+constexpr bool _impl_ResizableContainer<std::map<T, U>> = true;
+
+template <typename T, typename U>
+constexpr bool _impl_ResizableContainer<std::multimap<T, U>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::unordered_set<T>> = true;
+
+template <typename T>
+constexpr bool _impl_ResizableContainer<std::unordered_multiset<T>> = true;
+
+template <typename T, typename U>
+constexpr bool _impl_ResizableContainer<std::unordered_map<T, U>> = true;
+
+template <typename T, typename U>
+constexpr bool _impl_ResizableContainer<std::unordered_multimap<T, U>> = true;
+
+export template <typename T>
+concept ResizableContainer = _impl_ResizableContainer<T>;
 
 template<typename T>
 struct _impl_ArrayDect : public std::false_type {};
@@ -133,10 +176,13 @@ concept NonVoid = _impl_NonVoidType<T>::value;
 export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
 
-export template <typename T, typename... Tys>
-constexpr bool AnySame = (std::is_same_v<T, Tys> || ...) || AnySame<Tys...>;
+template <typename T, typename... Tys>
+constexpr bool _impl_AnySame = (std::is_same_v<T, Tys> || ...) || _impl_AnySame<Tys...>;
 
-export template <typename T>
-constexpr bool AnySame<T> = false;
+template <typename T>
+constexpr bool _impl_AnySame<T> = false;
+
+export template <typename T, typename... Tys>
+concept AnySame = _impl_AnySame<T, Tys...>;
 
 #pragma endregion Type traits
