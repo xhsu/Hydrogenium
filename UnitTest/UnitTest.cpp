@@ -19,8 +19,7 @@ import UtlArithmetic;
 template <typename T>
 void Log(const T& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
 {
-	cout_gold() << std::format("[{}] {}:({}, {}): {}\n", hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(), sz);
-	cout_w();
+	cout_gold() << std::format("[{}] {}:({}, {}): {}\n", hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(), sz) << white_text;
 }
 
 // #DEV_TOOL unit test fn
@@ -70,6 +69,7 @@ void UnitTest_Vector(void) noexcept
 	Log("Starting...");
 
 	using std::array;
+	static_assert(sizeof(Vector) == 3 * sizeof(vec_t));
 
 	// Construction
 	constexpr Vector vecZero(0, 0, 0);
@@ -154,24 +154,24 @@ void UnitTest_Vector(void) noexcept
 
 	// Linear Algebra
 
-	const Vector angle { 48, -93, 19 };
-	assert(DotProduct(angle.Forward(), angle.Right()) == 0);
-	assert(DotProduct(angle.Right(), angle.Up()) == 0);
-	assert(DotProduct(angle.Up(), angle.Forward()) < 1e-5f);
-	assert(CrossProduct(angle.Forward(), angle.Right()) == -angle.Up());
-	assert(CrossProduct(angle.Right(), angle.Up()) == -angle.Forward());
-	assert(CrossProduct(angle.Up(), angle.Forward()) == -angle.Right());
+	constexpr Vector angle { 48, -93, 19 };
+	static_assert(DotProduct(angle.Forward(), angle.Right()) == 0);
+	static_assert(DotProduct(angle.Right(), angle.Up()) == 0);
+	static_assert(DotProduct(angle.Up(), angle.Forward()) < 1e-5f);
+	static_assert(CrossProduct(angle.Forward(), angle.Right()) == -angle.Up());
+	static_assert(CrossProduct(angle.Right(), angle.Up()) == -angle.Forward());
+	static_assert(CrossProduct(angle.Up(), angle.Forward()) == -angle.Right());
 
 	const auto [f, r, u] = angle.AngleVectors();
 	assert(Vector::VectorsAngles(f, r, u) == angle);
 
-	assert(Vector::Zero().Forward() == Vector::I());
-	assert(Vector(0, 90, 0).Forward() == Vector::J());
-	assert(Vector(-90, 0, 0).Forward() == Vector::K());
+	static_assert(Vector::Zero().Forward() == Vector::I());
+	static_assert(Vector(0, 90, 0).Forward() == Vector::J());
+	static_assert(Vector(-90, 0, 0).Forward() == Vector::K());
 
-	assert(Vector::I().VectorAngles() == Vector::Zero());
-	assert(Vector::J().VectorAngles() == Vector(0, 90, 0));
-	assert(Vector::K().VectorAngles() == Vector(90, 0, 0));
+	static_assert(Vector::I().VectorAngles() == Vector::Zero());
+	static_assert(Vector::J().VectorAngles() == Vector(0, 90, 0));
+	static_assert(Vector::K().VectorAngles() == Vector(90, 0, 0));
 
 	static_assert(Vector::I().RotateZ(90) == Vector::J());
 	static_assert(Vector::J().RotateX(90) == Vector::K());
@@ -223,6 +223,7 @@ void UnitTest_Vector2D(void) noexcept
 	Log("Starting...");
 
 	using std::array;
+	static_assert(sizeof(Vector2D) == 2 * sizeof(vec_t));
 
 	// Construction
 	constexpr Vector2D vecZero(0, 0);
@@ -358,15 +359,69 @@ void UnitTest_Matrix(void) noexcept
 	Log("Starting...");
 
 	using TransformMx = Matrix<3, 3>;
+	static_assert(sizeof(TransformMx) == TransformMx::ROWS * TransformMx::COLUMNS * sizeof(mxs_t));
+	static_assert(TransformMx::ROWS == 3 && TransformMx::COLUMNS == 3 && TransformMx::SQUARE_MX && TransformMx::RxC == 9 && TransformMx::DIAGONAL == 3);
 
-	constexpr TransformMx mx =
+	constexpr Matrix<3, 2> m3x2 =
+	{
+		{1, 2},
+		{3, 4},
+		{5, 6},
+	};
+	constexpr Matrix<2, 3> m2x3 =
+	{
+		{10, 11, 12},
+		{13, 14, 15},
+	};
+	constexpr Matrix<m3x2.ROWS, m2x3.COLUMNS> m3x3 =
+	{
+		{36, 39, 42},
+		{82, 89, 96},
+		{128, 139, 150},
+	};
+	constexpr Matrix<m2x3.ROWS, m3x2.COLUMNS> m2x2 =
+	{
+		{103, 136},
+		{130, 172},
+	};
+
+	// Constructors
+	static_assert(TransformMx() == TransformMx::Zero());
+
+	constexpr int rgrgi[3][3] =
+	{
+		{36, 39, 42},
+		{82, 89, 96},
+		{128, 139, 150},
+	};
+	static_assert(TransformMx(rgrgi) == m3x3);
+	static_assert(TransformMx({ 36, 39, 42, 82, 89, 96, 128, 139, 150 }) == m3x3);
+	static_assert((Matrix<2, 2>)TransformMx(36, 39, 42, 82, 89, 96, 128, 139, 150) == Matrix<2, 2>(36, 39, 82, 89));
+
+	constexpr TransformMx mx1 =
 		TransformMx::Translate(7, 8)
 		* TransformMx::Rotation(120)
 		* TransformMx::Scale(4, 4, 1);
 
-	static_assert(mx * Vector2D::I() == Vector2D(-0.5*4+7, std::numbers::sqrt3 / 2.0*4+8));
+	static_assert(mx1 * Vector2D::I() == Vector2D(-0.5 * 4 + 7, std::numbers::sqrt3 / 2.0 * 4 + 8));
 
-	std::cout << mx * Vector2D::I() << '\n';
+// 	constexpr TransformMx mx2 = 
+// 		TransformMx::Translate(7, 8)
+// 		* TransformMx::Rotation(240)
+// 		* TransformMx::Scale(1.6, 2.4, 1);
+
+	static_assert((mx1 * ~mx1).Approx(TransformMx::Identity(), 1e-10));
+	static_assert(~mx1 * (mx1 * Vector2D(1, 2)) == Vector2D(1, 2));
+
+	static_assert(m3x2 * m2x3 == m3x3);
+	static_assert(m2x3 * m3x2 == m2x2);
+
+	constexpr double DBL_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
+	static_assert(Matrix<2, 2>({ {DBL_NAN, 0}, {0, DBL_NAN} }).IsNaN());
+	static_assert(!mx1.IsNaN());
+
+	auto mx2 = TransformMx::Zero();
+	mx2.ReplaceCol(2, 1, 2, 3);
 
 	Log("Successful.\n");
 }

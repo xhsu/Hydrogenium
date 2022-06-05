@@ -30,7 +30,6 @@ module;
 
 export module UtlLinearAlgebra;
 
-
 import UtlArithmetic;
 import UtlConcepts;
 
@@ -376,8 +375,6 @@ export struct Vector
 
 	constexpr Vector Forward() const noexcept
 	{
-		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
-		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
 		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw);
 		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw);
 
@@ -389,9 +386,6 @@ export struct Vector
 	}
 	constexpr Vector Right() const noexcept
 	{
-		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
-		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
-		const auto rad_roll = (roll * std::numbers::pi / 180.0);
 		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw), sr = gcem::sin(rad_roll);
 		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw), cr = gcem::cos(rad_roll);
 
@@ -403,9 +397,6 @@ export struct Vector
 	}
 	constexpr Vector Up() const noexcept
 	{
-		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
-		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
-		const auto rad_roll = (roll * std::numbers::pi / 180.0);
 		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw), sr = gcem::sin(rad_roll);
 		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw), cr = gcem::cos(rad_roll);
 
@@ -419,9 +410,6 @@ export struct Vector
 	// Dismantle an set of Eular angles to three vectors.
 	constexpr std::tuple<Vector, Vector, Vector> AngleVectors() const noexcept
 	{
-		const auto rad_pitch = (pitch * std::numbers::pi / 180.0);
-		const auto rad_yaw = (yaw * std::numbers::pi / 180.0);
-		const auto rad_roll = (roll * std::numbers::pi / 180.0);
 		const auto sp = gcem::sin(rad_pitch), sy = gcem::sin(rad_yaw), sr = gcem::sin(rad_roll);
 		const auto cp = gcem::cos(rad_pitch), cy = gcem::cos(rad_yaw), cr = gcem::cos(rad_roll);
 
@@ -453,32 +441,29 @@ export struct Vector
 	// Convert an forward vector to a set of Eular angles. Note: The ROLL into ALWAYS lost in the process.
 	constexpr Vector VectorAngles(void) const noexcept
 	{
-		Vector a;
-		a.pitch = 0;
-		a.yaw = 0;
-		a.roll = 0;
+		Vector angles;
 
 		if (y == 0 && x == 0)
 		{
-			a.yaw = 0;
+			angles.yaw = 0;
 			if (z > 0)
-				a.pitch = 90;
+				angles.pitch = 90;
 			else
-				a.pitch = 270;
+				angles.pitch = 270;
 		}
 		else
 		{
-			a.yaw = vec_t(gcem::atan2<real_t>(y, x) * 180.0 / std::numbers::pi);
-			if (a.yaw < 0)
-				a.yaw += 360;
+			angles.rad_yaw = gcem::atan2<real_t>(y, x);
+			if (angles.yaw < 0)
+				angles.yaw += 360;
 
 			const auto tmp = gcem::sqrt<real_t>(x * x + y * y);
-			a.pitch = vec_t(gcem::atan2<real_t>(z, tmp) * 180.0 / std::numbers::pi);
-			if (a.pitch < 0)
-				a.pitch += 360;
+			angles.rad_pitch = gcem::atan2<real_t>(z, tmp);
+			if (angles.pitch < 0)
+				angles.pitch += 360;
 		}
 
-		return a;
+		return angles;
 	}
 
 	// Unify three vectors into one Eular angles.
@@ -490,15 +475,15 @@ export struct Vector
 
 		if (gcem::abs(cp) > VEC_EPSILON)	// gimball lock?
 		{
-			cp = 1.0f / cp;
-			ret.pitch = vec_t(p * 180.0 / std::numbers::pi);
-			ret.yaw = vec_t(gcem::atan2<real_t>(vecForward.y * cp, vecForward.x * cp) * 180.0 / std::numbers::pi);
-			ret.roll = vec_t(gcem::atan2<real_t>(-vecRight.z * cp, vecUp.z * cp) * 180.0 / std::numbers::pi);
+			cp = 1.0 / cp;
+			ret.rad_pitch = p;
+			ret.rad_yaw = gcem::atan2<real_t>(vecForward.y * cp, vecForward.x * cp);
+			ret.rad_roll = gcem::atan2<real_t>(-vecRight.z * cp, vecUp.z * cp);
 		}
 		else
 		{
 			ret.pitch = (vec_t)gcem::copysign(90, vecForward.z);
-			ret.yaw = vec_t(gcem::atan2<real_t>(vecRight.x, -vecRight.y));
+			ret.rad_yaw = gcem::atan2<real_t>(vecRight.x, -vecRight.y);
 			ret.roll = 180.0f;
 		}
 
@@ -543,12 +528,18 @@ export struct Vector
 	}
 
 	// Euler
-	//constexpr decltype(auto) _impl_pitch_get() const noexcept { return x; }
-	//constexpr decltype(auto) _impl_pitch_put(vec_t&& P) noexcept { x = P; }
-	//constexpr decltype(auto) _impl_yaw_get() const noexcept { return y; }
-	//constexpr decltype(auto) _impl_yaw_put(vec_t&& Y) noexcept { y = Y; }
-	//constexpr decltype(auto) _impl_roll_get() const noexcept { return z; }
-	//constexpr decltype(auto) _impl_roll_put(vec_t&& R) noexcept { z = R; }
+	constexpr vec_t _impl_deg_pitch_get() const noexcept { return x; }
+	constexpr void _impl_deg_pitch_put(vec_t P) noexcept { x = P; }
+	constexpr vec_t _impl_deg_yaw_get() const noexcept { return y; }
+	constexpr void _impl_deg_yaw_put(vec_t Y) noexcept { y = Y; }
+	constexpr vec_t _impl_deg_roll_get() const noexcept { return z; }
+	constexpr void _impl_deg_roll_put(vec_t R) noexcept { z = R; }
+	constexpr real_t _impl_rad_pitch_get() const noexcept { return x * std::numbers::pi / 180.0; }
+	constexpr void _impl_rad_pitch_put(real_t P) noexcept { x = static_cast<vec_t>(P * std::numbers::inv_pi * 180.0); }
+	constexpr real_t _impl_rad_yaw_get() const noexcept { return y * std::numbers::pi / 180.0; }
+	constexpr void _impl_rad_yaw_put(real_t Y) noexcept { y = static_cast<vec_t>(Y * std::numbers::inv_pi * 180.0); }
+	constexpr real_t _impl_rad_roll_get() const noexcept { return z * std::numbers::pi / 180.0; }
+	constexpr void _impl_rad_roll_put(real_t R) noexcept { z = static_cast<vec_t>(R * std::numbers::inv_pi * 180.0); }
 
 	// STL Containers Compatibility
 	// Iterators
@@ -619,9 +610,15 @@ export struct Vector
 	constexpr void swap(Vector& other) noexcept { _STD _Swap_ranges_unchecked(&x, (&x) + 3, &other.x); }
 
 	// Members
-	union { vec_t x; vec_t pitch;	};
-	union { vec_t y; vec_t yaw;		};
-	union { vec_t z; vec_t roll;	};
+	vec_t x { 0 };
+	vec_t y { 0 };
+	vec_t z { 0 };
+	__declspec(property(get = _impl_deg_pitch_get, put = _impl_deg_pitch_put)) vec_t pitch;
+	__declspec(property(get = _impl_rad_pitch_get, put = _impl_rad_pitch_put)) real_t rad_pitch;
+	__declspec(property(get = _impl_deg_yaw_get, put = _impl_deg_yaw_put)) vec_t yaw;
+	__declspec(property(get = _impl_rad_yaw_get, put = _impl_rad_yaw_put)) real_t rad_yaw;
+	__declspec(property(get = _impl_deg_roll_get, put = _impl_deg_roll_put)) vec_t roll;
+	__declspec(property(get = _impl_rad_roll_get, put = _impl_rad_roll_put)) real_t rad_roll;
 };
 
 export constexpr Vector operator*(Arithmetic auto fl, const Vector& v) noexcept
@@ -683,7 +680,7 @@ constexpr auto MXS_EPSILON = std::numeric_limits<mxs_t>::epsilon();
 constexpr auto MXS_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
 constexpr auto MXS_INFINITY = std::numeric_limits<mxs_t>::infinity();
 
-export template<size_t _rows = 1U, size_t _cols = 1U>
+export template<size_t _rows, size_t _cols>
 requires(_rows > 0U && _cols > 0U)
 struct Matrix
 {
@@ -691,6 +688,8 @@ struct Matrix
 	static constexpr auto ROWS = _rows;
 	static constexpr auto COLUMNS = _cols;
 	static constexpr bool SQUARE_MX = _rows == _cols;
+	static constexpr auto RxC = _rows * _cols;
+	static constexpr auto DIAGONAL = (size_t)gcem::sqrt(RxC);
 
 	// Types
 	using row_init_t = std::initializer_list<mxs_t>;
@@ -700,13 +699,11 @@ struct Matrix
 	constexpr Matrix() noexcept : _data() {}
 	template<Arithmetic T> constexpr Matrix(const T(&array)[ROWS][COLUMNS]) noexcept	// Why can't I use the keyword 'auto' as auto-template here?
 	{
-		for (size_t i = 0; i < ROWS; i++)
+		[&] <size_t... I>(std::index_sequence<I...>&&)
 		{
-			for (size_t j = 0; j < COLUMNS; j++)
-			{
-				_data[i][j] = array[i][j];
-			}
+			((_data[I / ROWS][I % COLUMNS] = array[I / ROWS][I % COLUMNS]), ...);
 		}
+		(std::make_index_sequence<RxC>{});
 	}
 	constexpr Matrix(const std::initializer_list<row_init_t>&& list) noexcept
 	{
@@ -727,9 +724,19 @@ struct Matrix
 			r++;
 		}
 	}
+	constexpr Matrix(Arithmetic auto... cells) noexcept
+	{
+		static_assert(sizeof...(cells) == RxC, "%RxC% arguments must be provided.");
+
+		[&] <size_t... I>(std::index_sequence<I...>&&)
+		{
+			((_data[I / ROWS][I % COLUMNS] = cells), ...);
+		}
+		(std::make_index_sequence<RxC>{});
+	}
 	constexpr Matrix(const row_init_t&& list) noexcept
 	{
-		assert(list.size() >= ROWS * COLUMNS);
+		assert(list.size() >= RxC);
 
 		auto iter = list.begin();
 		for (size_t i = 0; i < ROWS; i++)
@@ -750,11 +757,14 @@ struct Matrix
 			*this = Identity();
 		}
 
-		for (size_t i = 0; i < std::min(BRows, ROWS); i++)
+		constexpr size_t R = std::min(BRows, ROWS);
+		constexpr size_t C = std::min(BCols, COLUMNS);
+
+		[&] <size_t... I>(std::index_sequence<I...>&&)
 		{
-			for (size_t j = 0; j < std::min(BCols, COLUMNS); j++)
-				_data[i][j] = B[i][j];
+			((_data[I / R][I % C] = B[I / R][I % C]), ...);
 		}
+		(std::make_index_sequence<R * C>{});
 	}
 	explicit constexpr Matrix(const Vector2D& v) noexcept requires(ROWS >= 2U && COLUMNS == 1U) : _data()
 	{
@@ -781,14 +791,15 @@ struct Matrix
 	// Static Methods
 	static consteval decltype(auto) Identity() noexcept requires(SQUARE_MX)
 	{
-		this_t m;
-
-		for (size_t i = 0; i < ROWS; i++)
-			m[i][i] = 1;
-
-		return m;
+		return [] <size_t... I>(std::index_sequence<I...>&&) -> this_t
+		{
+			return this_t(
+				!(bool)(I % (ROWS + 1))...
+			);
+		}
+		(std::make_index_sequence<RxC>{});
 	}
-	static consteval decltype(auto) Zero() noexcept { static const this_t m; return m; }
+	static consteval decltype(auto) Zero() noexcept { return this_t(); }
 	static constexpr decltype(auto) Rotation(Arithmetic auto degree) noexcept	// 2D rotation. Ideally generates a 2x2 matrix.
 	{
 		const auto rad = degree / 180.0 * std::numbers::pi;
@@ -864,9 +875,9 @@ struct Matrix
 			}));
 		}
 	}
-	static constexpr decltype(auto) Scale(Arithmetic auto&&... scale) noexcept requires(SQUARE_MX && sizeof...(scale) == ROWS)
+	static constexpr decltype(auto) Scale(Arithmetic auto&&... scale) noexcept requires(SQUARE_MX && sizeof...(scale) == DIAGONAL)
 	{
-		return [scale...] <size_t... I>(std::index_sequence<I...>&&) { this_t m; ((m[I][I] = static_cast<mxs_t>(scale)), ...); return m; }(std::make_index_sequence<sizeof...(scale)>{});
+		return [scale...] <size_t... I>(std::index_sequence<I...>&&) { this_t m; ((m[I][I] = static_cast<mxs_t>(scale)), ...); return m; }(std::make_index_sequence<DIAGONAL>{});
 	}
 	static constexpr decltype(auto) Translate(Arithmetic auto&&... deltas) noexcept requires(COLUMNS == ROWS + 1 || SQUARE_MX)
 	{
@@ -1003,55 +1014,44 @@ struct Matrix
 	}
 
 	// Methods
-	constexpr decltype(auto) ReplaceCol(size_t c, const std::initializer_list<mxs_t>&& list) noexcept
+	constexpr void ReplaceCol(size_t c, Arithmetic auto... vals) noexcept
 	{
+		static_assert(sizeof...(vals) == ROWS, "You must provide %ROWS% arguments.");
 		assert(c < COLUMNS);
 
-		size_t r = 0U;
-
-		for (auto cell : list)
+		[&] <size_t... I>(std::index_sequence<I...>&&)
 		{
-			if (Hydrogenium::is_nan(cell))	// Special key: if a cell is NaN, skip it.
-				continue;
-
-			_data[r][c] = cell;
-			r++;
-
-			if (r >= ROWS)
-				break;
+			((_data[I][c] = vals), ...);
 		}
+		(std::make_index_sequence<ROWS>{});
 	}
-	constexpr decltype(auto) ReplaceRow(size_t r, const std::initializer_list<mxs_t>&& list) noexcept
+	constexpr void ReplaceRow(size_t r, Arithmetic auto... vals) noexcept
 	{
-		assert(r < COLUMNS);
+		static_assert(sizeof...(vals) == ROWS, "You must provide %COLUMNS% arguments.");
+		assert(r < ROWS);
 
-		size_t c = 0U;
-
-		for (auto cell : list)
+		[&] <size_t... I>(std::index_sequence<I...>&&)
 		{
-			if (Hydrogenium::is_nan(cell))	// Special key: if a cell is NaN, skip it.
-				continue;
-
-			_data[r][c] = cell;
-			c++;
-
-			if (c >= ROWS)
-				break;
+			((_data[r][I] = vals), ...);
 		}
+		(std::make_index_sequence<COLUMNS>{});
 	}
-	constexpr bool IsZero() const noexcept { return *this == this_t::Zero(); }
+	constexpr bool IsZero(mxs_t tolerance = MXS_EPSILON) const noexcept { return Approx(Zero(), tolerance); }
 	constexpr bool IsNaN() const noexcept
 	{
-		for (const auto& row : _data)
+		return [&] <size_t... I>(std::index_sequence<I...>&&) -> bool
 		{
-			for (const auto& cell : row)
-			{
-				if (Hydrogenium::is_nan(cell))
-					return true;
-			}
+			return Hydrogenium::is_nan(_data[I / ROWS][I % COLUMNS]...);
 		}
-
-		return false;
+		(std::make_index_sequence<RxC>{});
+	}
+	constexpr bool Approx(const this_t& B, mxs_t tolerance = MXS_EPSILON) const noexcept
+	{
+		return [&] <size_t... I>(std::index_sequence<I...>&&) -> bool
+		{
+			return ((gcem::abs(B[I / ROWS][I % COLUMNS] - _data[I / ROWS][I % COLUMNS]) < tolerance) && ...);
+		}
+		(std::make_index_sequence<RxC>{});
 	}
 
 	// Operators
@@ -1080,8 +1080,8 @@ struct Matrix
 			return true;
 		}
 	}
-	template<size_t BRows, size_t BCols>
-	constexpr decltype(auto) operator*(const Matrix<BRows, BCols>& B) const noexcept requires(COLUMNS == BRows)
+	template<size_t BCols>
+	constexpr decltype(auto) operator*(const Matrix<COLUMNS, BCols>& B) const noexcept
 	{
 		Matrix<ROWS, BCols> res;
 
@@ -1113,8 +1113,8 @@ struct Matrix
 
 		return res;
 	}
-	template<size_t BRows, size_t BCols>
-	constexpr decltype(auto) operator|(const Matrix<BRows, BCols>& B) const noexcept requires(ROWS == BRows)	// Direct combine. Such that I|J|K == M3x3::Identity.
+	template<size_t BCols>
+	constexpr decltype(auto) operator|(const Matrix<ROWS, BCols>& B) const noexcept	// Direct combine. Such that I|J|K == M3x3::Identity.
 	{
 		constexpr size_t C_COLS = COLUMNS + BCols;
 
