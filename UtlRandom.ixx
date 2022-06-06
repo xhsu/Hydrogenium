@@ -7,7 +7,7 @@ export module UtlRandom;
 
 import UtlConcepts;
 
-std::shared_mutex g_hMutex{};
+std::shared_mutex g_hMutex;
 
 auto& UTIL_GetSharedRNG(void) noexcept
 {
@@ -26,12 +26,31 @@ auto& UTIL_GetSharedRNG(void) noexcept
 export template<ProperIter Iter>
 Iter UTIL_GetRandomOne(Iter start, Iter end) noexcept
 {
-	std::uniform_int_distribution<> dis(0, std::distance(start, end) - 1);
+	std::uniform_int_distribution<Iter::difference_type> dis(0, std::distance(start, end) - 1);
 	std::advance(start, dis(UTIL_GetSharedRNG()));
 	return start;
 }
 
 export auto UTIL_GetRandomOne(const Iterable auto& obj) noexcept
 {
-	return UTIL_GetRandomOne(std::begin(obj), std::end(obj), UTIL_GetSharedRNG());
+	return UTIL_GetRandomOne(std::begin(obj), std::end(obj));
+}
+
+export template <AnySame<short, int, long, long long, unsigned short, unsigned int, unsigned long, unsigned long long> T>
+[[nodiscard]]
+T UTIL_Random(T low, T high) noexcept
+{
+	return std::uniform_int_distribution<T>(low, high)(UTIL_GetSharedRNG());
+}
+
+export template <AnySame<float, double, long double> T>
+[[nodiscard]]
+T UTIL_Random(T low, T high) noexcept
+{
+	return std::uniform_real<T>(low, high)(UTIL_GetSharedRNG());
+}
+
+export bool UTIL_Random(void) noexcept
+{
+	return std::bernoulli_distribution()(UTIL_GetSharedRNG());
 }

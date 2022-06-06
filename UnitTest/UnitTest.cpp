@@ -15,6 +15,7 @@ import UtlWinConsole;
 import UtlLinearAlgebra;
 import UtlConcepts;
 import UtlArithmetic;
+import UtlRandom;
 
 template <typename T>
 void Log(const T& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
@@ -426,10 +427,57 @@ void UnitTest_Matrix(void) noexcept
 	Log("Successful.\n");
 }
 
+void UnitTest_UtlRandom(void) noexcept
+{
+	Log("Starting...");
+
+	std::array pool{ 23, 192384, 1823947, 56738975, 2843598, 1039, 18345, 132948, 3984567, 354896 };
+	assert(std::find(pool.begin(), pool.end(), *UTIL_GetRandomOne(pool)) != pool.end());
+	assert(UTIL_Random(1u, 10u) < 11u && UTIL_Random(1, 10) > 0);
+	assert(UTIL_Random(1.0f, 10.0f) < 10.1f && UTIL_Random(1.0, 10.0) > 0.999);
+
+	std::array<unsigned, 10> counts;
+	constexpr auto TOTAL_RUN = 100000;
+
+	std::cout << "============uniform_int_distribution TEST============\n";
+	counts.fill(0);
+	for (int i = 0; i < TOTAL_RUN; ++i)
+		++counts[UTIL_Random(0, 9)];
+
+	for (int i = 0; i < counts.size(); ++i)
+		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << ((double)counts[i] / (double)TOTAL_RUN * 100) << "%]\n";
+
+	std::cout << "============uniform_real_distribution TEST============\n";
+	counts.fill(0);
+	for (int i = 0; i < TOTAL_RUN; ++i)
+		++counts[(size_t)std::round(UTIL_Random(-0.5, 9.5))];
+
+	for (int i = 0; i < counts.size(); ++i)
+		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << ((double)counts[i] / (double)TOTAL_RUN * 100) << "%]\n";
+
+	std::cout << "============bernoulli distribution TEST============\n";
+	counts.fill(0);
+	for (int i = 0; i < TOTAL_RUN; ++i)
+		++counts[UTIL_Random()];
+
+	double rat = (double)counts[1] / (double)counts[0];
+	std::cout << " - false: " << counts[0] << '\n'
+		<< " - true: " << counts[1] << '\n'
+		<< " - t/f: " << std::setprecision(std::numeric_limits<double>::max_digits10 + 1) << rat << '\n'
+		<< " - err: " << std::setprecision(2) << (rat - 1.0) * 100.0 << '%' << '\n';
+
+	Log("Successful.\n");
+}
+
 int main(int argc, char** args) noexcept
 {
+	std::ios_base::sync_with_stdio(false);
+
 	UnitTest_Vector2D();
 	UnitTest_Vector();
 	UnitTest_UtlArithmetic();
 	UnitTest_Matrix();
+	UnitTest_UtlRandom();
+
+	return EXIT_SUCCESS;
 }
