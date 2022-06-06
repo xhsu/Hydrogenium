@@ -165,13 +165,13 @@ concept StlStringClass = _impl_StringDect<T>::value || _impl_StringViewDect<T>::
 #pragma region Type traits
 
 template<typename T>
-struct _impl_NonVoidType : public std::true_type {};
+constexpr bool _impl_NonVoidType = true;
 
 template<>
-struct _impl_NonVoidType<void> : public std::false_type {};
+constexpr bool _impl_NonVoidType<void> = true;
 
 export template<typename T>
-concept NonVoid = _impl_NonVoidType<T>::value;
+concept NonVoid = _impl_NonVoidType<T>;
 
 export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
@@ -185,4 +185,33 @@ constexpr bool _impl_AnySame<T> = false;
 export template <typename T, typename... Tys>
 concept AnySame = _impl_AnySame<T, Tys...>;
 
+template <typename T, typename U>
+constexpr bool _impl_IncludedInTuple = false;
+
+template <typename T, typename... Tys>
+constexpr bool _impl_IncludedInTuple<T, std::tuple<Tys...>> = _impl_AnySame<T, Tys...>;
+
+export template <typename T, typename Tuple_t>
+concept IncludedInTuple = _impl_IncludedInTuple<T, Tuple_t>;
+
 #pragma endregion Type traits
+
+#pragma region move to sperate file: type utility
+// #TODO
+
+export template<typename... Tys>
+using tuple_cat_t = std::invoke_result_t<decltype(std::tuple_cat<Tys...>), Tys...>;
+
+export template<typename T, typename... Tys>
+using Remove_t = tuple_cat_t<std::conditional_t<std::is_same_v<T, Tys>, std::tuple<>, std::tuple<Tys>>...>;
+
+/*
+Unit Test
+	static_assert(std::same_as<
+		Remove_t<int, int, char, int, float, int>,
+		std::tuple<char, float>
+	>,
+	"Oops");
+*/
+
+#pragma endregion move to sperate file: type utility
