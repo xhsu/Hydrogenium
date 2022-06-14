@@ -7,50 +7,80 @@ export module UtlRandom;
 
 import UtlConcepts;
 
-std::shared_mutex g_hMutex;
-
-auto& UTIL_GetSharedRNG(void) noexcept
-{
-	std::scoped_lock Lock(g_hMutex);
-
-	static std::random_device rd;
 #ifdef _M_X64
-	static std::mt19937_64 gen(rd());
+using MT19937_t = std::mt19937_64;
 #else
-	static std::mt19937 gen(rd());
+using MT19937_t = std::mt19937;
 #endif
 
-	return gen;
+std::shared_mutex g_hMutexPureRNG, g_hMutexSeeded;
+std::random_device g_PureRD, g_SeededRD;
+MT19937_t gen(g_PureRD());
+
+export template <Arithmetic T>
+[[nodiscard]]
+T UTIL_Random(T low, T high) noexcept
+{
+	static std::mutex LocalMutex;
+	std::scoped_lock Lock(LocalMutex);
+
+	static MT19937_t gen(g_PureRD());
+
+	if constexpr (AnySame<T, short, int, long, long long, unsigned short, unsigned int, unsigned long, unsigned long long>)
+		return std::uniform_int_distribution<T>(low, high)(gen);
+	else if constexpr (AnySame<T, float, double, long double>)
+		return std::uniform_real<T>(low, high)(gen);
+	else
+		static_assert(!sizeof(T), "<T> Must be a arithmetic non-boolean type!");
+}
+
+export
+[[nodiscard]]
+bool UTIL_Random(void) noexcept
+{
+	static std::mutex LocalMutex;
+	std::scoped_lock Lock(LocalMutex);
+
+	static MT19937_t gen(g_PureRD());
+	return std::bernoulli_distribution()(gen);
+}
+
+export template <Arithmetic T>
+[[nodiscard]]
+T UTIL_SeededRandom(MT19937_t::result_type uiSeed, T low, T high) noexcept
+{
+	static std::mutex LocalMutex;
+	std::scoped_lock Lock(LocalMutex);
+
+	static std::random_device rd;
+	uiSeed ^= rd();
+	MT19937_t gen(uiSeed);
+
+	if constexpr (AnySame<T, short, int, long, long long, unsigned short, unsigned int, unsigned long, unsigned long long>)
+		return std::uniform_int_distribution<T>(low, high)(gen);
+	else if constexpr (AnySame<T, float, double, long double>)
+		return std::uniform_real<T>(low, high)(gen);
+	else
+		static_assert(!sizeof(T), "<T> Must be a arithmetic non-boolean type!");
 }
 
 export template<ProperIter Iter>
+[[nodiscard]]
 Iter UTIL_GetRandomOne(Iter start, Iter end) noexcept
 {
+	static std::mutex LocalMutex;
+	std::scoped_lock Lock(LocalMutex);
+
+	static MT19937_t gen(g_PureRD());
+
 	std::uniform_int_distribution<Iter::difference_type> dis(0, std::distance(start, end) - 1);
-	std::advance(start, dis(UTIL_GetSharedRNG()));
+	std::advance(start, dis(gen));
 	return start;
 }
 
-export auto UTIL_GetRandomOne(const Iterable auto& obj) noexcept
+export
+[[nodiscard]]
+auto UTIL_GetRandomOne(const Iterable auto& obj) noexcept
 {
 	return UTIL_GetRandomOne(std::begin(obj), std::end(obj));
-}
-
-export template <AnySame<short, int, long, long long, unsigned short, unsigned int, unsigned long, unsigned long long> T>
-[[nodiscard]]
-T UTIL_Random(T low, T high) noexcept
-{
-	return std::uniform_int_distribution<T>(low, high)(UTIL_GetSharedRNG());
-}
-
-export template <AnySame<float, double, long double> T>
-[[nodiscard]]
-T UTIL_Random(T low, T high) noexcept
-{
-	return std::uniform_real<T>(low, high)(UTIL_GetSharedRNG());
-}
-
-export bool UTIL_Random(void) noexcept
-{
-	return std::bernoulli_distribution()(UTIL_GetSharedRNG());
 }

@@ -436,16 +436,25 @@ void UnitTest_UtlRandom(void) noexcept
 	assert(UTIL_Random(1u, 10u) < 11u && UTIL_Random(1, 10) > 0);
 	assert(UTIL_Random(1.0f, 10.0f) < 10.1f && UTIL_Random(1.0, 10.0) > 0.999);
 
-	std::array<unsigned, 10> counts;
+	std::array<unsigned, 10> counts{};
+	std::array<double, 2> avg_err{ 0, 0 };
 	constexpr auto TOTAL_RUN = 100000;
 
 	std::cout << "============uniform_int_distribution TEST============\n";
 	counts.fill(0);
+	avg_err.fill(0);
 	for (int i = 0; i < TOTAL_RUN; ++i)
 		++counts[UTIL_Random(0, 9)];
 
 	for (int i = 0; i < counts.size(); ++i)
-		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << ((double)counts[i] / (double)TOTAL_RUN * 100) << "%]\n";
+	{
+		const double rat = (double)counts[i] / (double)TOTAL_RUN;
+		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
+		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << (rat * 100) << "%]\n";
+	}
+	avg_err[0] /= 10;
+	avg_err[1] /= 10;
+	std::cout << std::format(" - Average error: [{:.4f}% - {:.4f}%]\n", avg_err[0] * 100, avg_err[1] * 100);
 
 	std::cout << "============uniform_real_distribution TEST============\n";
 	counts.fill(0);
@@ -453,18 +462,64 @@ void UnitTest_UtlRandom(void) noexcept
 		++counts[(size_t)std::round(UTIL_Random(-0.5, 9.5))];
 
 	for (int i = 0; i < counts.size(); ++i)
-		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << ((double)counts[i] / (double)TOTAL_RUN * 100) << "%]\n";
+	{
+		const double rat = (double)counts[i] / (double)TOTAL_RUN;
+		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
+		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << (rat * 100) << "%]\n";
+	}
+	avg_err[0] /= 10;
+	avg_err[1] /= 10;
+	std::cout << std::format(" - Average error: [{:.4f}% - {:.4f}%]\n", avg_err[0] * 100, avg_err[1] * 100);
 
 	std::cout << "============bernoulli distribution TEST============\n";
 	counts.fill(0);
+	avg_err.fill(0);
 	for (int i = 0; i < TOTAL_RUN; ++i)
 		++counts[UTIL_Random()];
 
-	double rat = (double)counts[1] / (double)counts[0];
+	const double rat = (double)counts[1] / (double)counts[0];
 	std::cout << " - false: " << counts[0] << '\n'
 		<< " - true: " << counts[1] << '\n'
 		<< " - t/f: " << std::setprecision(std::numeric_limits<double>::max_digits10 + 1) << rat << '\n'
 		<< " - err: " << std::setprecision(2) << (rat - 1.0) * 100.0 << '%' << '\n';
+
+	std::cout << "============SEEDED uniform_int_distribution TEST============\n";
+	auto uiSeed = UTIL_Random(0U, 0xFFFFFFFF);
+	counts.fill(0);
+	avg_err.fill(0);
+
+	for (int i = 0; i < TOTAL_RUN; ++i)
+		++counts[UTIL_SeededRandom(uiSeed, 0, 9)];
+
+	std::cout << " - Seed: " << uiSeed << '\n';
+	for (int i = 0; i < counts.size(); ++i)
+	{
+		const double rat = (double)counts[i] / (double)TOTAL_RUN;
+		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
+		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << (rat * 100) << "%]\n";
+	}
+	avg_err[0] /= 10;
+	avg_err[1] /= 10;
+	std::cout << std::format(" - Average error: [{:.4f}% - {:.4f}%]\n", avg_err[0] * 100, avg_err[1] * 100);
+
+	std::cout << "============SEEDED uniform_real_distribution TEST============\n";
+	uiSeed = UTIL_Random(0U, 0xFFFFFFFF);
+	counts.fill(0);
+	avg_err.fill(0);
+
+	for (int i = 0; i < TOTAL_RUN; ++i)
+		++counts[(size_t)std::round(UTIL_SeededRandom(uiSeed, -0.5, 9.5))];
+
+	std::cout << " - Seed: " << uiSeed << '\n';
+	for (int i = 0; i < counts.size(); ++i)
+	{
+		const double rat = (double)counts[i] / (double)TOTAL_RUN;
+		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
+		std::cout << " - " << i << ": " << counts[i] << " [" << std::setprecision(4) << (rat * 100) << "%]\n";
+	}
+	avg_err[0] /= 10;
+	avg_err[1] /= 10;
+	std::cout << std::format(" - Average error: [{:.4f}% - {:.4f}%]\n", avg_err[0] * 100, avg_err[1] * 100);
 
 	Log("Successful.\n");
 }
