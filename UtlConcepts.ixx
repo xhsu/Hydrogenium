@@ -168,7 +168,7 @@ template<typename T>
 constexpr bool _impl_NonVoidType = true;
 
 template<>
-constexpr bool _impl_NonVoidType<void> = true;
+constexpr bool _impl_NonVoidType<void> = false;
 
 export template<typename T>
 concept NonVoid = _impl_NonVoidType<T>;
@@ -177,7 +177,7 @@ export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
 
 template <typename T, typename... Tys>
-constexpr bool _impl_AnySame = (std::is_same_v<T, Tys> || ...) || _impl_AnySame<Tys...>;
+constexpr bool _impl_AnySame = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>;
 
 template <typename T>
 constexpr bool _impl_AnySame<T> = false;
