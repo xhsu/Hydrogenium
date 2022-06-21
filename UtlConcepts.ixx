@@ -176,14 +176,23 @@ concept NonVoid = _impl_NonVoidType<T>;
 export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
 
-template <typename T, typename... Tys>
-constexpr bool _impl_AnySame = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>;
+template <typename... Tys>
+struct _impl_AnySame;	// Undefined.
+
+template <>
+struct _impl_AnySame<> : std::false_type {};
 
 template <typename T>
-constexpr bool _impl_AnySame<T> = false;
+struct _impl_AnySame<T> : std::false_type {};
 
-export template <typename T, typename... Tys>
-concept AnySame = _impl_AnySame<T, Tys...>;
+template <typename T, typename... Tys>
+struct _impl_AnySame<T, Tys...>
+{
+	static constexpr bool value = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>::value;
+};
+
+export template <typename... Tys>
+concept AnySame = _impl_AnySame<Tys...>::value;
 
 template <typename T, typename U>
 constexpr bool _impl_IncludedInTuple = false;
@@ -193,6 +202,46 @@ constexpr bool _impl_IncludedInTuple<T, std::tuple<Tys...>> = _impl_AnySame<T, T
 
 export template <typename T, typename Tuple_t>
 concept IncludedInTuple = _impl_IncludedInTuple<T, Tuple_t>;
+
+template <typename... Tys>
+struct _impl_AnyOrder;	// Undefined.
+
+template <>
+struct _impl_AnyOrder<std::tuple<>, std::tuple<>> : public std::true_type {};
+
+template <typename... Tys>
+struct _impl_AnyOrder<std::tuple<Tys...>, std::tuple<>> : public std::false_type {};
+
+template <typename... Tys>
+struct _impl_AnyOrder<std::tuple<>, std::tuple<Tys...>> : public std::false_type {};
+
+template <typename T1, typename... Tys1, typename... Tys2>
+struct _impl_AnyOrder<std::tuple<T1, Tys1...>, std::tuple<Tys2...>>
+{
+	static constexpr bool value = AnySame<T1, Tys2...> && std::conjunction_v<_impl_AnyOrder<std::tuple<Tys1...>, Remove_t<T1, Tys2...>>>;
+};
+
+//export template <typename... Tys>
+//constexpr bool AnyOrder = false;
+//
+//export template <typename... Tys1, typename... Tys2>
+//constexpr bool AnyOrder<std::tuple<Tys1...>, Tys2...> = _impl_AnyOrder<std::tuple<Tys1...>, std::tuple<Tys2...>>::value;
+//
+//export template <typename... Tys1, typename... Tys2>
+//constexpr bool AnyOrder<std::tuple<Tys1...>, std::tuple<Tys2...>> = _impl_AnyOrder<std::tuple<Tys1...>, std::tuple<Tys2...>>::value;
+/*
+Unit Test
+	static_assert(AnyOrder<std::tuple<int, float, double>, std::tuple<float, double, int>>);
+	static_assert(!AnyOrder<std::tuple<char, float, double>, std::tuple<float, double, bool>>);
+	static_assert(!AnyOrder<std::tuple<int, float>, std::tuple<float, double, int>>);
+	static_assert(!AnyOrder<std::tuple<int, float, double>, std::tuple<float, double>>);
+*/
+
+export template <typename Tuple_t, typename... Tys>
+concept AnyOrder = _impl_AnyOrder<Tuple_t, std::tuple<Tys...>>::value;
+
+export template <typename Tuple1_t, typename Tuple2_t>
+concept tuple_any_order = _impl_AnyOrder<Tuple1_t, Tuple2_t>::value;
 
 #pragma endregion Type traits
 
@@ -204,6 +253,15 @@ using tuple_cat_t = std::invoke_result_t<decltype(std::tuple_cat<Tys...>), Tys..
 
 export template<typename T, typename... Tys>
 using Remove_t = tuple_cat_t<std::conditional_t<std::is_same_v<T, Tys>, std::tuple<>, std::tuple<Tys>>...>;
+
+export template<typename... Tys>
+struct VariadicTemplateWrapper
+{
+	// Reflection
+	using Tuple_t = std::tuple<Tys...>;
+
+	static constexpr std::size_t Count = sizeof...(Tys);
+};
 
 /*
 Unit Test

@@ -16,10 +16,19 @@ export module UtlArithmetic;
 
 import UtlConcepts;
 
-namespace Hydrogenium
+export namespace Hydrogenium
 {
+	// Ref: https://stackoverflow.com/questions/4948780/magic-number-in-boosthash-combine
+	constexpr std::size_t UINT_MAX_OVER_PHI =
+#ifdef _M_X64
+		0x9e3779b97f4a7c16
+#else
+		0x9e3779b9
+#endif
+		;
+
 	// Exclusively to single float.
-	export constexpr float rsqrt(float x) noexcept
+	[[nodiscard]] constexpr float rsqrt(float x) noexcept
 	{
 #ifdef __SSE__
 		return _mm_rsqrt_ps(_mm_set1_ps(x))[0];
@@ -42,8 +51,8 @@ namespace Hydrogenium
 #endif
 	}
 
-	export template <typename T>
-	constexpr auto sqrt(T x) noexcept
+	template <typename T>
+	[[nodiscard]] constexpr auto sqrt(T x) noexcept
 	{
 		if (std::is_constant_evaluated())	// #UPDATE_AT_CPP23 if consteval
 		{
@@ -63,15 +72,42 @@ namespace Hydrogenium
 	}
 
 	// Fuck std. Why can't they implement this simple thing?
-	export template <typename... Tys> requires((std::numeric_limits<Tys>::has_quiet_NaN && ...))
-	constexpr bool is_nan(const Tys&... numbers) noexcept
+	template <typename... Tys> requires((std::numeric_limits<Tys>::has_quiet_NaN && ...))
+	[[nodiscard]] constexpr bool is_nan(const Tys&... numbers) noexcept
 	{
 		return ((numbers != numbers) || ...);
 	}
 
-	export template <typename... Tys>
-	constexpr decltype(auto) max(Tys&&... args)
+	template <typename... Tys>
+	[[nodiscard]] constexpr decltype(auto) max(Tys&&... args) noexcept
 	{
 		return std::max({ std::ref(args)... }).get();
+	}
+
+	template <typename... Tys>
+	[[nodiscard]] std::size_t hash(Tys&&... vals) noexcept
+	{
+		std::size_t ret = 0;
+
+		const auto functors = std::make_tuple(std::hash<std::decay_t<Tys>>{}...);
+		[&] <size_t... I>(std::index_sequence<I...>&&)
+		{
+			((ret ^= std::get<I>(functors)(vals) + UINT_MAX_OVER_PHI + (ret << 6) + (ret >> 2)), ...);
+		}
+		(std::make_index_sequence<sizeof...(Tys)>{});
+
+		return ret;
+	}
+
+	template <ProperIter ItTy>
+	[[nodiscard]] std::size_t hash(ItTy itBegin, ItTy itEnd) noexcept
+	{
+		std::size_t ret = 0;
+		std::hash<std::decay_t<decltype(*itBegin)>> hasher{};
+
+		for (; itBegin != itEnd; ++itBegin)
+			ret ^= hasher(*itBegin) + UINT_MAX_OVER_PHI + (ret << 6) + (ret >> 2);
+
+		return ret;
 	}
 };

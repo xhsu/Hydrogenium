@@ -524,6 +524,8 @@ void UnitTest_UtlRandom(void) noexcept
 	Log("Successful.\n");
 }
 
+
+
 int main(int argc, char** args) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
@@ -533,6 +535,11 @@ int main(int argc, char** args) noexcept
 	UnitTest_UtlArithmetic();
 	UnitTest_Matrix();
 	UnitTest_UtlRandom();
+
+	static_assert(AnyOrder<std::tuple<int, float, double>, float, double, int>);
+	static_assert(!AnyOrder<std::tuple<char, float, double>, float, double, bool>);
+	static_assert(!AnyOrder<std::tuple<int, float>, float, double, int>);
+	static_assert(!AnyOrder<std::tuple<int, float, double>, float, double>);
 
 	return EXIT_SUCCESS;
 }
