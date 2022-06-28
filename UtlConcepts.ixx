@@ -176,23 +176,14 @@ concept NonVoid = _impl_NonVoidType<T>;
 export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
 
-template <typename... Tys>
-struct _impl_AnySame;	// Undefined.
-
-template <>
-struct _impl_AnySame<> : std::false_type {};
+template <typename T, typename... Tys>
+constexpr bool _impl_AnySame = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>;
 
 template <typename T>
-struct _impl_AnySame<T> : std::false_type {};
+constexpr bool _impl_AnySame<T> = false;
 
-template <typename T, typename... Tys>
-struct _impl_AnySame<T, Tys...>
-{
-	static constexpr bool value = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>::value;
-};
-
-export template <typename... Tys>
-concept AnySame = _impl_AnySame<Tys...>::value;
+export template <typename T, typename... Tys>
+concept AnySame = _impl_AnySame<T, Tys...>;
 
 template <typename T, typename U>
 constexpr bool _impl_IncludedInTuple = false;
@@ -209,16 +200,16 @@ struct _impl_AnyOrder;	// Undefined.
 template <>
 struct _impl_AnyOrder<std::tuple<>, std::tuple<>> : public std::true_type {};
 
-template <typename... Tys>
+template <typename... Tys> requires(sizeof...(Tys) > 0)
 struct _impl_AnyOrder<std::tuple<Tys...>, std::tuple<>> : public std::false_type {};
 
-template <typename... Tys>
+template <typename... Tys> requires(sizeof...(Tys) > 0)
 struct _impl_AnyOrder<std::tuple<>, std::tuple<Tys...>> : public std::false_type {};
 
-template <typename T1, typename... Tys1, typename... Tys2>
+template <typename T1, typename... Tys1, typename... Tys2> requires(sizeof...(Tys2) > 0)
 struct _impl_AnyOrder<std::tuple<T1, Tys1...>, std::tuple<Tys2...>>
 {
-	static constexpr bool value = AnySame<T1, Tys2...> && std::conjunction_v<_impl_AnyOrder<std::tuple<Tys1...>, Remove_t<T1, Tys2...>>>;
+	static constexpr bool value = _impl_AnySame<T1, Tys2...> && std::conjunction_v<_impl_AnyOrder<std::tuple<Tys1...>, Remove_t<T1, Tys2...>>>;
 };
 
 //export template <typename... Tys>
@@ -254,15 +245,6 @@ using tuple_cat_t = std::invoke_result_t<decltype(std::tuple_cat<Tys...>), Tys..
 export template<typename T, typename... Tys>
 using Remove_t = tuple_cat_t<std::conditional_t<std::is_same_v<T, Tys>, std::tuple<>, std::tuple<Tys>>...>;
 
-export template<typename... Tys>
-struct VariadicTemplateWrapper
-{
-	// Reflection
-	using Tuple_t = std::tuple<Tys...>;
-
-	static constexpr std::size_t Count = sizeof...(Tys);
-};
-
 /*
 Unit Test
 	static_assert(std::same_as<
@@ -271,5 +253,44 @@ Unit Test
 	>,
 	"Oops");
 */
+
+export template<typename... Tys>
+struct VariadicTemplateWrapper
+{
+	// Reflection
+	using This_t = VariadicTemplateWrapper<Tys...>;
+	using Tuple_t = std::tuple<Tys...>;
+	template <std::size_t I> using type = std::tuple_element_t<I, Tuple_t>;
+
+	// Properties
+	static constexpr std::size_t npos = std::numeric_limits<std::size_t>::max();
+	static constexpr std::size_t Count_v = sizeof...(Tys);
+	static constexpr std::size_t Size_v = (sizeof(Tys) + ...);
+	static constexpr bool AllSame_v = Count_v == 0 || Count_v == 1 || std::conjunction_v<std::is_same<type<0>, Tys>...>;
+	template <typename T> static constexpr bool Exists_v = std::disjunction_v<std::is_same<T, Tys>...>;
+	template <typename T> static constexpr std::size_t value = (std::is_same_v<T, Tys> +...);
+	template <typename T> static constexpr std::size_t Index_v = []() constexpr
+	{
+		if constexpr (Count_v == 0)
+			return npos;	//static_assert(!sizeof(T), "Empty packed parameters!");
+		else if constexpr (Count_v == 1)
+			return 0;
+		else if constexpr (value<T> > 1)
+			static_assert(!sizeof(T), "Type which only appears once can be indexed!");
+		else
+		{
+			constexpr std::array arr{ std::is_same_v<T, Tys>... };
+			constexpr auto it = std::find(arr.cbegin(), arr.cend(), true);
+
+			if (it == arr.cend())
+				return npos;
+
+			return (std::size_t)std::distance(arr.cbegin(), it);
+		}
+	}();
+	template <typename... Tys2> static constexpr bool Isomer_v = AnyOrder<Tuple_t, Tys2...>;
+	template <typename T> requires(requires{ typename T::Tuple_t; }) static constexpr bool Isomer_v<T> = tuple_any_order<Tuple_t, typename T::Tuple_t>;
+	template <> static constexpr bool Isomer_v<> = Count_v == 0;
+};
 
 #pragma endregion move to sperate file: type utility

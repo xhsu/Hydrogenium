@@ -11,6 +11,13 @@
 
 #include "../gcem/include/gcem.hpp"
 
+#ifndef _MSVC_LANG
+typedef char __int8;
+typedef short __int16;
+typedef int __int32;
+typedef long long __int64;
+#endif
+
 import UtlWinConsole;
 import UtlLinearAlgebra;
 import UtlConcepts;
@@ -525,7 +532,6 @@ void UnitTest_UtlRandom(void) noexcept
 }
 
 
-
 int main(int argc, char** args) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
@@ -536,10 +542,35 @@ int main(int argc, char** args) noexcept
 	UnitTest_Matrix();
 	UnitTest_UtlRandom();
 
+	static_assert(AnySame<char, __int8, __int16, __int32, __int64>);
+	static_assert(!AnySame<float, __int8, __int16, __int32, __int64>);
+
 	static_assert(AnyOrder<std::tuple<int, float, double>, float, double, int>);
 	static_assert(!AnyOrder<std::tuple<char, float, double>, float, double, bool>);
 	static_assert(!AnyOrder<std::tuple<int, float>, float, double, int>);
 	static_assert(!AnyOrder<std::tuple<int, float, double>, float, double>);
+
+	using IntegralSet = VariadicTemplateWrapper<__int8, __int16, __int32, __int64>;
+	using FloatingPointSet = VariadicTemplateWrapper<float, double, long double>;
+	using CharacterSet = VariadicTemplateWrapper<char, char8_t, wchar_t, char16_t, char32_t>;
+	using FourLongs = VariadicTemplateWrapper<long, long, long, long>;
+	static_assert(std::same_as<IntegralSet::type<0>, __int8>);
+	static_assert(std::same_as<IntegralSet::type<3>, __int64>);
+	static_assert(!IntegralSet::AllSame_v);
+	static_assert(FourLongs::AllSame_v);
+	static_assert(IntegralSet::Count_v == FourLongs::Count_v);
+	static_assert(CharacterSet::Exists_v<char>);
+	static_assert(!IntegralSet::Exists_v<long>);
+	static_assert(std::same_as<IntegralSet::Tuple_t, std::tuple<char, short, int, long long>>);
+	static_assert(IntegralSet::value<long> == 0);
+	static_assert(FloatingPointSet::value<double> == 1);
+	static_assert(FourLongs::value<long> == 4);
+	static_assert(IntegralSet::npos == std::numeric_limits<std::size_t>::max());
+	static_assert(FloatingPointSet::Index_v<long double> == 2);
+	static_assert(FourLongs::Index_v<__int32> == FourLongs::npos);
+	static_assert(std::same_as<IntegralSet::type<IntegralSet::Index_v<__int16>>, __int16>);
+	static_assert(CharacterSet::Isomer_v<char16_t, char32_t, char, wchar_t, char8_t>);
+	static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t, char8_t>>);
 
 	return EXIT_SUCCESS;
 }

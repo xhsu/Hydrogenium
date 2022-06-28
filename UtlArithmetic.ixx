@@ -94,7 +94,7 @@ export namespace Hydrogenium
 		{
 			((ret ^= std::get<I>(functors)(vals) + UINT_MAX_OVER_PHI + (ret << 6) + (ret >> 2)), ...);
 		}
-		(std::make_index_sequence<sizeof...(Tys)>{});
+		(std::index_sequence_for<Tys...>{});
 
 		return ret;
 	}

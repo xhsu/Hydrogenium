@@ -187,7 +187,7 @@ auto UTIL_RemoveXmlNode(const Ty& sz) noexcept
 	return sz.substr(iPos1, iPos2 - iPos1);
 }
 
-export template<typename From_t, typename To_t>
+export template<typename To_t, typename From_t>
 requires(sizeof(From_t) != sizeof(To_t))
 [[nodiscard]]
 auto UTIL_EncodingConversion(const From_t* pszFrom)
@@ -197,7 +197,7 @@ auto UTIL_EncodingConversion(const From_t* pszFrom)
 
 	static std::make_signed_t<size_t> _iSize = sizeof(To_t) * 1U;
 	static To_t* _pcBuffer = (To_t*)std::malloc(_iSize);	// #MEM_ALLOC_GLB
-	static auto _fnConversion = [&](To_t* pBuf, size_t iSize)
+	static auto const _fnConversion = [&](To_t* pBuf, int iSize)
 	{
 		if constexpr (std::is_same_v<From_t, wchar_t> && std::is_same_v<To_t, char>)	// Unicode to ASCII
 			return ::WideCharToMultiByte(CP_ACP, 0, pszFrom, -1, pBuf, iSize, nullptr, nullptr);
@@ -207,7 +207,6 @@ auto UTIL_EncodingConversion(const From_t* pszFrom)
 			return ::WideCharToMultiByte(CP_UTF8, 0, pszFrom, -1, reinterpret_cast<char*>(pBuf), iSize, nullptr, nullptr);
 		else if constexpr (std::is_same_v<From_t, char8_t> && std::is_same_v<To_t, wchar_t>)	// UTF-8 to Unicode
 			return ::MultiByteToWideChar(CP_UTF8, 0, reinterpret_cast<const char*>(pszFrom), -1, pBuf, iSize);
-
 	};
 
 	auto iTargetSize = _fnConversion(nullptr, 0);
@@ -763,6 +762,28 @@ constexpr bool isdigit_c(char c) noexcept
 }
 
 export
+constexpr bool isdigit_c(wchar_t c) noexcept
+{
+	switch (c)
+	{
+	case L'0':
+	case L'1':
+	case L'2':
+	case L'3':
+	case L'4':
+	case L'5':
+	case L'6':
+	case L'7':
+	case L'8':
+	case L'9':
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+export
 constexpr bool isupper_c(char c) noexcept
 {
 	switch (c)
@@ -801,6 +822,44 @@ constexpr bool isupper_c(char c) noexcept
 }
 
 export
+constexpr bool isupper_c(wchar_t c) noexcept
+{
+	switch (c)
+	{
+	case L'A':
+	case L'B':
+	case L'C':
+	case L'D':
+	case L'E':
+	case L'F':
+	case L'G':
+	case L'H':
+	case L'I':
+	case L'J':
+	case L'K':
+	case L'L':
+	case L'M':
+	case L'N':
+	case L'O':
+	case L'P':
+	case L'Q':
+	case L'R':
+	case L'S':
+	case L'T':
+	case L'U':
+	case L'V':
+	case L'W':
+	case L'X':
+	case L'Y':
+	case L'Z':
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+export
 constexpr bool islower_c(char c) noexcept
 {
 	switch (c)
@@ -831,6 +890,44 @@ constexpr bool islower_c(char c) noexcept
 	case 'x':
 	case 'y':
 	case 'z':
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+export
+constexpr bool islower_c(wchar_t c) noexcept
+{
+	switch (c)
+	{
+	case L'a':
+	case L'b':
+	case L'c':
+	case L'd':
+	case L'e':
+	case L'f':
+	case L'g':
+	case L'h':
+	case L'i':
+	case L'j':
+	case L'k':
+	case L'l':
+	case L'm':
+	case L'n':
+	case L'o':
+	case L'p':
+	case L'q':
+	case L'r':
+	case L's':
+	case L't':
+	case L'u':
+	case L'v':
+	case L'w':
+	case L'x':
+	case L'y':
+	case L'z':
 		return true;
 
 	default:

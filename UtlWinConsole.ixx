@@ -231,3 +231,19 @@ export std::ostream& cout_cyan(void) noexcept { return std::cout << cyan_text; }
 export std::ostream& cout_pink(void) noexcept { return std::cout << pink_text; }
 export std::ostream& cout_magenta(void) noexcept { return std::cout << magenta_text; }
 export std::ostream& cout_beige(void) noexcept { return std::cout << beige_text; }
+
+export std::wostream& wcout_w(void) noexcept { return std::wcout << white_text; }
+export std::wostream& wcout_b(void) noexcept { return std::wcout << blue_text; }
+export std::wostream& wcout_g(void) noexcept { return std::wcout << green_text; }
+export std::wostream& wcout_skyblue(void) noexcept { return std::wcout << skyblue_text; }
+export std::wostream& wcout_r(void) noexcept { return std::wcout << red_text; }
+export std::wostream& wcout_plum(void) noexcept { return std::wcout << plum_text; }
+export std::wostream& wcout_gold(void) noexcept { return std::wcout << gold_text; }
+export std::wostream& wcout_silver(void) noexcept { return std::wcout << silver_text; }
+export std::wostream& wcout_gray(void) noexcept { return std::wcout << gray_text; }
+export std::wostream& wcout_cb(void) noexcept { return std::wcout << cornflower_blue_text; }
+export std::wostream& wcout_lime(void) noexcept { return std::wcout << lime_text; }
+export std::wostream& wcout_cyan(void) noexcept { return std::wcout << cyan_text; }
+export std::wostream& wcout_pink(void) noexcept { return std::wcout << pink_text; }
+export std::wostream& wcout_magenta(void) noexcept { return std::wcout << magenta_text; }
+export std::wostream& wcout_beige(void) noexcept { return std::wcout << beige_text; }
