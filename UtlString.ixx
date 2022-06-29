@@ -2,6 +2,7 @@ module;
 
 // C++
 #include <array>
+#include <format>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -218,11 +219,11 @@ auto UTIL_EncodingConversion(const From_t* pszFrom)
 	}
 
 	if (iTargetSize == ERROR_NO_UNICODE_TRANSLATION)
-		throw std::exception("Invalid utf8 sequence.");
+		throw std::format_error("Invalid utf8 sequence.");
 	else if (!iTargetSize)
-		throw std::exception("Error in conversion.");
+		throw std::runtime_error("Error in conversion.");
 	else if (_fnConversion(_pcBuffer, iTargetSize) != iTargetSize)
-		throw std::exception("La falla!");
+		throw std::length_error("La falla!");
 
 	return String_t(_pcBuffer);
 }

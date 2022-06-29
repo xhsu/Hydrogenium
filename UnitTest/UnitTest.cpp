@@ -469,6 +469,19 @@ void UnitTest_Matrix(void) noexcept
 	}(std::make_index_sequence<mx1.RxC>{})
 		);
 
+	std::cout << "============'AT' ACCESSOR TESTS=============\n";
+	bool bTryCatchTested = false;
+	try
+	{
+		mx1.at(mx1.ROWS);
+	}
+	catch (const std::out_of_range& err)
+	{
+		bTryCatchTested = true;
+		std::cout << "Capture: " << err.what() << '\n';
+	}
+	assert(bTryCatchTested);
+
 	std::cout << "============DATA CONTINUOUS TESTS=============\n";
 	for (auto p = mx1.data(), pend = mx1.data() + mx1.RxC; p != pend; ++p)
 		std::cout << *p << '\t';

@@ -1300,14 +1300,14 @@ struct Matrix
 	using const_reference = mxs_t const (&)[COLUMNS];
 	[[nodiscard]] constexpr reference at(std::size_t pos)
 	{
-		if (pos > ROWS)
+		if (pos >= ROWS)
 			throw std::out_of_range(std::format("[Matrix<{}, {}>::at] Invalid accessing pos: {}.", ROWS, COLUMNS, pos));
 
 		return _data[pos];
 	}
 	[[nodiscard]] constexpr const_reference at(std::size_t pos) const	// #UPDATE_AT_CPP23 explict this
 	{
-		if (pos > ROWS)
+		if (pos >= ROWS)
 			throw std::out_of_range(std::format("[Matrix<{}, {}>::at] Invalid accessing pos: {}.", ROWS, COLUMNS, pos));
 
 		return _data[pos];
