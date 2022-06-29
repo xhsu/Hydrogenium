@@ -350,7 +350,7 @@ void UnitTest_UtlArithmetic(void) noexcept
 {
 	Log("Starting...");
 
-	assert(Hydrogenium::max(1, 2, 3, 4) == 4);
+	static_assert(Hydrogenium::max(1, 2, 3, 4) == 4);
 
 	int a = 1, b = 5, c = 9, d = 7;
 	Hydrogenium::max(a, b, c, d) = 0;
@@ -406,6 +406,7 @@ void UnitTest_Matrix(void) noexcept
 	static_assert(TransformMx({ 36, 39, 42, 82, 89, 96, 128, 139, 150 }) == m3x3);
 	static_assert((Matrix<2, 2>)TransformMx(36, 39, 42, 82, 89, 96, 128, 139, 150) == Matrix<2, 2>(36, 39, 82, 89));
 
+	// Static Methods
 	constexpr TransformMx mx1 =
 		TransformMx::Translate(7, 8)
 		* TransformMx::Rotation(120)
@@ -413,23 +414,37 @@ void UnitTest_Matrix(void) noexcept
 
 	static_assert(mx1 * Vector2D::I() == Vector2D(-0.5 * 4 + 7, std::numbers::sqrt3 / 2.0 * 4 + 8));
 
-// 	constexpr TransformMx mx2 = 
-// 		TransformMx::Translate(7, 8)
-// 		* TransformMx::Rotation(240)
-// 		* TransformMx::Scale(1.6, 2.4, 1);
-
+	// Properties && Operators (Inverse matrix would call all property functions)
 	static_assert((mx1 * ~mx1).Approx(TransformMx::Identity(), 1e-10));
 	static_assert(~mx1 * (mx1 * Vector2D(1, 2)) == Vector2D(1, 2));
 
 	static_assert(m3x2 * m2x3 == m3x3);
 	static_assert(m2x3 * m3x2 == m2x2);
 
+	static_assert(Matrix<2, 2>(1, 2, 3, 4) + Matrix<2, 2>(5, 6, 7, 8) == Matrix<2, 2>(6, 8, 10, 12));
+	static_assert(Matrix<2, 2>(1, 2, 3, 4) - Matrix<2, 2>(5, 6, 7, 8) == Matrix<2, 2>(-4, -4, -4, -4));
+
+	auto test = Matrix<3, 1>(1, 2, 3);
+	std::cout << test;
+
+	[&] <size_t... I>(std::index_sequence<I...>&&)
+	{
+		((std::cout << I << ' '), ...);
+	}
+	(std::make_index_sequence<Matrix<3, 1>::RxC>{});
+
+	static_assert((Matrix<3, 1>{1, 0, 0} | Matrix<3, 1>{0, 1, 0} | Matrix<3, 1>{0, 0, 1}) == Matrix<3, 3>::Identity());
+
+	// Methods
 	constexpr double DBL_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
 	static_assert(Matrix<2, 2>({ {DBL_NAN, 0}, {0, DBL_NAN} }).IsNaN());
 	static_assert(!mx1.IsNaN());
 
 	auto mx2 = TransformMx::Zero();
 	mx2.ReplaceCol(2, 1, 2, 3);
+	assert(mx2[0][2] == 1 && mx2[1][2] == 2 && mx2[2][2] == 3);
+	mx2.ReplaceRow(2, 4, 5, 6);
+	assert(mx2[2][0] == 4 && mx2[2][1] == 5 && mx2[2][2] == 6);
 
 	Log("Successful.\n");
 }
@@ -531,17 +546,8 @@ void UnitTest_UtlRandom(void) noexcept
 	Log("Successful.\n");
 }
 
-
-int main(int argc, char** args) noexcept
+void UnitTest_UtlConcepts(void) noexcept
 {
-	std::ios_base::sync_with_stdio(false);
-
-	UnitTest_Vector2D();
-	UnitTest_Vector();
-	UnitTest_UtlArithmetic();
-	UnitTest_Matrix();
-	UnitTest_UtlRandom();
-
 	static_assert(AnySame<char, __int8, __int16, __int32, __int64>);
 	static_assert(!AnySame<float, __int8, __int16, __int32, __int64>);
 
@@ -570,7 +576,20 @@ int main(int argc, char** args) noexcept
 	static_assert(FourLongs::Index_v<__int32> == FourLongs::npos);
 	static_assert(std::same_as<IntegralSet::type<IntegralSet::Index_v<__int16>>, __int16>);
 	static_assert(CharacterSet::Isomer_v<char16_t, char32_t, char, wchar_t, char8_t>);
-	static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t, char8_t>>);
+	//static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t, char8_t>>);
+}
+
+
+int main(int argc, char* args[]) noexcept
+{
+	std::ios_base::sync_with_stdio(false);
+
+	UnitTest_Vector2D();
+	UnitTest_Vector();
+	UnitTest_UtlArithmetic();
+	UnitTest_Matrix();
+	UnitTest_UtlRandom();
+	UnitTest_UtlConcepts();
 
 	return EXIT_SUCCESS;
 }

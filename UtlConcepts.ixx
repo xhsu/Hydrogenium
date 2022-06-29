@@ -289,7 +289,7 @@ struct VariadicTemplateWrapper
 		}
 	}();
 	template <typename... Tys2> static constexpr bool Isomer_v = AnyOrder<Tuple_t, Tys2...>;
-	template <typename T> requires(requires{ typename T::Tuple_t; }) static constexpr bool Isomer_v<T> = tuple_any_order<Tuple_t, typename T::Tuple_t>;
+	//template <typename T> requires(requires{ typename T::Tuple_t; }) static constexpr bool Isomer_v<T> = tuple_any_order<Tuple_t, typename T::Tuple_t>;	// #FIXME
 	template <> static constexpr bool Isomer_v<> = Count_v == 0;
 };
 
