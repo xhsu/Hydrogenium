@@ -404,6 +404,7 @@ void UnitTest_Matrix(void) noexcept
 	};
 	static_assert(TransformMx(rgrgi) == m3x3);
 	static_assert(TransformMx({ 36, 39, 42, 82, 89, 96, 128, 139, 150 }) == m3x3);
+	static_assert(TransformMx(36, 39, 42, 82, 89, 96, 128, 139, 150) == m3x3);
 	static_assert((Matrix<2, 2>)TransformMx(36, 39, 42, 82, 89, 96, 128, 139, 150) == Matrix<2, 2>(36, 39, 82, 89));
 
 	// Static Methods
@@ -421,19 +422,10 @@ void UnitTest_Matrix(void) noexcept
 	static_assert(m3x2 * m2x3 == m3x3);
 	static_assert(m2x3 * m3x2 == m2x2);
 
-	static_assert(Matrix<2, 2>(1, 2, 3, 4) + Matrix<2, 2>(5, 6, 7, 8) == Matrix<2, 2>(6, 8, 10, 12));
+	static_assert(Matrix<1, 4>(1, 2, 3, 4) + Matrix<1, 4>(5, 6, 7, 8) == Matrix<1, 4>(6, 8, 10, 12));
 	static_assert(Matrix<2, 2>(1, 2, 3, 4) - Matrix<2, 2>(5, 6, 7, 8) == Matrix<2, 2>(-4, -4, -4, -4));
 
-	auto test = Matrix<3, 1>(1, 2, 3);
-	std::cout << test;
-
-	[&] <size_t... I>(std::index_sequence<I...>&&)
-	{
-		((std::cout << I << ' '), ...);
-	}
-	(std::make_index_sequence<Matrix<3, 1>::RxC>{});
-
-	static_assert((Matrix<3, 1>{1, 0, 0} | Matrix<3, 1>{0, 1, 0} | Matrix<3, 1>{0, 0, 1}) == Matrix<3, 3>::Identity());
+	static_assert((Matrix<3, 1>(1, 0, 0) | Matrix<3, 1>(0, 1, 0) | Matrix<3, 1>(0, 0, 1)) == Matrix<3, 3>::Identity());
 
 	// Methods
 	constexpr double DBL_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
@@ -445,6 +437,57 @@ void UnitTest_Matrix(void) noexcept
 	assert(mx2[0][2] == 1 && mx2[1][2] == 2 && mx2[2][2] == 3);
 	mx2.ReplaceRow(2, 4, 5, 6);
 	assert(mx2[2][0] == 4 && mx2[2][1] == 5 && mx2[2][2] == 6);
+
+	static_assert(
+		TransformMx::Identity().ToVector(0) == Vector::I()
+		&& TransformMx::Identity().ToVector(1) == Vector::J()
+		&& TransformMx::Identity().ToVector(2) == Vector::K()
+	);
+
+	// Iterators
+	std::cout << "============ITER TESTS=============\n";
+	std::cout << "begin/end(via for_each):\n" << std::setprecision(4);
+	for (const auto& row : mx1)
+	{
+		for (const auto& cell : row)
+			std::cout << cell << '\t';
+		std::cout << '\n';
+	}
+
+	std::cout << "rbegin/rend:\n";
+	for (auto it = mx1.crbegin(); it != mx1.crend(); ++it)
+	{
+		for (const auto& cell : *it)
+			std::cout << cell << '\t';
+		std::cout << '\n';
+	}
+
+	// Element Access
+	static_assert([&mx1]<size_t... I>(std::index_sequence<I...>&&) -> bool
+	{
+		return ((mx1[I / mx1.ROWS][I % mx1.COLUMNS] == mx1.at(I / mx1.ROWS)[I % mx1.COLUMNS]) && ...);
+	}(std::make_index_sequence<mx1.RxC>{})
+		);
+
+	std::cout << "============DATA CONTINUOUS TESTS=============\n";
+	for (auto p = mx1.data(), pend = mx1.data() + mx1.RxC; p != pend; ++p)
+		std::cout << *p << '\t';
+	std::cout << '\n';
+
+	static_assert(std::equal(std::begin(mx1.front()), std::end(mx1.front()), std::begin(mx1[0]), std::end(mx1[0])));
+	static_assert(std::equal(std::begin(mx1.back()), std::end(mx1.back()), std::begin(mx1[mx1.ROWS - 1]), std::end(mx1[mx1.ROWS - 1])));
+
+	// Capacity
+	static_assert(!mx1.empty() && mx1.size() == mx1.max_size() && mx1.size() == sizeof(mx1) / sizeof(mxs_t));
+
+	// Modifiers
+	mx2 = decltype(mx2)(rgrgi);
+	mx2.fill(0);
+	assert(mx2 == decltype(mx2)::Zero());
+
+	auto mx3 = decltype(mx2)(rgrgi);
+	mx2.swap(mx3);
+	assert(mx2 == decltype(mx2)(rgrgi) && mx3 == decltype(mx3)::Zero());
 
 	Log("Successful.\n");
 }

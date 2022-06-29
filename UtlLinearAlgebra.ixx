@@ -699,9 +699,14 @@ struct Matrix
 	constexpr Matrix() noexcept : _data() {}
 	template<Arithmetic T> constexpr Matrix(const T(&array)[ROWS][COLUMNS]) noexcept	// Why can't I use the keyword 'auto' as auto-template here?
 	{
-		[&] <size_t... I>(std::index_sequence<I...>&&)
+		[&] <size_t... I>(std::index_sequence<I...>&&) constexpr
 		{
-			((_data[I / ROWS][I % COLUMNS] = array[I / ROWS][I % COLUMNS]), ...);
+			if constexpr (ROWS == 1)
+				((_data[0][I] = array[0][I]), ...);
+			else if constexpr (COLUMNS == 1)
+				((_data[I][0] = array[I][0]), ...);
+			else
+				((_data[I / ROWS][I % COLUMNS] = array[I / ROWS][I % COLUMNS]), ...);
 		}
 		(std::make_index_sequence<RxC>{});
 	}
@@ -728,9 +733,14 @@ struct Matrix
 	{
 		static_assert(sizeof...(cells) == RxC, "%RxC% arguments must be provided.");
 
-		[&] <size_t... I>(std::index_sequence<I...>&&)
+		[&] <size_t... I>(std::index_sequence<I...>&&) constexpr
 		{
-			((_data[I / ROWS][I % COLUMNS] = cells), ...);
+			if constexpr (ROWS == 1)
+				((_data[0][I] = cells), ...);
+			else if constexpr (COLUMNS == 1)
+				((_data[I][0] = cells), ...);
+			else
+				((_data[I / ROWS][I % COLUMNS] = cells), ...);	// Can only be used when COLUMNS > 1. Otherwise I % 1 would always return 0 hence failing the pack extensions.
 		}
 		(std::make_index_sequence<RxC>{});
 	}
@@ -1039,17 +1049,27 @@ struct Matrix
 	constexpr bool IsZero(mxs_t tolerance = MXS_EPSILON) const noexcept { return Approx(Zero(), tolerance); }
 	constexpr bool IsNaN() const noexcept
 	{
-		return [&] <size_t... I>(std::index_sequence<I...>&&) -> bool
+		return [&] <size_t... I>(std::index_sequence<I...>&&) constexpr -> bool
 		{
-			return Hydrogenium::is_nan(_data[I / ROWS][I % COLUMNS]...);
+			if constexpr (ROWS == 1)
+				return Hydrogenium::is_nan(_data[0][I]...);
+			else if constexpr (COLUMNS == 1)
+				return Hydrogenium::is_nan(_data[I][0]...);
+			else
+				return Hydrogenium::is_nan(_data[I / ROWS][I % COLUMNS]...);
 		}
 		(std::make_index_sequence<RxC>{});
 	}
 	constexpr bool Approx(const This_t& B, mxs_t tolerance = MXS_EPSILON) const noexcept
 	{
-		return [&] <size_t... I>(std::index_sequence<I...>&&) -> bool
+		return [&] <size_t... I>(std::index_sequence<I...>&&) constexpr -> bool
 		{
-			return ((gcem::abs(B[I / ROWS][I % COLUMNS] - _data[I / ROWS][I % COLUMNS]) < tolerance) && ...);
+			if constexpr (ROWS == 1)
+				return((gcem::abs(B[0][I] - _data[0][I]) < tolerance) && ...);
+			else if constexpr (COLUMNS == 1)
+				return((gcem::abs(B[I][0] - _data[I][0]) < tolerance) && ...);
+			else
+				return ((gcem::abs(B[I / ROWS][I % COLUMNS] - _data[I / ROWS][I % COLUMNS]) < tolerance) && ...);
 		}
 		(std::make_index_sequence<RxC>{});
 	}
@@ -1214,7 +1234,7 @@ struct Matrix
 
 		return Vector(result[0][0], result[1][0], result[2][0]);
 	}
-	constexpr Matrix<3, 3> operator|(const Vector2D& v) const noexcept requires(SQUARE_MX && ROWS == 2U)
+	constexpr Matrix<3, 3> operator|(const Vector2D& v) const noexcept requires(ROWS == 2U && COLUMNS == 2U)
 	{
 		return Matrix<3, 3>({
 			{_data[0][0], _data[0][1], v.x},
@@ -1222,7 +1242,7 @@ struct Matrix
 			{0, 0, 1}
 		});
 	}
-	constexpr Matrix<4, 4> operator|(const Vector& v) const noexcept requires(SQUARE_MX && ROWS == 3U)
+	constexpr Matrix<4, 4> operator|(const Vector& v) const noexcept requires(ROWS == 3U && COLUMNS == 3U)
 	{
 		return Matrix<4, 4>({
 			{_data[0][0], _data[0][1], _data[0][2], v.x},
@@ -1235,10 +1255,6 @@ struct Matrix
 	// Shortcut operator(related to math symbol)
 	constexpr decltype(auto) operator~() const noexcept requires(SQUARE_MX) { return Inverse(); }
 	//
-	// Accessor to each cell.
-	//constexpr mxs_t* operator[](size_t rows) noexcept { assert(rows < ROWS); return &_data[rows][0]; }
-	//constexpr const mxs_t* operator[](size_t rows) const noexcept { assert(rows < ROWS); return &_data[rows][0]; }
-
 	// Conversion
 	constexpr decltype(auto) ToVector(size_t c = 0U) const noexcept
 	{
@@ -1313,7 +1329,7 @@ struct Matrix
 
 	// Modifiers
 	constexpr void fill(const mxs_t& val) noexcept { for (auto& Row : _data) for (auto& Cell : Row) Cell = 0; }
-	constexpr void swap(This_t& other) noexcept { [&] <size_t... I>(std::index_sequence<I...>&&) { (std::swap(_data[I], other._data[I]), ...); }(std::make_index_sequence<ROWS>{}); }
+	constexpr void swap(This_t& other) noexcept { [&] <size_t... I>(std::index_sequence<I...>&&) constexpr { (std::swap(_data[I], other._data[I]), ...); }(std::make_index_sequence<ROWS>{}); }
 
 private:
 	mxs_t _data[ROWS][COLUMNS];
