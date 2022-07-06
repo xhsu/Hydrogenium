@@ -1077,6 +1077,20 @@ struct Matrix
 	// Operators
 	// 
 	// Between matrices.
+	constexpr decltype(auto) operator-() const noexcept
+	{
+		This_t res;
+
+		for (size_t i = 0; i < ROWS; i++)
+		{
+			for (size_t j = 0; j < COLUMNS; j++)
+			{
+				res[i][j] = -_data[i][j];
+			}
+		}
+
+		return res;
+	}
 	template <size_t BRows, size_t BCols> constexpr decltype(auto) operator==(const Matrix<BRows, BCols>& B) const noexcept
 	{
 		if constexpr (BRows != ROWS || BCols != COLUMNS)
@@ -1365,6 +1379,7 @@ constexpr auto QTN_INFINITY = std::numeric_limits<qtn_t>::infinity();
 
 export struct Quaternion
 {
+	// Constructors
 	constexpr Quaternion() noexcept : a(1), b(0), c(0), d(0) {}	// Identity.
 	constexpr Quaternion(Arithmetic auto W, Arithmetic auto X, Arithmetic auto Y, Arithmetic auto Z) noexcept : a(static_cast<qtn_t>(W)), b(static_cast<qtn_t>(X)), c(static_cast<qtn_t>(Y)), d(static_cast<qtn_t>(Z)) {}
 	constexpr Quaternion(qtn_t yaw, qtn_t pitch, qtn_t roll) noexcept // yaw (Z), pitch (Y), roll (X)
@@ -1373,12 +1388,12 @@ export struct Quaternion
 		pitch *= std::numbers::pi / 180.0;
 		roll *= std::numbers::pi / 180.0;
 
-		auto cy = gcem::cos(yaw * 0.5);
-		auto sy = gcem::sin(yaw * 0.5);
-		auto cp = gcem::cos(pitch * 0.5);
-		auto sp = gcem::sin(pitch * 0.5);
-		auto cr = gcem::cos(roll * 0.5);
-		auto sr = gcem::sin(roll * 0.5);
+		auto const cy = gcem::cos(yaw * 0.5);
+		auto const sy = gcem::sin(yaw * 0.5);
+		auto const cp = gcem::cos(pitch * 0.5);
+		auto const sp = gcem::sin(pitch * 0.5);
+		auto const cr = gcem::cos(roll * 0.5);
+		auto const sr = gcem::sin(roll * 0.5);
 
 		a = cr * cp * cy + sr * sp * sy;
 		b = sr * cp * cy - cr * sp * sy;
@@ -1386,7 +1401,7 @@ export struct Quaternion
 		d = cr * cp * sy - sr * sp * cy;
 	}
 	explicit constexpr Quaternion(const Vector& vecEulerAngles) : Quaternion(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll) {}
-	constexpr Quaternion(const Vector& vecAxis, qtn_t degree) noexcept	// Axis must be a unit vector. In counter-clockwise.
+	constexpr Quaternion(const Vector& vecAxis, qtn_t degree) noexcept	// Axis must be a unit vector. In clockwise if works in right-handed coordinate system.
 	{
 		degree *= std::numbers::pi / 180.0;
 		auto cosine = gcem::cos(0.5 * degree);
@@ -1409,20 +1424,44 @@ export struct Quaternion
 	// Static Methods
 	static consteval decltype(auto) Zero() noexcept { return Quaternion(0, 0, 0, 0); }
 	static consteval decltype(auto) Identity() noexcept { return Quaternion(1, 0, 0, 0); }
+	static consteval decltype(auto) I() noexcept { return Quaternion(0, 1, 0, 0); }
+	static consteval decltype(auto) J() noexcept { return Quaternion(0, 0, 1, 0); }
+	static consteval decltype(auto) K() noexcept { return Quaternion(0, 0, 0, 1); }
 
 	// Properties
-	inline constexpr decltype(auto) Norm() const noexcept { return gcem::sqrt(a * a + b * b + c * c + d * d); }
+	inline constexpr decltype(auto) Norm() const noexcept { return Hydrogenium::sqrt(a * a + b * b + c * c + d * d); }
+	inline constexpr decltype(auto) NormSquared() const noexcept { return (a * a + b * b + c * c + d * d); }
 	inline constexpr decltype(auto) Conjugate() const noexcept { return Quaternion(a, -b, -c, -d); }
 	inline constexpr decltype(auto) Versor() const noexcept { return *this / Norm(); }
-	inline constexpr decltype(auto) Reciprocal() const noexcept { return Conjugate() / (a * a + b * b + c * c + d * d); }
+	inline constexpr decltype(auto) Reciprocal() const noexcept { return Conjugate() / NormSquared(); }
 	inline constexpr decltype(auto) Real() const noexcept { return a; }
 	inline constexpr decltype(auto) Pure() const noexcept { return Vector(b, c, d); }
 
 	// Methods
 	constexpr bool IsNaN() const noexcept { return Hydrogenium::is_nan(a, b, c, d); }
+	constexpr bool IsZero() const noexcept { return Approx(Zero(), QTN_EPSILON); }
+	constexpr bool Approx(const Quaternion& q, qtn_t tolerance = QTN_EPSILON) const noexcept
+	{
+		return gcem::abs(a - q.a) <= tolerance
+			&& gcem::abs(b - q.b) <= tolerance
+			&& gcem::abs(c - q.c) <= tolerance
+			&& gcem::abs(d - q.d) <= tolerance;
+	}
 
 	// Operators
-	constexpr decltype(auto) operator*(const Quaternion& q) const noexcept { return Quaternion(a * q.a - b * q.b - c * q.c - d * q.d, a * q.a + b * q.b + c * q.c - d * q.d, a * q.a - b * q.b + c * q.c + d * q.d, a * q.a + b * q.b - c * q.c + d * q.d); }
+	constexpr decltype(auto) operator-() const noexcept { return Quaternion{ -a, -b, -c, -d }; }
+	constexpr decltype(auto) operator~() const noexcept { return Reciprocal(); }
+	constexpr decltype(auto) operator==(const Quaternion& q) const noexcept { return Approx(q, QTN_EPSILON); }
+
+	constexpr decltype(auto) operator*(const Quaternion& q) const noexcept
+	{
+		return Quaternion{
+			a * q.a - b * q.b - c * q.c - d * q.d,
+			b * q.a + a * q.b + c * q.d - d * q.c,
+			a * q.c - b * q.d + c * q.a + d * q.b,
+			a * q.d + b * q.c - c * q.b + d * q.a
+		};
+	}
 	constexpr decltype(auto) operator*=(const Quaternion& q) noexcept { return (*this = *this * q); }
 
 	constexpr decltype(auto) operator*(Arithmetic auto x) const noexcept { return Quaternion(a * x, b * x, c * x, d * x); }
