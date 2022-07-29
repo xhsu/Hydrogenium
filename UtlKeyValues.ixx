@@ -416,7 +416,7 @@ export struct ValveKeyValues
 		{
 			return static_cast<T>(dat->m_flValue);
 		}
-		else if constexpr (std::integral<T>)
+		else if constexpr (std::integral<T> || std::is_enum_v<T>)
 		{
 			return static_cast<T>(std::round(dat->m_flValue));
 		}
@@ -567,7 +567,7 @@ export struct ValveKeyValues
 			dat->m_pszValue = nullptr;
 		}
 
-		if constexpr (std::integral<T> || std::floating_point<T>)
+		if constexpr (std::integral<T> || std::floating_point<T> || std::is_enum_v<T>)
 		{
 			const auto sz = std::to_string(Value);
 			dat->m_pszValue = (char*)calloc(sz.length() + 1, sizeof(char));

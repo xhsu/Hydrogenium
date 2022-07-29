@@ -165,8 +165,9 @@ export struct Vector2D
 
 	// STL Containers Compatibility
 	// Iterators
-	using iterator = _STD _Array_iterator<vec_t, 2>;
-	using const_iterator = _STD _Array_const_iterator<vec_t, 2>;
+	using value_type = vec_t;
+	using iterator = _STD _Array_iterator<value_type, 2>;
+	using const_iterator = _STD _Array_const_iterator<value_type, 2>;
 	using reverse_iterator = _STD reverse_iterator<iterator>;
 	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
 	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(&x, 0); }	// #UPDATE_AT_CPP23 explict this
@@ -183,9 +184,13 @@ export struct Vector2D
 	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
 
 	// Element Access
-	using reference = vec_t&;
-	using const_reference = const vec_t&;
-	[[nodiscard]] constexpr reference at(std::size_t pos)
+	using size_type = std::size_t;
+	using difference_type = std::ptrdiff_t;
+	using reference = value_type&;
+	using const_reference = const value_type&;
+	using pointer = value_type*;
+	using const_pointer = const value_type*;
+	[[nodiscard]] constexpr reference at(size_type pos)
 	{
 		switch (pos)
 		{
@@ -197,7 +202,7 @@ export struct Vector2D
 			throw std::out_of_range(std::format("[Vector2D::at] Invalid accessing pos: {}.", pos));
 		}
 	}
-	[[nodiscard]] constexpr const_reference at(std::size_t pos) const	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reference at(size_type pos) const	// #UPDATE_AT_CPP23 explict this
 	{
 		switch (pos)
 		{
@@ -211,8 +216,8 @@ export struct Vector2D
 	}
 	//[[nodiscard]] constexpr reference operator[] (std::size_t pos) noexcept { return *((&x) + pos); }
 	//[[nodiscard]] constexpr const_reference operator[] (std::size_t pos) const noexcept { return *((&x) + pos); }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr vec_t* data(void) noexcept { return &x; }
-	[[nodiscard]] constexpr const vec_t* data(void) const noexcept { return &x; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr pointer data(void) noexcept { return &x; }
+	[[nodiscard]] constexpr const_pointer data(void) const noexcept { return &x; }	// #UPDATE_AT_CPP23 explict this
 	[[nodiscard]] constexpr reference front(void) noexcept { return x; }
 	[[nodiscard]] constexpr const_reference front(void) const noexcept { return x; }	// #UPDATE_AT_CPP23 explict this
 	[[nodiscard]] constexpr reference back(void) noexcept { return y; }
@@ -220,11 +225,11 @@ export struct Vector2D
 
 	// Capacity
 	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
-	[[nodiscard]] static consteval std::size_t size(void) noexcept { return static_cast<std::size_t>(2); }
-	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(2); }
+	[[nodiscard]] static consteval size_type size(void) noexcept { return static_cast<size_type>(2); }
+	[[nodiscard]] static consteval size_type max_size(void) noexcept { return static_cast<size_type>(2); }
 
 	// Modifiers
-	constexpr void fill(const vec_t& val) noexcept { x = y = val; }
+	constexpr void fill(const_reference val) noexcept { x = y = val; }
 	constexpr void swap(Vector2D& other) noexcept { _STD _Swap_ranges_unchecked(&x, (&x) + 2, &other.x); }
 
 	// Members
@@ -543,8 +548,9 @@ export struct Vector
 
 	// STL Containers Compatibility
 	// Iterators
-	using iterator = _STD _Array_iterator<vec_t, 3>;
-	using const_iterator = _STD _Array_const_iterator<vec_t, 3>;
+	using value_type = vec_t;
+	using iterator = _STD _Array_iterator<value_type, 3>;
+	using const_iterator = _STD _Array_const_iterator<value_type, 3>;
 	using reverse_iterator = _STD reverse_iterator<iterator>;
 	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
 	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(&x, 0); }	// #UPDATE_AT_CPP23 explict this
@@ -561,9 +567,13 @@ export struct Vector
 	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
 
 	// Element Access
-	using reference = vec_t&;
-	using const_reference = const vec_t&;
-	[[nodiscard]] constexpr reference at(std::size_t pos)
+	using size_type = std::size_t;
+	using difference_type = std::ptrdiff_t;
+	using reference = value_type&;
+	using const_reference = const value_type&;
+	using pointer = value_type*;
+	using const_pointer = const value_type*;
+	[[nodiscard]] constexpr reference at(size_type pos)
 	{
 		switch (pos)
 		{
@@ -577,7 +587,7 @@ export struct Vector
 			throw std::out_of_range(std::format("[Vector::at] Invalid accessing pos: {}.", pos));
 		}
 	}
-	[[nodiscard]] constexpr const_reference at(std::size_t pos) const	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reference at(size_type pos) const	// #UPDATE_AT_CPP23 explict this
 	{
 		switch (pos)
 		{
@@ -593,8 +603,8 @@ export struct Vector
 	}
 	//[[nodiscard]] constexpr reference operator[] (std::size_t pos) noexcept { return *((&x) + pos); }
 	//[[nodiscard]] constexpr const_reference operator[] (std::size_t pos) const noexcept { return *((&x) + pos); }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr vec_t* data(void) noexcept { return &x; }
-	[[nodiscard]] constexpr const vec_t* data(void) const noexcept { return &x; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr pointer data(void) noexcept { return &x; }
+	[[nodiscard]] constexpr const_pointer data(void) const noexcept { return &x; }	// #UPDATE_AT_CPP23 explict this
 	[[nodiscard]] constexpr reference front(void) noexcept { return x; }
 	[[nodiscard]] constexpr const_reference front(void) const noexcept { return x; }	// #UPDATE_AT_CPP23 explict this
 	[[nodiscard]] constexpr reference back(void) noexcept { return z; }
@@ -602,11 +612,11 @@ export struct Vector
 
 	// Capacity
 	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
-	[[nodiscard]] static consteval std::size_t size(void) noexcept { return static_cast<std::size_t>(3); }
-	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(3); }
+	[[nodiscard]] static consteval size_type size(void) noexcept { return static_cast<size_type>(3); }
+	[[nodiscard]] static consteval size_type max_size(void) noexcept { return static_cast<size_type>(3); }
 
 	// Modifiers
-	constexpr void fill(const vec_t& val) noexcept { x = y = z = val; }
+	constexpr void fill(const_reference val) noexcept { x = y = z = val; }
 	constexpr void swap(Vector& other) noexcept { _STD _Swap_ranges_unchecked(&x, (&x) + 3, &other.x); }
 
 	// Members
@@ -1077,20 +1087,6 @@ struct Matrix
 	// Operators
 	// 
 	// Between matrices.
-	constexpr decltype(auto) operator-() const noexcept
-	{
-		This_t res;
-
-		for (size_t i = 0; i < ROWS; i++)
-		{
-			for (size_t j = 0; j < COLUMNS; j++)
-			{
-				res[i][j] = -_data[i][j];
-			}
-		}
-
-		return res;
-	}
 	template <size_t BRows, size_t BCols> constexpr decltype(auto) operator==(const Matrix<BRows, BCols>& B) const noexcept
 	{
 		if constexpr (BRows != ROWS || BCols != COLUMNS)
@@ -1268,6 +1264,20 @@ struct Matrix
 	//
 	// Shortcut operator(related to math symbol)
 	constexpr decltype(auto) operator~() const noexcept requires(SQUARE_MX) { return Inverse(); }
+	constexpr decltype(auto) operator-() const noexcept
+	{
+		This_t res;
+
+		for (size_t i = 0; i < ROWS; i++)
+		{
+			for (size_t j = 0; j < COLUMNS; j++)
+			{
+				res[i][j] = -_data[i][j];
+			}
+		}
+
+		return res;
+	}
 	//
 	// Conversion
 	constexpr decltype(auto) ToVector(size_t c = 0U) const noexcept
@@ -1292,8 +1302,9 @@ struct Matrix
 
 	// STL Containers Compatibility
 	// Iterators
-	using iterator = _STD _Array_iterator<mxs_t[COLUMNS], ROWS>;
-	using const_iterator = _STD _Array_const_iterator<mxs_t[COLUMNS], ROWS>;
+	using value_type = mxs_t [COLUMNS];
+	using iterator = _STD _Array_iterator<value_type, ROWS>;
+	using const_iterator = _STD _Array_const_iterator<value_type, ROWS>;
 	using reverse_iterator = _STD reverse_iterator<iterator>;
 	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
 	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(&_data[0], 0); }	// #UPDATE_AT_CPP23 explict this
@@ -1310,16 +1321,20 @@ struct Matrix
 	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
 
 	// Element Access
-	using reference = mxs_t(&)[COLUMNS];
-	using const_reference = mxs_t const (&)[COLUMNS];
-	[[nodiscard]] constexpr reference at(std::size_t pos)
+	using size_type = std::size_t;
+	using difference_type = std::ptrdiff_t;
+	using reference = value_type&;
+	using const_reference = value_type const&;
+	using pointer = value_type*;
+	using const_pointer = value_type const*;
+	[[nodiscard]] constexpr reference at(size_type pos)
 	{
 		if (pos >= ROWS)
 			throw std::out_of_range(std::format("[Matrix<{}, {}>::at] Invalid accessing pos: {}.", ROWS, COLUMNS, pos));
 
 		return _data[pos];
 	}
-	[[nodiscard]] constexpr const_reference at(std::size_t pos) const	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reference at(size_type pos) const	// #UPDATE_AT_CPP23 explict this
 	{
 		if (pos >= ROWS)
 			throw std::out_of_range(std::format("[Matrix<{}, {}>::at] Invalid accessing pos: {}.", ROWS, COLUMNS, pos));
@@ -1327,19 +1342,19 @@ struct Matrix
 		return _data[pos];
 
 	}
-	[[nodiscard]] constexpr reference operator[] (std::size_t pos) noexcept { return _data[pos]; }
-	[[nodiscard]] constexpr const_reference operator[] (std::size_t pos) const noexcept { return _data[pos]; }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr mxs_t* data(void) noexcept { return &_data[0][0]; }
-	[[nodiscard]] constexpr const mxs_t* data(void) const noexcept { return &_data[0][0]; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference operator[] (size_type pos) noexcept { return _data[pos]; }
+	[[nodiscard]] constexpr const_reference operator[] (size_type pos) const noexcept { return _data[pos]; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr pointer data(void) noexcept { return &_data[0]; }
+	[[nodiscard]] constexpr const_pointer data(void) const noexcept { return &_data[0]; }	// #UPDATE_AT_CPP23 explict this
 	[[nodiscard]] constexpr reference front(void) noexcept { return _data[0]; }
 	[[nodiscard]] constexpr const_reference front(void) const noexcept { return _data[0]; }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr reference back(void) noexcept { return _data[std::max<std::size_t>(0, ROWS - 1)]; }
-	[[nodiscard]] constexpr const_reference back(void) const noexcept { return _data[std::max<std::size_t>(0, ROWS - 1)]; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference back(void) noexcept { return _data[std::max<size_type>(0, ROWS - 1)]; }
+	[[nodiscard]] constexpr const_reference back(void) const noexcept { return _data[std::max<size_type>(0, ROWS - 1)]; }	// #UPDATE_AT_CPP23 explict this
 
 	// Capacity
 	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
-	[[nodiscard]] static consteval std::size_t size(void) noexcept { return RxC; }
-	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return RxC; }
+	[[nodiscard]] static consteval size_type size(void) noexcept { return RxC; }
+	[[nodiscard]] static consteval size_type max_size(void) noexcept { return RxC; }
 
 	// Modifiers
 	constexpr void fill(const mxs_t& val) noexcept { for (auto& Row : _data) for (auto& Cell : Row) Cell = 0; }
@@ -1429,7 +1444,7 @@ export struct Quaternion
 	static consteval decltype(auto) K() noexcept { return Quaternion(0, 0, 0, 1); }
 
 	// Properties
-	inline constexpr decltype(auto) Norm() const noexcept { return Hydrogenium::sqrt(a * a + b * b + c * c + d * d); }
+	inline constexpr decltype(auto) Norm() const noexcept { return Hydrogenium::sqrt(a * a + b * b + c * c + d * d); }	// a.k.a. magnitude
 	inline constexpr decltype(auto) NormSquared() const noexcept { return (a * a + b * b + c * c + d * d); }
 	inline constexpr decltype(auto) Conjugate() const noexcept { return Quaternion(a, -b, -c, -d); }
 	inline constexpr decltype(auto) Versor() const noexcept { return *this / Norm(); }
@@ -1452,6 +1467,7 @@ export struct Quaternion
 	constexpr decltype(auto) operator-() const noexcept { return Quaternion{ -a, -b, -c, -d }; }
 	constexpr decltype(auto) operator~() const noexcept { return Reciprocal(); }
 	constexpr decltype(auto) operator==(const Quaternion& q) const noexcept { return Approx(q, QTN_EPSILON); }
+	constexpr decltype(auto) operator==(Arithmetic auto const& n) const noexcept { return *this == Quaternion(n, 0, 0, 0); }
 
 	constexpr decltype(auto) operator*(const Quaternion& q) const noexcept
 	{
@@ -1469,7 +1485,7 @@ export struct Quaternion
 	constexpr decltype(auto) operator/(Arithmetic auto x) const noexcept { return Quaternion(a / x, b / x, c / x, d / x); }
 	constexpr decltype(auto) operator/=(Arithmetic auto x) noexcept { return (*this = *this / x); }
 
-	constexpr decltype(auto) operator*(const Vector& v) const noexcept { return v + ((CrossProduct(Pure(), v) * a) + CrossProduct(Pure(), CrossProduct(Pure(), v))) * 2.0f; }	// Rotate a vector by this quaternion.
+	constexpr decltype(auto) operator*(const Vector& v) const noexcept { return 2.0 * DotProduct(Pure(), v) * Pure() + (a * a - Pure().LengthSquared()) * v + 2.0 * a * CrossProduct(Pure(), v); }	// Rotate a vector by this quaternion.
 
 	constexpr qtn_t& operator[](std::integral auto index) noexcept { assert(index < 4); return ((qtn_t*)(&a))[index]; }
 	constexpr const qtn_t operator[](std::integral auto index) const noexcept { assert(index < 4); return ((const qtn_t*)(&a))[index]; }
@@ -1501,7 +1517,6 @@ export struct Quaternion
 
 		return vecAngles;
 	}
-
 	constexpr Matrix<3, 3> M3x3() const noexcept
 	{
 		return Matrix<3, 3>({
@@ -1511,11 +1526,89 @@ export struct Quaternion
 		});
 	}
 
+	// STL Containers Compatibility
+// Iterators
+	using value_type = qtn_t;
+	using iterator = _STD _Array_iterator<value_type, 4>;
+	using const_iterator = _STD _Array_const_iterator<value_type, 4>;
+	using reverse_iterator = _STD reverse_iterator<iterator>;
+	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(&a, 0); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(&a, 0); }
+	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(&a, 4); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(&a, 4); }
+	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+
+	// Element Access
+	using size_type = std::size_t;
+	using difference_type = std::ptrdiff_t;
+	using reference = value_type&;
+	using const_reference = const value_type&;
+	using pointer = value_type*;
+	using const_pointer = const value_type*;
+	[[nodiscard]] constexpr reference at(size_type pos)
+	{
+		switch (pos)
+		{
+		case 0:
+			return a;
+		case 1:
+			return b;
+		case 2:
+			return c;
+		case 3:
+			return d;
+		[[unlikely]] default:
+			throw std::out_of_range(std::format("[Quaternion::at] Invalid accessing pos: {}.", pos));
+		}
+	}
+	[[nodiscard]] constexpr const_reference at(size_type pos) const	// #UPDATE_AT_CPP23 explict this
+	{
+		switch (pos)
+		{
+		case 0:
+			return a;
+		case 1:
+			return b;
+		case 2:
+			return c;
+		case 3:
+			return d;
+		[[unlikely]] default:
+			throw std::out_of_range(std::format("[Quaternion::at] Invalid accessing pos: {}.", pos));
+		}
+	}
+	//[[nodiscard]] constexpr reference operator[] (std::size_t pos) noexcept { return *((&a) + pos); }
+	//[[nodiscard]] constexpr const_reference operator[] (std::size_t pos) const noexcept { return *((&a) + pos); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr pointer data(void) noexcept { return &a; }
+	[[nodiscard]] constexpr const_pointer data(void) const noexcept { return &a; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference front(void) noexcept { return a; }
+	[[nodiscard]] constexpr const_reference front(void) const noexcept { return a; }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr reference back(void) noexcept { return d; }
+	[[nodiscard]] constexpr const_reference back(void) const noexcept { return d; }	// #UPDATE_AT_CPP23 explict this
+
+	// Capacity
+	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
+	[[nodiscard]] static consteval size_type size(void) noexcept { return static_cast<size_type>(4); }
+	[[nodiscard]] static consteval size_type max_size(void) noexcept { return static_cast<size_type>(4); }
+
+	// Modifiers
+	constexpr void fill(const_reference val) noexcept { a = b = c = d = val; }
+	constexpr void swap(Quaternion& other) noexcept { _STD _Swap_ranges_unchecked(&a, (&a) + 4, &other.a); }
+
 	// Members
 	qtn_t a, b, c, d;	// w, x, y, z
 };
 
 export constexpr auto operator*(Arithmetic auto fl, const Quaternion& q) noexcept { return q * fl; }	// Scalar multiplication is commutative, but nothing else.
+export constexpr auto operator==(Arithmetic auto const& n, const Quaternion& q) noexcept { return q == n; }
 
 #ifdef _IOSTREAM_
 export std::ostream& operator<<(std::ostream& o, const Quaternion& q) noexcept

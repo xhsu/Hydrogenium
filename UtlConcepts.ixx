@@ -29,7 +29,7 @@ export using uint64 = unsigned __int64;
 #pragma region String-related
 
 export template<typename T>
-concept CharacterType = std::is_same_v<T, char> || std::is_same_v<T, char8_t> || std::is_same_v<T, wchar_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
+concept CharacterType = std::is_same_v<T, char> /*|| std::is_same_v<T, char8_t>*/ || std::is_same_v<T, wchar_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
 
 #pragma endregion String-related
 

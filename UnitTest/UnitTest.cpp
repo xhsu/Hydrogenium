@@ -1,15 +1,14 @@
-
-#include <array>
+﻿#include <array>
 #include <iostream>
 #include <numbers>
 #include <iomanip>
 #include <source_location>
-#include <format>
 
 #include <cassert>
 #include <cmath>
 
 #include "../gcem/include/gcem.hpp"
+#include <fmt/color.h>
 
 #ifndef _MSVC_LANG
 typedef char __int8;
@@ -18,16 +17,20 @@ typedef int __int32;
 typedef long long __int64;
 #endif
 
-import UtlWinConsole;
 import UtlLinearAlgebra;
 import UtlConcepts;
 import UtlArithmetic;
 import UtlRandom;
 
-template <typename T>
-void Log(const T& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
+void Log(const auto& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
 {
-	cout_gold() << std::format("[{}] {}:({}, {}): {}\n", hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(), sz) << white_text;
+	//cout_gold() << std::format("[{}] {}:({}, {}): {}\n", hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(), sz) << white_text;
+	fmt::print(
+		fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::yellow),
+		"[{}] {}:({}, {}): {}\n",
+		hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(),
+		sz
+	);
 }
 
 // #DEV_TOOL unit test fn
@@ -367,6 +370,11 @@ void UnitTest_Matrix(void) noexcept
 	Log("Starting...");
 
 	using TransformMx = Matrix<3, 3>;
+	using MxTestTy = Matrix<6, 4>;
+	static_assert(std::is_same_v<mxs_t(&)[MxTestTy::COLUMNS], MxTestTy::reference>);
+	static_assert(std::is_same_v<mxs_t(*)[MxTestTy::COLUMNS], MxTestTy::pointer>);
+	static_assert(std::is_same_v<mxs_t const(&)[MxTestTy::COLUMNS], MxTestTy::const_reference>);
+	static_assert(std::is_same_v<mxs_t const(*)[MxTestTy::COLUMNS], MxTestTy::const_pointer>);
 	static_assert(sizeof(TransformMx) == TransformMx::ROWS * TransformMx::COLUMNS * sizeof(mxs_t));
 	static_assert(TransformMx::ROWS == 3 && TransformMx::COLUMNS == 3 && TransformMx::SQUARE_MX && TransformMx::RxC == 9 && TransformMx::DIAGONAL == 3);
 
@@ -416,6 +424,8 @@ void UnitTest_Matrix(void) noexcept
 	static_assert(mx1 * Vector2D::I() == Vector2D(-0.5 * 4 + 7, std::numbers::sqrt3 / 2.0 * 4 + 8));
 
 	// Properties && Operators (Inverse matrix would call all property functions)
+	static_assert(-mx1 == -1.0 * mx1);
+
 	static_assert((mx1 * ~mx1).Approx(TransformMx::Identity(), 1e-10));
 	static_assert(~mx1 * (mx1 * Vector2D(1, 2)) == Vector2D(1, 2));
 
@@ -473,7 +483,7 @@ void UnitTest_Matrix(void) noexcept
 	bool bTryCatchTested = false;
 	try
 	{
-		mx1.at(mx1.ROWS);
+		std::ignore = mx1.at(mx1.ROWS);
 	}
 	catch (const std::out_of_range& err)
 	{
@@ -501,6 +511,85 @@ void UnitTest_Matrix(void) noexcept
 	auto mx3 = decltype(mx2)(rgrgi);
 	mx2.swap(mx3);
 	assert(mx2 == decltype(mx2)(rgrgi) && mx3 == decltype(mx3)::Zero());
+
+	Log("Successful.\n");
+}
+
+void UnitTest_Quaternion(void) noexcept
+{
+	Log("Starting...");
+
+	// Constructors
+	static_assert(Quaternion{} == Quaternion::Identity());
+	static_assert(Quaternion::Zero() == Quaternion(0, 0, 0, 0));
+	static_assert(Quaternion(30, 45, 60) == Quaternion(Matrix<3, 3>::Rotation(30, 45, 60)));
+	static_assert(Quaternion(30, 45, 60) != Quaternion(31, 46, 61));
+
+	static constexpr auto v1 = Vector(45, 30, 60);
+	static constexpr auto q1 = Quaternion(30, 45, 60);
+	static_assert(v1.yaw == 30 && v1.pitch == 45 && v1.roll == 60);
+	static_assert(q1 == Quaternion(v1));
+
+	// Static Methods
+	static_assert(
+		Quaternion::I() * Quaternion::I() == -1 &&
+		Quaternion::J() * Quaternion::J() == -1 &&
+		Quaternion::K() * Quaternion::K() == -1 &&
+		-1 == Quaternion::I() * Quaternion::J() * Quaternion::K()
+		);	// Sir W. R. Hamilton's equation.
+
+	// Properties
+	static constexpr auto q4 = Quaternion(1, 2, 3, 4);
+	static constexpr auto q3 = Quaternion(Vector(1, 1, 1).Normalize(), 120);
+	static constexpr auto q2 = Quaternion(45, 60, 90);
+	static_assert(gcem::abs(q3.Norm() - q3.NormSquared()) < 1e-5 && gcem::abs(q3.Norm() - 1) < 1e-5);
+	static_assert(q1.Conjugate() * q1 == Quaternion::Identity());
+	static_assert((q1 * q2).Conjugate() == q2.Conjugate() * q1.Conjugate());	// conj(z1*z2) = conj(z2) * conj(z1)
+	static_assert(q1 * q1.Conjugate() == Quaternion::Identity());
+	static_assert(q4.Versor().Norm() - 1 < 1e-10);
+	static_assert(q4.Reciprocal() * q4 == Quaternion::Identity());
+	static_assert(q4 * ~q4 == Quaternion::Identity());
+	static_assert(q4.Real() == 1 && q4.Pure() == Vector(2, 3, 4));
+
+	// Methods
+	static_assert(Quaternion(std::numeric_limits<qtn_t>::quiet_NaN(), 2, 3, 4).IsNaN());
+	static_assert(!q4.IsNaN());
+	static_assert(!q4.IsZero());
+	static_assert(Quaternion::Zero().IsZero());
+
+	// Operators
+	static_assert((q3 * 2 * 3 / 6).Norm() - 1 < 1e-10);
+	static_assert(q3 * Vector::I() == Vector::J());
+	static_assert(q3 * Vector::J() == Vector::K());
+	static_assert(q3 * Vector::K() == Vector::I());
+	static_assert(q3 * ~q3 == Quaternion::Identity());
+	static_assert((~q2 * (q2 * Vector(1, 2, 3))).Approx(Vector(1, 2, 3), 1e-5f));
+
+	// Conversion
+	static_assert(q1.Euler() == v1);
+	static_assert(q1.M3x3().Approx(Matrix<3, 3>::Rotation(30, 45, 60), 1e-10));
+	static_assert(q3.M3x3().Approx(Matrix<3, 3>::Rotation(Vector(1, 1, 1).Normalize(), 120), 1e-7));
+
+	// STL Containers Compatibility
+	for (int i = 0; const auto & fl : q4)
+		assert(++i == fl);
+
+	{
+		int i = 5;
+		for (auto it = q4.crbegin(); it != q4.crend(); ++it)
+			assert(--i == *it);
+	}
+
+	static_assert(q4.at(0) == 1 && q4.at(1) == 2 && q4.at(2) == 3 && q4.at(3) == 4);
+	//static_assert(q4[0] == 1 && q4[1] == 2 && q4[2] == 3 && q4[3] == 4);	// #FIXME Cannot cast pointer type in compile-time.
+	static_assert(*q4.data() == 1);
+	static_assert(q4.front() == 1 && q4.back() == 4);
+	static_assert(!q4.empty() && q4.size() == q4.max_size());
+
+	Quaternion q5(5, 6, 7, 8), q6('f', 'u', 'c', 'k');
+	q6.fill(0);
+	q5.swap(q6);
+	assert(q5 == Quaternion::Zero() && q6[2] == 7);
 
 	Log("Successful.\n");
 }
@@ -640,12 +729,13 @@ int main(int argc, char* args[]) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
 
-	UnitTest_Vector2D();
-	UnitTest_Vector();
-	UnitTest_UtlArithmetic();
-	UnitTest_Matrix();
-	UnitTest_UtlRandom();
-	UnitTest_UtlConcepts();
+	//UnitTest_Vector2D();
+	//UnitTest_Vector();
+	//UnitTest_UtlArithmetic();
+	//UnitTest_Matrix();
+	UnitTest_Quaternion();
+	//UnitTest_UtlRandom();
+	//UnitTest_UtlConcepts();
 
 	return EXIT_SUCCESS;
 }

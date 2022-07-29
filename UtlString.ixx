@@ -100,7 +100,7 @@ void UTIL_Trim(Ty& str) noexcept
 
 	static const auto fnNotSpace = [](std::make_unsigned_t<Char_t> c)
 	{
-		if constexpr (std::is_same_v<Char_t, char> || std::is_same_v<Char_t, char8_t>)
+		if constexpr (std::is_same_v<Char_t, char>/* || std::is_same_v<Char_t, char8_t>*/)
 			return !std::isspace(c);
 		else if constexpr (std::is_same_v<Char_t, wchar_t>)
 			return !std::iswspace(c);
@@ -188,45 +188,45 @@ auto UTIL_RemoveXmlNode(const Ty& sz) noexcept
 	return sz.substr(iPos1, iPos2 - iPos1);
 }
 
-export template<typename To_t, typename From_t>
-requires(sizeof(From_t) != sizeof(To_t))
-[[nodiscard]]
-auto UTIL_EncodingConversion(const From_t* pszFrom)
-{
-	using String_t = std::basic_string<To_t, std::char_traits<To_t>, std::allocator<To_t>>;
-	using StringView_t = std::basic_string_view<To_t, std::char_traits<To_t>>;
-
-	static std::make_signed_t<size_t> _iSize = sizeof(To_t) * 1U;
-	static To_t* _pcBuffer = (To_t*)std::malloc(_iSize);	// #MEM_ALLOC_GLB
-	static auto const _fnConversion = [&](To_t* pBuf, int iSize)
-	{
-		if constexpr (std::is_same_v<From_t, wchar_t> && std::is_same_v<To_t, char>)	// Unicode to ASCII
-			return ::WideCharToMultiByte(CP_ACP, 0, pszFrom, -1, pBuf, iSize, nullptr, nullptr);
-		else if constexpr (std::is_same_v<From_t, char> && std::is_same_v<To_t, wchar_t>)	// ASCII to Unicode
-			return ::MultiByteToWideChar(CP_ACP, 0, pszFrom, -1, pBuf, iSize);
-		if constexpr (std::is_same_v<From_t, wchar_t> && std::is_same_v<To_t, char8_t>)	// Unicode to UTF-8
-			return ::WideCharToMultiByte(CP_UTF8, 0, pszFrom, -1, reinterpret_cast<char*>(pBuf), iSize, nullptr, nullptr);
-		else if constexpr (std::is_same_v<From_t, char8_t> && std::is_same_v<To_t, wchar_t>)	// UTF-8 to Unicode
-			return ::MultiByteToWideChar(CP_UTF8, 0, reinterpret_cast<const char*>(pszFrom), -1, pBuf, iSize);
-	};
-
-	auto iTargetSize = _fnConversion(nullptr, 0);
-
-	if (iTargetSize > _iSize)
-	{
-		_iSize = sizeof(To_t) * iTargetSize;
-		_pcBuffer = (To_t*)std::realloc(_pcBuffer, _iSize);
-	}
-
-	if (iTargetSize == ERROR_NO_UNICODE_TRANSLATION)
-		throw std::format_error("Invalid utf8 sequence.");
-	else if (!iTargetSize)
-		throw std::runtime_error("Error in conversion.");
-	else if (_fnConversion(_pcBuffer, iTargetSize) != iTargetSize)
-		throw std::length_error("La falla!");
-
-	return String_t(_pcBuffer);
-}
+//export template<typename To_t, typename From_t>
+//requires(sizeof(From_t) != sizeof(To_t))
+//[[nodiscard]]
+//auto UTIL_EncodingConversion(const From_t* pszFrom)
+//{
+//	using String_t = std::basic_string<To_t, std::char_traits<To_t>, std::allocator<To_t>>;
+//	using StringView_t = std::basic_string_view<To_t, std::char_traits<To_t>>;
+//
+//	static std::make_signed_t<size_t> _iSize = sizeof(To_t) * 1U;
+//	static To_t* _pcBuffer = (To_t*)std::malloc(_iSize);	// #MEM_ALLOC_GLB
+//	static auto const _fnConversion = [&](To_t* pBuf, int iSize)
+//	{
+//		if constexpr (std::is_same_v<From_t, wchar_t> && std::is_same_v<To_t, char>)	// Unicode to ASCII
+//			return ::WideCharToMultiByte(CP_ACP, 0, pszFrom, -1, pBuf, iSize, nullptr, nullptr);
+//		else if constexpr (std::is_same_v<From_t, char> && std::is_same_v<To_t, wchar_t>)	// ASCII to Unicode
+//			return ::MultiByteToWideChar(CP_ACP, 0, pszFrom, -1, pBuf, iSize);
+//		if constexpr (std::is_same_v<From_t, wchar_t> && std::is_same_v<To_t, char8_t>)	// Unicode to UTF-8
+//			return ::WideCharToMultiByte(CP_UTF8, 0, pszFrom, -1, reinterpret_cast<char*>(pBuf), iSize, nullptr, nullptr);
+//		else if constexpr (std::is_same_v<From_t, char8_t> && std::is_same_v<To_t, wchar_t>)	// UTF-8 to Unicode
+//			return ::MultiByteToWideChar(CP_UTF8, 0, reinterpret_cast<const char*>(pszFrom), -1, pBuf, iSize);
+//	};
+//
+//	auto iTargetSize = _fnConversion(nullptr, 0);
+//
+//	if (iTargetSize > _iSize)
+//	{
+//		_iSize = sizeof(To_t) * iTargetSize;
+//		_pcBuffer = (To_t*)std::realloc(_pcBuffer, _iSize);
+//	}
+//
+//	if (iTargetSize == ERROR_NO_UNICODE_TRANSLATION)
+//		throw std::format_error("Invalid utf8 sequence.");
+//	else if (!iTargetSize)
+//		throw std::runtime_error("Error in conversion.");
+//	else if (_fnConversion(_pcBuffer, iTargetSize) != iTargetSize)
+//		throw std::length_error("La falla!");
+//
+//	return String_t(_pcBuffer);
+//}
 
 export
 [[nodiscard]]
@@ -528,41 +528,12 @@ consteval size_t strlen_c(const CharacterType auto* str) noexcept
 }
 
 export template<Arithmetic T>
-auto UTIL_StrToNum(const auto& sz) noexcept
+auto UTIL_StrToNum(const std::string_view& sz) noexcept
 {
-	using U = std::decay_t<T>;
-	using String_t = std::decay_t<decltype(sz)>;
-	using Char_t = std::decay_t<decltype(std::declval<String_t>()[0])>;
+	if (T ret = 0; std::from_chars(sz.data(), sz.data() + sz.size(), ret).ec == std::errc{})
+		return ret;
 
-	try
-	{
-		if constexpr (std::same_as<U, long>)
-			return std::stol(sz);
-		else if constexpr (std::same_as<U, long long>)
-			return std::stoll(sz);
-		else if constexpr (std::same_as<U, unsigned long>)
-			return std::stoul(sz);
-		else if constexpr (std::same_as<U, unsigned long long>)
-			return std::stoull(sz);
-		else if constexpr (std::same_as<U, float>)
-			return std::stof(sz);
-		else if constexpr (std::same_as<U, double>)
-			return std::stod(sz);
-		else if constexpr (std::same_as<U, long double>)
-			return std::stold(sz);
-
-		// Fallback methods.
-		else if constexpr (std::is_integral_v<U> && std::is_signed_v<U>)
-			return static_cast<U>(std::stoi(sz));
-		else if constexpr (std::is_integral_v<U> && std::is_unsigned_v<U>)
-			return static_cast<U>(std::stoul(sz));
-		else if constexpr (std::floating_point<U>)
-			return static_cast<U>(std::stof(sz));
-	}
-	catch (...)
-	{
-		return static_cast<U>(0);
-	}
+	return static_cast<T>(0);
 }
 
 export template<size_t N>
