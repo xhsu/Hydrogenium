@@ -1,8 +1,12 @@
 ﻿#include <array>
+#include <iomanip>
 #include <iostream>
 #include <numbers>
-#include <iomanip>
+#include <ranges>
 #include <source_location>
+#include <vector>
+
+#include <experimental/generator>	// Additional required by module.
 
 #include <cassert>
 #include <cmath>
@@ -17,10 +21,12 @@ typedef int __int32;
 typedef long long __int64;
 #endif
 
-import UtlLinearAlgebra;
-import UtlConcepts;
 import UtlArithmetic;
+import UtlConcepts;
+import UtlKeyValues;
+import UtlLinearAlgebra;
 import UtlRandom;
+import UtlString;
 
 void Log(const auto& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
 {
@@ -78,6 +84,8 @@ void Log(const auto& sz, std::source_location hSourceLocation = std::source_loca
 void UnitTest_Vector(void) noexcept
 {
 	Log("Starting...");
+
+	static_assert(std::ranges::range<Vector>);
 
 	using std::array;
 	static_assert(sizeof(Vector) == 3 * sizeof(vec_t));
@@ -233,6 +241,8 @@ void UnitTest_Vector2D(void) noexcept
 {
 	Log("Starting...");
 
+	static_assert(std::ranges::range<Vector2D>);
+
 	using std::array;
 	static_assert(sizeof(Vector2D) == 2 * sizeof(vec_t));
 
@@ -371,6 +381,10 @@ void UnitTest_Matrix(void) noexcept
 
 	using TransformMx = Matrix<3, 3>;
 	using MxTestTy = Matrix<6, 4>;
+
+	static_assert(std::ranges::range<TransformMx>);
+	static_assert(std::ranges::range<MxTestTy>);
+
 	static_assert(std::is_same_v<mxs_t(&)[MxTestTy::COLUMNS], MxTestTy::reference>);
 	static_assert(std::is_same_v<mxs_t(*)[MxTestTy::COLUMNS], MxTestTy::pointer>);
 	static_assert(std::is_same_v<mxs_t const(&)[MxTestTy::COLUMNS], MxTestTy::const_reference>);
@@ -518,6 +532,8 @@ void UnitTest_Matrix(void) noexcept
 void UnitTest_Quaternion(void) noexcept
 {
 	Log("Starting...");
+
+	static_assert(std::ranges::range<Quaternion>);
 
 	// Constructors
 	static_assert(Quaternion{} == Quaternion::Identity());
@@ -733,9 +749,21 @@ int main(int argc, char* args[]) noexcept
 	//UnitTest_Vector();
 	//UnitTest_UtlArithmetic();
 	//UnitTest_Matrix();
-	UnitTest_Quaternion();
+	//UnitTest_Quaternion();
 	//UnitTest_UtlRandom();
 	//UnitTest_UtlConcepts();
+
+	auto p = new ValveKeyValues;
+	p->SetValue("Test", 1, 2, 2.9);
+
+	auto const arr = p->GetValue<std::array<unsigned, 3>>("Test");
+	auto const vec = p->GetValue<std::vector<unsigned>>("Test");
+
+	auto promisety = UTIL_SplitIntoNums<unsigned>("1 2 2.9", " ");
+	//std::vector<unsigned> vec(promisety.begin(), promisety.end());//p->GetValue<decltype(vec)>("Test");
+	
+	auto it = promisety.begin();
+	auto rng = it | std::views::take(3);
 
 	return EXIT_SUCCESS;
 }

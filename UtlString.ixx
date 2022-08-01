@@ -2,10 +2,9 @@ module;
 
 // C++
 #include <array>
-#include <format>
+#include <charconv>
 #include <string>
-#include <tuple>
-#include <type_traits>
+#include <experimental/generator>
 
 // C
 #include <cassert>
@@ -13,12 +12,11 @@ module;
 #include <cwctype>
 
 // Platform
-#include <windows.h>
+#include <Windows.h>
 
 export module UtlString;
 
 import UtlConcepts;
-import UtlColor;
 
 export template<CharacterType chTy, size_t N>
 struct StringLiteral
@@ -85,6 +83,25 @@ struct StringLiteral
 
 	// Members
 	Char_t value[N];
+
+	// Iterators
+	using value_type = Char_t;
+	using iterator = _STD _Array_iterator<value_type, size>;
+	using const_iterator = _STD _Array_const_iterator<value_type, size>;
+	using reverse_iterator = _STD reverse_iterator<iterator>;
+	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(value, 0); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(value, 0); }
+	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(value, size); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(value, size); }
+	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
 };
 
 export template<StringLiteral A>	// C++ 20 feature.
@@ -152,24 +169,6 @@ auto UTIL_GetSpaceCount(const Ty& str) noexcept
 	};
 
 	return std::distance(str.begin(), std::find_if(str.begin(), str.end(), fnNotSpace));	// L Space
-}
-
-// a safe variant of sprintf which formatting strings.
-export template <size_t size, typename ... Args>
-decltype(auto) UTIL_sprintf(char(&dest)[size], const char* format, Args ... args) noexcept
-{
-	auto _return = _snprintf_s(dest, size - 1U, format, args ...);
-	dest[size - 1U] = '\0';
-	return _return;
-}
-
-// a safe variant of swprintf which formatting strings.
-export template <size_t size, typename ... Args>
-decltype(auto) UTIL_swprintf(wchar_t(&dest)[size], const wchar_t* format, Args ... args) noexcept
-{
-	auto _return = _snwprintf(dest, size - 1U, format, args ...);
-	dest[size - 1U] = L'\0';
-	return _return;
 }
 
 export template<typename Ty>
@@ -346,35 +345,32 @@ export int UTIL_GetStringType(const char* src) noexcept	// [0 - string] [1 - int
 	return 0;
 }
 
-template<typename T, typename U>
-concept ProperContainer = requires(T t, U&& u) { {t.emplace_back(u)}; };
-
-export template<StlStringClass String_t, ProperContainer<String_t> Container_t>
-void UTIL_Split(const String_t& s, Container_t& tokens, const auto& delimiters) noexcept
+export
+std::experimental::generator<std::string_view> UTIL_Split(std::string_view const& s, char const* delimiters) noexcept
 {
-	auto lastPos = s.find_first_not_of(delimiters, 0);
-	auto pos = s.find_first_of(delimiters, lastPos);
-
-	while (s.npos != pos || s.npos != lastPos)
+	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
+		s.npos != pos || s.npos != lastPos;
+		lastPos = s.find_first_not_of(delimiters, pos), pos = s.find_first_of(delimiters, lastPos)
+		)
 	{
-		tokens.emplace_back(s.substr(lastPos, pos - lastPos));
-		lastPos = s.find_first_not_of(delimiters, pos);
-		pos = s.find_first_of(delimiters, lastPos);
+		co_yield s.substr(lastPos, pos - lastPos);
 	}
+
+	co_return;
 }
 
-export template<Arithmetic T, ProperContainer<T> Container_t>
-void UTIL_SplitIntoNums(StlStringClass auto const& s, Container_t& tokens, const auto& delimiters) noexcept
+export template <Arithmetic T>
+std::experimental::generator<T> UTIL_SplitIntoNums(std::string_view const& s, char const* delimiters) noexcept
 {
-	auto lastPos = s.find_first_not_of(delimiters, 0);
-	auto pos = s.find_first_of(delimiters, lastPos);
-
-	while (s.npos != pos || s.npos != lastPos)
+	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
+		s.npos != pos || s.npos != lastPos;
+		lastPos = s.find_first_not_of(delimiters, pos), pos = s.find_first_of(delimiters, lastPos)
+		)
 	{
-		tokens.emplace_back(UTIL_StrToNum<T>(s.substr(lastPos, pos - lastPos)));
-		lastPos = s.find_first_not_of(delimiters, pos);
-		pos = s.find_first_of(delimiters, lastPos);
+		co_yield UTIL_StrToNum<T>(s.substr(lastPos, pos - lastPos));
 	}
+
+	co_return;
 }
 
 export template<std::integral auto _iValue>
@@ -672,27 +668,27 @@ constexpr auto stricmp_c(const char (&lhs)[iSizeLhs], const char (&rhs)[iSizeRhs
 	return std::strong_ordering::equal;
 }
 
-export template<HasIndexOperator T>
-T UTIL_Parse(const StlString auto& s, const auto& delimiters) noexcept
-{
-	using Cell_t = std::decay_t<decltype(std::declval<T&>()[size_t {}])>;
-	
-	static_assert(Arithmetic<Cell_t>, "Must be an arithmetic cell type.");
-
-	T ret;
-	auto lastPos = s.find_first_not_of(delimiters, 0);
-	auto pos = s.find_first_of(delimiters, lastPos);
-
-	// Support 4 cells at max.
-	for (size_t i = 0; i < 4 && (s.npos != pos || s.npos != lastPos); ++i)
-	{
-		ret[i] = UTIL_StrToNum<Cell_t>(s.substr(lastPos, pos - lastPos));
-		lastPos = s.find_first_not_of(delimiters, pos);
-		pos = s.find_first_of(delimiters, lastPos);
-	}
-
-	return ret;
-}
+//export template<HasIndexOperator T>
+//T UTIL_Parse(const StlString auto& s, const auto& delimiters) noexcept
+//{
+//	using Cell_t = std::decay_t<decltype(std::declval<T&>()[size_t {}])>;
+//	
+//	static_assert(Arithmetic<Cell_t>, "Must be an arithmetic cell type.");
+//
+//	T ret;
+//	auto lastPos = s.find_first_not_of(delimiters, 0);
+//	auto pos = s.find_first_of(delimiters, lastPos);
+//
+//	// Support 4 cells at max.
+//	for (size_t i = 0; i < 4 && (s.npos != pos || s.npos != lastPos); ++i)
+//	{
+//		ret[i] = UTIL_StrToNum<Cell_t>(s.substr(lastPos, pos - lastPos));
+//		lastPos = s.find_first_not_of(delimiters, pos);
+//		pos = s.find_first_of(delimiters, lastPos);
+//	}
+//
+//	return ret;
+//}
 
 export template<CharacterType T>
 size_t strrep(T* psz, T from, T to) noexcept

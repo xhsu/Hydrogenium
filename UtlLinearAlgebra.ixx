@@ -16,8 +16,6 @@ module;
 
 // C++
 #include <array>
-#include <bit>
-#include <cassert>
 #include <concepts>
 #include <format>
 #include <iomanip>
@@ -1527,7 +1525,7 @@ export struct Quaternion
 	}
 
 	// STL Containers Compatibility
-// Iterators
+	// Iterators
 	using value_type = qtn_t;
 	using iterator = _STD _Array_iterator<value_type, 4>;
 	using const_iterator = _STD _Array_const_iterator<value_type, 4>;

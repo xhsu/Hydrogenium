@@ -161,6 +161,7 @@
     <ClCompile Include="..\UtlConcepts.ixx" />
     <ClCompile Include="..\UtlFileSystem.ixx" />
     <ClCompile Include="..\UtlFunction.ixx" />
+    <ClCompile Include="..\UtlKeyValues.ixx" />
     <ClCompile Include="..\UtlLinearAlgebra.ixx" />
     <ClCompile Include="..\UtlRandom.ixx" />
     <ClCompile Include="..\UtlString.ixx" />

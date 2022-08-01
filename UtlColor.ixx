@@ -3,14 +3,11 @@ module;
 //#define ENABLE_HSL_COLOR
 
 #include <cassert>
-#include <cmath>
-#include <cstdlib>
 
-#include <algorithm>
-#include <concepts>
-#include <limits>
-#include <tuple>
-#include <type_traits>
+#include <algorithm>	// std::clamp
+#include <array>		// Using msvc array helper classes.
+#include <concepts>		// std::integral...
+#include <tuple>		// GetRGB returns a tuple
 
 // Static math lib
 #include "gcem/include/gcem.hpp"
@@ -100,11 +97,11 @@ export struct Color4b
 		return static_cast<uint32>(_color[0] << 16 | _color[1] << 8 | _color[2]);
 	}
 
-	constexpr uint8& r() noexcept	{ return _color[0]; }
+	constexpr uint8& r() noexcept	{ return _color[0]; }	// #UPDATE_AT_CPP23 deduce this
 	constexpr uint8& g() noexcept	{ return _color[1]; }
 	constexpr uint8& b() noexcept	{ return _color[2]; }
 	constexpr uint8& a() noexcept	{ return _color[3]; }
-	
+
 	constexpr uint8& operator[](std::integral auto index) noexcept { assert(index < _countof(_color)); return _color[index]; }
 	constexpr const uint8 operator[](std::integral auto index) const noexcept { assert(index < _countof(_color)); return _color[index]; }
 
@@ -113,27 +110,46 @@ export struct Color4b
 
 	constexpr decltype(auto) operator~() const noexcept { return Color4b(*((uint32*)this) ^ 0xFFFFFF); }	// Reversed color. It is easier on HEX calculation.
 
+	// Iterators
+	using value_type = uint8;
+	using iterator = _STD _Array_iterator<value_type, 4>;
+	using const_iterator = _STD _Array_const_iterator<value_type, 4>;
+	using reverse_iterator = _STD reverse_iterator<iterator>;
+	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(_color, 0); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(_color, 0); }
+	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(_color, 4); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(_color, 4); }
+	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+
 private:
 	uint8 _color[4];
 };
 
 export struct Color4f
 {
-	constexpr Color4f() noexcept : _r(0), _g(0), _b(0), _a(0) {}
-	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b) noexcept : _r(std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0)), _g(std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0)), _b(std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0)), _a(0) {}
-	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b, std::integral auto a) noexcept : _r(std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0)), _g(std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0)), _b(std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0)), _a(std::clamp(static_cast<double>(a) / 255.0, 0.0, 1.0)) {}
-	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b) noexcept : _r(std::clamp((double)r, 0.0, 1.0)), _g(std::clamp((double)g, 0.0, 1.0)), _b(std::clamp((double)b, 0.0, 1.0)), _a(0) {}
-	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b, std::floating_point auto a) noexcept : _r(std::clamp((double)r, 0.0, 1.0)), _g(std::clamp((double)g, 0.0, 1.0)), _b(std::clamp((double)b, 0.0, 1.0)), _a(std::clamp((double)a, 0.0, 1.0)) {}
-	constexpr Color4f(uint32 ulRGB, uint8 a) noexcept : _r(), _g(), _b(), _a() { SetRawColor(ulRGB, a); }
-	constexpr Color4f(uint32 hexColorAGBR) noexcept : _r(), _g(), _b(), _a() { SetRawColor(hexColorAGBR); }
-	constexpr Color4f(const Color4b& color4ub) noexcept : _r(), _g(), _b(), _a() { SetRawColor(color4ub); }
-	constexpr Color4f(std::initializer_list<double>&& lst) noexcept { uint8 c = 0; for (auto it = lst.begin(); it != lst.end() && c < 4; ++c) (*this)[c] = *it++; }
+	constexpr Color4f() noexcept : _color{ 0, 0, 0, 0 } {}
+	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b) noexcept : _color{ std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0), 0 } {}
+	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b, std::integral auto a) noexcept : _color{ std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(a) / 255.0, 0.0, 1.0) } {}
+	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b) noexcept : _color{ std::clamp<double>(r, 0, 1), std::clamp<double>(g, 0, 1), std::clamp<double>(b, 0, 1), 0 } {}
+	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b, std::floating_point auto a) noexcept : _color{ std::clamp<double>(r, 0, 1), std::clamp<double>(g, 0, 1), std::clamp<double>(b, 0, 1), std::clamp<double>(a, 0, 1) } {}
+	constexpr Color4f(uint32 ulRGB, uint8 a) noexcept : _color{} { SetRawColor(ulRGB, a); }
+	constexpr Color4f(uint32 hexColorAGBR) noexcept : _color{} { SetRawColor(hexColorAGBR); }
+	constexpr Color4f(const Color4b& color4ub) noexcept : _color{} { SetRawColor(color4ub); }
+	constexpr Color4f(std::initializer_list<double>&& lst) noexcept { uint8 c = 0; for (auto it = lst.begin(); it != lst.end() && c < 4; ++c) _color[c] = *it++; }
 
 	constexpr void SetRGB(std::floating_point auto& r, std::floating_point auto& g, std::floating_point auto& b) noexcept
 	{
-		_r = std::clamp(static_cast<double>(r), 0.0, 1.0);
-		_g = std::clamp(static_cast<double>(g), 0.0, 1.0);
-		_b = std::clamp(static_cast<double>(b), 0.0, 1.0);
+		_color[0] = std::clamp(static_cast<double>(r), 0.0, 1.0);
+		_color[1] = std::clamp(static_cast<double>(g), 0.0, 1.0);
+		_color[2] = std::clamp(static_cast<double>(b), 0.0, 1.0);
 	}
 
 	// set the color
@@ -143,17 +159,17 @@ export struct Color4f
 	// a - alpha component, controls transparency (0 - transparent, 255 - opaque);
 	constexpr void SetRGB(std::integral auto r, std::integral auto g, std::integral auto b) noexcept
 	{
-		_r = std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0);
-		_g = std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0);
-		_b = std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0);
+		_color[0] = std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0);
+		_color[1] = std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0);
+		_color[2] = std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0);
 	}
 
 	constexpr std::tuple<uint8, uint8, uint8> GetRGB(void) const noexcept
 	{
 		return std::make_tuple(
-			static_cast<uint8>(std::round(_r * 255.0)),
-			static_cast<uint8>(std::round(_g * 255.0)),
-			static_cast<uint8>(std::round(_b * 255.0))
+			static_cast<uint8>(gcem::round(_color[0] * 255.0)),
+			static_cast<uint8>(gcem::round(_color[1] * 255.0)),
+			static_cast<uint8>(gcem::round(_color[2] * 255.0))
 		);
 	}
 
@@ -162,26 +178,26 @@ export struct Color4f
 		color32_helper_t color;
 		color.hexColor = hexColorAGBR;
 
-		_r = static_cast<double>(color.ubColors[0]) / 255.0;
-		_g = static_cast<double>(color.ubColors[1]) / 255.0;
-		_b = static_cast<double>(color.ubColors[2]) / 255.0;
-		_a = static_cast<double>(color.ubColors[3]) / 255.0;
+		_color[0] = static_cast<double>(color.ubColors[0]) / 255.0;
+		_color[1] = static_cast<double>(color.ubColors[1]) / 255.0;
+		_color[2] = static_cast<double>(color.ubColors[2]) / 255.0;
+		_color[3] = static_cast<double>(color.ubColors[3]) / 255.0;
 	}
 
 	constexpr void SetRawColor(uint32 ulRGB, uint8 a) noexcept
 	{
-		_r = static_cast<double>((ulRGB & 0xFF0000) >> 16) / 255.0;
-		_g = static_cast<double>((ulRGB & 0xFF00) >> 8) / 255.0;
-		_b = static_cast<double>(ulRGB & 0xFF) / 255.0;
-		_a = static_cast<double>(a) / 255.0;
+		_color[0] = static_cast<double>((ulRGB & 0xFF0000) >> 16) / 255.0;
+		_color[1] = static_cast<double>((ulRGB & 0xFF00) >> 8) / 255.0;
+		_color[2] = static_cast<double>(ulRGB & 0xFF) / 255.0;
+		_color[3] = static_cast<double>(a) / 255.0;
 	}
 
 	constexpr void SetRawColor(const Color4b& color4ub) noexcept
 	{
-		_r = static_cast<double>(color4ub[0]) / 255.0;
-		_g = static_cast<double>(color4ub[1]) / 255.0;
-		_b = static_cast<double>(color4ub[2]) / 255.0;
-		_a = static_cast<double>(color4ub[3]) / 255.0;
+		_color[0] = static_cast<double>(color4ub[0]) / 255.0;
+		_color[1] = static_cast<double>(color4ub[1]) / 255.0;
+		_color[2] = static_cast<double>(color4ub[2]) / 255.0;
+		_color[3] = static_cast<double>(color4ub[3]) / 255.0;
 	}
 
 	constexpr uint32 GetRawColor(void) const noexcept	// Returns 0xAABBGGRR
@@ -215,9 +231,9 @@ export struct Color4f
 	{
 		if (s < DBL_EPSILON)	// < is bogus, just shuts up warnings
 		{
-			_r = v;
-			_g = v;
-			_b = v;
+			_color[0] = v;
+			_color[1] = v;
+			_color[2] = v;
 
 			return;
 		}
@@ -237,48 +253,48 @@ export struct Color4f
 		switch (i)
 		{
 		case 0:
-			_r = v;
-			_g = t;
-			_b = p;
+			_color[0] = v;
+			_color[1] = t;
+			_color[2] = p;
 			break;
 
 		case 1:
-			_r = q;
-			_g = v;
-			_b = p;
+			_color[0] = q;
+			_color[1] = v;
+			_color[2] = p;
 			break;
 
 		case 2:
-			_r = p;
-			_g = v;
-			_b = t;
+			_color[0] = p;
+			_color[1] = v;
+			_color[2] = t;
 			break;
 
 		case 3:
-			_r = p;
-			_g = q;
-			_b = v;
+			_color[0] = p;
+			_color[1] = q;
+			_color[2] = v;
 			break;
 
 		case 4:
-			_r = t;
-			_g = p;
-			_b = v;
+			_color[0] = t;
+			_color[1] = p;
+			_color[2] = v;
 			break;
 
 		case 5:
 		default:
-			_r = v;
-			_g = p;
-			_b = q;
+			_color[0] = v;
+			_color[1] = p;
+			_color[2] = q;
 			break;
 		}
 	}
 
 	constexpr std::tuple<double, double, double> GetHSV(void) const noexcept
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		if (delta < DBL_EPSILON || max < DBL_EPSILON)
@@ -293,12 +309,12 @@ export struct Color4f
 		}
 
 		double _h = 60.0;	// hue is in degrees
-		if (_r >= max)					// > is bogus, just keeps compilor happy
-			_h *= (_g - _b) / delta;	// between yellow & magenta
-		else if (_g >= max)
-			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+		if (_color[0] >= max)					// > is bogus, just keeps compilor happy
+			_h *= (_color[1] - _color[2]) / delta;	// between yellow & magenta
+		else if (_color[1] >= max)
+			_h *= 2.0 + (_color[2] - _color[0]) / delta;	// between cyan & yellow
 		else
-			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_color[0] - _color[1]) / delta;	// between magenta & cyan
 
 		if (_h < 0.0)
 			_h += 360.0;
@@ -324,7 +340,7 @@ export struct Color4f
 	{
 		if (s < DBL_EPSILON)
 		{
-			_r = _g = _b = l; // achromatic
+			_color[0] = _color[1] = _color[2] = l; // achromatic
 		}
 		else
 		{
@@ -342,9 +358,9 @@ export struct Color4f
 			auto p = 2.0 * l - q;
 			auto t = h / 360.0;
 
-			_r = hue2rgb(p, q, t + 1.0 / 3.0);
-			_g = hue2rgb(p, q, t);
-			_b = hue2rgb(p, q, t - 1.0 / 3.0);
+			_color[0] = hue2rgb(p, q, t + 1.0 / 3.0);
+			_color[1] = hue2rgb(p, q, t);
+			_color[2] = hue2rgb(p, q, t - 1.0 / 3.0);
 		}
 	}
 
@@ -354,8 +370,8 @@ export struct Color4f
 		using saturationTy = std::remove_reference_t<decltype(s)>;
 		using lightnessTy = std::remove_reference_t<decltype(l)>;
 
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		l = (max + min) / 2.0;
@@ -368,12 +384,12 @@ export struct Color4f
 		{
 			s = l > 0.5 ? delta / (2.0 - max - min) : delta / (max + min);
 
-			if (max == _r)
-				h = (_g - _b) / delta + (_g < _b ? 6.0 : 0);
-			else if (max == _g)
-				h = (_b - _r) / delta + 2.0;
-			else if (max == _b)
-				h = (_r - _g) / delta + 4.0;
+			if (max == _color[0])
+				h = (_color[1] - _color[2]) / delta + (_color[1] < _color[2] ? 6.0 : 0);
+			else if (max == _color[1])
+				h = (_color[2] - _color[0]) / delta + 2.0;
+			else if (max == _color[2])
+				h = (_color[0] - _color[1]) / delta + 4.0;
 
 			h /= 6.0;
 			h *= 360.0;
@@ -391,24 +407,24 @@ export struct Color4f
 	// Check function.
 	constexpr void Rationalize() noexcept
 	{
-		_r = std::clamp(_r, 0.0, 1.0);
-		_g = std::clamp(_g, 0.0, 1.0);
-		_b = std::clamp(_b, 0.0, 1.0);
-		_a = std::clamp(_a, 0.0, 1.0);
+		_color[0] = std::clamp(_color[0], 0.0, 1.0);
+		_color[1] = std::clamp(_color[1], 0.0, 1.0);
+		_color[2] = std::clamp(_color[2], 0.0, 1.0);
+		_color[3] = std::clamp(_color[3], 0.0, 1.0);
 	}
 
 	// Color component assigning functions.
 	// RGB type.
-	inline constexpr void SetR(std::integral auto R) noexcept { _r = std::clamp(static_cast<double>(R) / 255.0, 0.0, 1.0); }
-	inline constexpr void SetG(std::integral auto G) noexcept { _g = std::clamp(static_cast<double>(G) / 255.0, 0.0, 1.0); }
-	inline constexpr void SetB(std::integral auto B) noexcept { _b = std::clamp(static_cast<double>(B) / 255.0, 0.0, 1.0); }
-	inline constexpr void SetA(std::integral auto A) noexcept { _a = std::clamp(static_cast<double>(A) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetR(std::integral auto R) noexcept { _color[0] = std::clamp(static_cast<double>(R) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetG(std::integral auto G) noexcept { _color[1] = std::clamp(static_cast<double>(G) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetB(std::integral auto B) noexcept { _color[2] = std::clamp(static_cast<double>(B) / 255.0, 0.0, 1.0); }
+	inline constexpr void SetA(std::integral auto A) noexcept { _color[3] = std::clamp(static_cast<double>(A) / 255.0, 0.0, 1.0); }
 
 	// HSV/HSL type.
 	constexpr void SetH(Arithmetic auto _h) noexcept
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		SetHSV(
@@ -421,22 +437,22 @@ export struct Color4f
 	{
 		if (_s < std::numeric_limits<decltype(_s)>::epsilon())
 		{
-			_r = _g = _b = v;	// achromatic
+			_color[0] = _color[1] = _color[2] = v;	// achromatic
 			return;
 		}
 
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		double _h = 60;	// degrees
 
 		if (r >= max)					// > is bogus, just keeps compilor happy
-			_h *= (_g - _b) / delta;	// between yellow & magenta
+			_h *= (_color[1] - _color[2]) / delta;	// between yellow & magenta
 		else if (g >= max)
-			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+			_h *= 2.0 + (_color[2] - _color[0]) / delta;	// between cyan & yellow
 		else
-			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_color[0] - _color[1]) / delta;	// between magenta & cyan
 
 		if (_h < 0.0)
 			_h += 360.0;
@@ -449,18 +465,18 @@ export struct Color4f
 	}
 	constexpr void SetV(std::floating_point auto _v) noexcept
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		double _h = 60;	// degrees
 
 		if (r >= max)					// > is bogus, just keeps compilor happy
-			_h *= (_g - _b) / delta;	// between yellow & magenta
+			_h *= (_color[1] - _color[2]) / delta;	// between yellow & magenta
 		else if (g >= max)
-			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+			_h *= 2.0 + (_color[2] - _color[0]) / delta;	// between cyan & yellow
 		else
-			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_color[0] - _color[1]) / delta;	// between magenta & cyan
 
 		if (_h < 0.0)
 			_h += 360.0;
@@ -474,18 +490,18 @@ export struct Color4f
 #ifdef ENABLE_HSL_COLOR
 	constexpr void SetS_hsl(std::floating_point auto _s) noexcept
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		double _h = 60;	// degrees
 
 		if (r >= max)					// > is bogus, just keeps compilor happy
-			_h *= (_g - _b) / delta;	// between yellow & magenta
+			_h *= (_color[1] - _color[2]) / delta;	// between yellow & magenta
 		else if (g >= max)
-			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+			_h *= 2.0 + (_color[2] - _color[0]) / delta;	// between cyan & yellow
 		else
-			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_color[0] - _color[1]) / delta;	// between magenta & cyan
 
 		if (_h < 0.0)
 			_h += 360.0;
@@ -498,18 +514,18 @@ export struct Color4f
 	}
 	constexpr void SetL(std::floating_point auto _l) noexcept
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		double _h = 60;	// degrees
 
 		if (r >= max)					// > is bogus, just keeps compilor happy
-			_h *= (_g - _b) / delta;	// between yellow & magenta
+			_h *= (_color[1] - _color[2]) / delta;	// between yellow & magenta
 		else if (g >= max)
-			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+			_h *= 2.0 + (_color[2] - _color[0]) / delta;	// between cyan & yellow
 		else
-			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_color[0] - _color[1]) / delta;	// between magenta & cyan
 
 		if (_h < 0.0)
 			_h += 360.0;
@@ -524,10 +540,10 @@ export struct Color4f
 
 	// Color component retrieve functions.
 	// RGB type.
-	inline constexpr uint8 GetR() const noexcept { return static_cast<uint8>(gcem::round(_r * 255.0)); }
-	inline constexpr uint8 GetG() const noexcept { return static_cast<uint8>(gcem::round(_g * 255.0)); }
-	inline constexpr uint8 GetB() const noexcept { return static_cast<uint8>(gcem::round(_b * 255.0)); }
-	inline constexpr uint8 GetA() const noexcept { return static_cast<uint8>(gcem::round(_a * 255.0)); }
+	inline constexpr uint8 GetR() const noexcept { return static_cast<uint8>(gcem::round(_color[0] * 255.0)); }
+	inline constexpr uint8 GetG() const noexcept { return static_cast<uint8>(gcem::round(_color[1] * 255.0)); }
+	inline constexpr uint8 GetB() const noexcept { return static_cast<uint8>(gcem::round(_color[2] * 255.0)); }
+	inline constexpr uint8 GetA() const noexcept { return static_cast<uint8>(gcem::round(_color[3] * 255.0)); }
 
 	__declspec(property(get = GetR, put = SetR)) uint8 r;
 	__declspec(property(get = GetG, put = SetG)) uint8 g;
@@ -537,8 +553,8 @@ export struct Color4f
 	// HSV/HSL type.
 	constexpr double GetH() const noexcept	// Degree: [0-360]
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		if (delta < DBL_EPSILON)
@@ -554,11 +570,11 @@ export struct Color4f
 		double _h = 60;	// degrees
 
 		if (r >= max)					// > is bogus, just keeps compilor happy
-			_h *= (_g - _b) / delta;	// between yellow & magenta
+			_h *= (_color[1] - _color[2]) / delta;	// between yellow & magenta
 		else if (g >= max)
-			_h *= 2.0 + (_b - _r) / delta;	// between cyan & yellow
+			_h *= 2.0 + (_color[2] - _color[0]) / delta;	// between cyan & yellow
 		else
-			_h *= 4.0 + (_r - _g) / delta;	// between magenta & cyan
+			_h *= 4.0 + (_color[0] - _color[1]) / delta;	// between magenta & cyan
 
 		if (_h < 0.0)
 			_h += 360.0;
@@ -567,8 +583,8 @@ export struct Color4f
 	}
 	constexpr double GetS() const noexcept	// Percentage: [0.0-1.0]
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		if (delta < DBL_EPSILON || max < DBL_EPSILON)
@@ -581,20 +597,20 @@ export struct Color4f
 	}
 	constexpr double GetV() const noexcept	// Percentage: [0.0-1.0]
 	{
-		return std::max({ _r, _g, _b });	// v
+		return std::max({ _color[0], _color[1], _color[2] });	// v
 	}
 #ifdef ENABLE_HSL_COLOR
 	constexpr double GetS_hsl() const noexcept
 	{
-		auto min = std::min({ _r, _g, _b });
-		auto max = std::max({ _r, _g, _b });
+		auto min = std::min({ _color[0], _color[1], _color[2] });
+		auto max = std::max({ _color[0], _color[1], _color[2] });
 		auto delta = max - min;
 
 		return l > 0.5 ? delta / (2.0 - max - min) : delta / (max + min);
 	}
 	constexpr double GetL() const noexcept	// Percentage: [0.0-1.0]
 	{
-		return 0.5 * (std::min({ _r, _g, _b }) + std::max({ _r, _g, _b }));	// Use [0-1] floating color here.
+		return 0.5 * (std::min({ _color[0], _color[1], _color[2] }) + std::max({ _color[0], _color[1], _color[2] }));	// Use [0-1] floating color here.
 	}
 #endif
 
@@ -609,17 +625,17 @@ export struct Color4f
 	// Operators.
 	// Retrieve these actually returns you the original floating color value.
 	// [0 - R, 1 - G, 2 - B, 3 - A]
-	constexpr double& operator[](std::integral auto index) noexcept { assert(index < 4); return ((double*)(&_r))[index]; }
-	constexpr const double operator[](std::integral auto index) const noexcept { assert(index < 4); return ((const double*)(&_r))[index]; }
+	constexpr double& operator[](std::integral auto index) noexcept { assert(index < 4); return ((double*)(&_color[0]))[index]; }
+	constexpr const double operator[](std::integral auto index) const noexcept { assert(index < 4); return ((const double*)(&_color[0]))[index]; }
 
-	constexpr bool operator== (const Color4f& rhs) const noexcept { return _r == rhs._r && _g == rhs._g && _b == rhs._b && _a == rhs._a; }	// Shame on C++, 'memcmp' should be a constexpr function.
+	constexpr bool operator== (const Color4f& rhs) const noexcept { return _color[0] == rhs._color[0] && _color[1] == rhs._color[1] && _color[2] == rhs._color[2] && _color[3] == rhs._color[3]; }	// Shame on C++, 'memcmp' should be a constexpr function.
 	constexpr bool operator== (const Color4b& rhs) const noexcept { return GetRawColor() == rhs.GetRawColor(); }	// Operator!= will be automatically generated by C++20.
 
-	constexpr Color4f& operator=(const Color4f& rhs) noexcept { _r = rhs._r; _g = rhs._g; _b = rhs._b; _a = rhs._a; return *this; }	// Shame on C++, 'memcpy' should be a constexpr function.
+	constexpr Color4f& operator=(const Color4f& rhs) noexcept { _color[0] = rhs._color[0]; _color[1] = rhs._color[1]; _color[2] = rhs._color[2]; _color[3] = rhs._color[3]; return *this; }	// Shame on C++, 'memcpy' should be a constexpr function.
 	constexpr Color4f& operator=(const Color4b& rhs) noexcept { SetRawColor(rhs); return *this; }
 
-	constexpr decltype(auto) operator+(const Color4f& v) const noexcept { return Color4f(_r + v._r, _g + v._g, _b + v._b); }
-	constexpr decltype(auto) operator-(const Color4f& v) const noexcept { return Color4f(_r - v._r, _g - v._g, _b - v._b); }
+	constexpr decltype(auto) operator+(const Color4f& v) const noexcept { return Color4f(_color[0] + v._color[0], _color[1] + v._color[1], _color[2] + v._color[2]); }
+	constexpr decltype(auto) operator-(const Color4f& v) const noexcept { return Color4f(_color[0] - v._color[0], _color[1] - v._color[1], _color[2] - v._color[2]); }
 	constexpr decltype(auto) operator+=(const Color4f& v) noexcept { return (*this = *this + v); }
 	constexpr decltype(auto) operator-=(const Color4f& v) noexcept { return (*this = *this - v); }
 
@@ -628,15 +644,34 @@ export struct Color4f
 	constexpr decltype(auto) operator+=(const Color4b& v) noexcept { return (*this = *this + v); }
 	constexpr decltype(auto) operator-=(const Color4b& v) noexcept { return (*this = *this - v); }
 
-	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept { return Color4f(_r * fl, _g * fl, _b * fl); }
-	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept { return Color4f(_r / fl, _g / fl, _b / fl); }
+	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept { return Color4f(_color[0] * fl, _color[1] * fl, _color[2] * fl); }
+	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept { return Color4f(_color[0] / fl, _color[1] / fl, _color[2] / fl); }
 	constexpr decltype(auto) operator*=(Arithmetic auto fl) noexcept { return (*this = *this * fl); }
 	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
 
 	constexpr decltype(auto) operator~() const noexcept { return Color4f(GetRawRGB() ^ 0xFFFFFF, a); }	// Inverse color. By definition it is the hue that actually 'reversed'. i.e. (hue + 180) % 360.
 
+	// Iterators
+	using value_type = double;
+	using iterator = _STD _Array_iterator<value_type, 4>;
+	using const_iterator = _STD _Array_const_iterator<value_type, 4>;
+	using reverse_iterator = _STD reverse_iterator<iterator>;
+	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(_color, 0); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(_color, 0); }
+	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(_color, 4); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(_color, 4); }
+	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+
 private:
-	double _r, _g, _b, _a;
+	double _color[4];
 };
 
 export inline constexpr bool operator== (const Color4b& lhs, const Color4f& rhs) noexcept { return rhs == lhs; }

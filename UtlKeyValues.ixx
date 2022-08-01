@@ -89,7 +89,7 @@ export struct ValveKeyValues
 	// load/save file
 	bool LoadFromFile(const char* resourceName) noexcept
 	{
-		FILE* f = fopen(resourceName, "rb");
+		FILE* f = fopen(resourceName, "r, ccs=UTF-8");
 		if (!f)
 			return false;
 
@@ -114,7 +114,7 @@ export struct ValveKeyValues
 	}
 	bool SaveToFile(const char* resourceName) noexcept
 	{
-		FILE* f = fopen(resourceName, "wb");
+		FILE* f = fopen(resourceName, "w, ccs=UTF-8");
 		if (!f)
 			return false;
 
@@ -424,71 +424,78 @@ export struct ValveKeyValues
 		{
 			return dat->m_pszValue;
 		}
-		else
+		else if constexpr (ResizableContainer<T>)
 		{
 			if (!dat->m_pszValue)
 				return DefValue;
 
-			char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC
-			const char* pEnd = p0 + strlen(p0) + 1;
-			short iCount = 0;
-			T ret = DefValue;
+			using ElemTy = std::decay_t<decltype(std::declval<T&>()[std::size_t{}])>;
 
-			const auto fnCheckBoundary = [&](void) -> bool
+			if constexpr (Arithmetic<ElemTy>)
 			{
-				if constexpr (ResizableContainer<T>)
-					return true;
-				else if constexpr (Iterable<T>)
-					return iCount < std::distance(std::begin(ret), std::end(ret));
-				else if constexpr (ConvertibleToArray4<T>)
-					return iCount < 4;
-				else if constexpr (ConvertibleToArray3<T>)
-					return iCount < 3;
-				else if constexpr (ConvertibleToArray2<T>)
-					return iCount < 2;
-				else if constexpr (TreatableAsIfArray<T>)
-					return true;	// #POTENTIAL_BUG
-				else
-					static_assert(!sizeof(T), "Unsupported type involved.");
-			};
+				// #UPDATE_AT_CPP23 ranges::to
+				auto Promise = UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0");
+				return T(Promise.begin(), Promise.end());
+			}
+			else
+			{
+				// #UPDATE_AT_CPP23 ranges::to
+				auto Promise = UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0");
+				return T(Promise.begin(), Promise.end());
+			}
+		}
+		else if constexpr (std::ranges::range<T>)
+		{
+			if (!dat->m_pszValue)
+				return DefValue;
 
-			for (char* p = p0, *p1 = p0; p && p != pEnd && fnCheckBoundary(); /* Do nothing */)
+			T ret{};
+			auto itBegin = std::begin(ret);
+			auto itEnd = std::end(ret);
+
+			using ElemTy = std::decay_t<decltype(*itBegin)>;
+
+			// #UPDATE_AT_CPP23 zip it!
+			if constexpr (Arithmetic<ElemTy>)
 			{
-				switch (*p)
+				for (auto&& Number : UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0"))
 				{
-				case ' ':
-				case '\f':
-				case '\n':
-				case '\r':
-				case '\t':
-				case '\v':
-					*p = '\0';
-					[[fallthrough]];
-
-				case '\0':	// The last one.
-					if constexpr (ResizableContainer<T>)
-						ret.emplace_back(UTIL_StrToNum<std::decay_t<decltype(std::declval<T&>()[size_t{}])>>(p1));
+					if (itBegin != itEnd)
+						*itBegin++ = Number;
 					else
-						ret[iCount++] = UTIL_StrToNum<std::decay_t<decltype(std::declval<T&>()[size_t{}])>>(p1);
-
-					p1 = ++p;
-					break;
-
-				default:
-					++p;
-					break;
+						break;
 				}
 			}
+			else if constexpr (std::convertible_to<std::string_view, ElemTy>)
+			{
+				for (auto&& Str : UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0"))
+				{
+					if (itBegin != itEnd)
+						*itBegin++ = Str;
+					else
+						break;
+				}
+			}
+			else
+				static_assert(!sizeof(T), "Unsupported elem of range.");
 
-			free(p0); p0 = nullptr;	// #MEM_FREED
 			return ret;
 		}
+		else
+			static_assert(!sizeof(T), "Unsupported type involved.");
+
+		return DefValue;
 	}
 	template<typename... Tys> std::tuple<Tys...> GetValue(const char* pszSubkeyName = nullptr) noexcept requires(sizeof...(Tys) > 1)
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
 		if (!dat || !dat->m_pszValue)
 			return {};
+
+		for (auto&& Str : UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0"))
+		{
+
+		}
 
 		char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC
 		bool bStrtokInited = false;
