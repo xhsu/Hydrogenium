@@ -22,6 +22,10 @@ module;
 #include <iostream>
 #include <limits>
 #include <numbers>
+#include <ranges>
+
+#include <range/v3/range.hpp>	// #UPDATE_AT_CPP23 swap to std::ranges::zip
+#include <range/v3/view.hpp>
 
 // Static math lib
 #include "gcem/include/gcem.hpp"
@@ -47,9 +51,9 @@ export struct Vector2D
 	constexpr Vector2D() noexcept : x(0), y(0) {}
 	constexpr Vector2D(Arithmetic auto X, Arithmetic auto Y) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)) {}
 	explicit constexpr Vector2D(Arithmetic auto sideLength) noexcept : width(static_cast<vec_t>(sideLength)), height(static_cast<vec_t>(sideLength)) {}
-	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const T (&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
+	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const T (&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}	// #UPDATE_AT_CPP23 could be fix in cpp23. Problem of comment: non-constexpr involved.
 	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
-	constexpr Vector2D(std::initializer_list<vec_t>&& lst) noexcept { assert(lst.size() >= 2U); auto it = lst.begin(); x = *it++; y = *it++; }
+	explicit constexpr Vector2D(std::ranges::range auto&& RangeObj) noexcept : x(), y() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<vec_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector2D(-x, -y); }
@@ -274,7 +278,7 @@ export struct Vector
 	constexpr Vector(const Vector2D& v2d, Arithmetic auto Z) noexcept : x(v2d.x), y(v2d.y), z(static_cast<vec_t>(Z)) {}
 	template<Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const T(&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
 	template<Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
-	constexpr Vector(std::initializer_list<vec_t>&& lst) noexcept { assert(lst.size() >= 3U); auto it = lst.begin(); x = *it++; y = *it++; z = *it++; }
+	explicit constexpr Vector(std::ranges::range auto&& RangeObj) noexcept : x(), y(), z() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<vec_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector(-x, -y, -z); }
@@ -1432,7 +1436,7 @@ export struct Quaternion
 		c = (m[0][2] - m[2][0]) / (4 * a);
 		d = (m[1][0] - m[0][1]) / (4 * a);
 	}
-	constexpr Quaternion(std::initializer_list<qtn_t>&& lst) noexcept { assert(lst.size() >= 4U); auto it = lst.begin(); a = *it++; b = *it++; c = *it++; d = *it++; }
+	explicit constexpr Quaternion(std::ranges::range auto&& RangeObj) noexcept requires(std::convertible_to<decltype(*std::begin(RangeObj)), qtn_t>) : a(), b(), c(), d() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<qtn_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// Static Methods
 	static consteval decltype(auto) Zero() noexcept { return Quaternion(0, 0, 0, 0); }

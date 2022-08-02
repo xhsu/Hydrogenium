@@ -494,7 +494,6 @@ export struct ValveKeyValues
 
 		for (auto&& Str : UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0"))
 		{
-
 		}
 
 		char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC

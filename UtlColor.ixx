@@ -35,7 +35,7 @@ export struct Color4b
 	constexpr Color4b(uint8 r, uint8 g, uint8 b, uint8 a) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = a; }
 	constexpr Color4b(uint32 ulRGB, uint8 a) noexcept : _color() { _color[0] = (ulRGB & 0xFF0000) >> 16; _color[1] = (ulRGB & 0xFF00) >> 8; _color[2] = ulRGB & 0xFF; _color[3] = a; }
 	constexpr Color4b(uint32 color32) noexcept : _color() { SetRawColor(color32); }
-	constexpr Color4b(std::initializer_list<uint8>&& lst) noexcept { uint8 c = 0; for (auto it = lst.begin(); it != lst.end() && c < 4; ++c) _color[c] = *it++; }
+	explicit constexpr Color4b(std::ranges::range auto&& RangeObj) noexcept : _color() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<uint8>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// set the color
 	// r - red component (0-255)
@@ -129,6 +129,11 @@ export struct Color4b
 	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
 	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
 
+	// Capacity
+	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
+	[[nodiscard]] static consteval std::size_t size(void) noexcept { return static_cast<std::size_t>(4); }
+	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(4); }
+
 private:
 	uint8 _color[4];
 };
@@ -143,7 +148,7 @@ export struct Color4f
 	constexpr Color4f(uint32 ulRGB, uint8 a) noexcept : _color{} { SetRawColor(ulRGB, a); }
 	constexpr Color4f(uint32 hexColorAGBR) noexcept : _color{} { SetRawColor(hexColorAGBR); }
 	constexpr Color4f(const Color4b& color4ub) noexcept : _color{} { SetRawColor(color4ub); }
-	constexpr Color4f(std::initializer_list<double>&& lst) noexcept { uint8 c = 0; for (auto it = lst.begin(); it != lst.end() && c < 4; ++c) _color[c] = *it++; }
+	explicit constexpr Color4f(std::ranges::range auto&& RangeObj) noexcept : _color() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<double>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	constexpr void SetRGB(std::floating_point auto& r, std::floating_point auto& g, std::floating_point auto& b) noexcept
 	{
@@ -669,6 +674,11 @@ export struct Color4f
 	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
 	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
 	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+
+	// Capacity
+	[[nodiscard]] static consteval bool empty(void) noexcept { return false; }
+	[[nodiscard]] static consteval std::size_t size(void) noexcept { return static_cast<std::size_t>(4); }
+	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(4); }
 
 private:
 	double _color[4];

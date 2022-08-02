@@ -373,6 +373,23 @@ std::experimental::generator<T> UTIL_SplitIntoNums(std::string_view const& s, ch
 	co_return;
 }
 
+export template <Arithmetic T>
+std::experimental::generator<std::pair<T, std::string_view>> UTIL_SplitIntoNumsWithStrRemainder(std::string_view const& s, char const* delimiters) noexcept
+{
+	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
+		s.npos != pos || s.npos != lastPos;
+		lastPos = s.find_first_not_of(delimiters, pos), pos = s.find_first_of(delimiters, lastPos)
+		)
+	{
+		co_yield std::make_pair(
+			UTIL_StrToNum<T>(s.substr(lastPos, pos - lastPos)),
+			s.substr(lastPos)
+		);
+	}
+
+	co_return;
+}
+
 export template<std::integral auto _iValue>
 consteval auto UTIL_CountDigits(void) noexcept
 {

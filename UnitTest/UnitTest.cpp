@@ -13,6 +13,8 @@
 
 #include "../gcem/include/gcem.hpp"
 #include <fmt/color.h>
+#include <range/v3/range.hpp>
+#include <range/v3/view.hpp>
 
 #ifndef _MSVC_LANG
 typedef char __int8;
@@ -91,21 +93,21 @@ void UnitTest_Vector(void) noexcept
 	static_assert(sizeof(Vector) == 3 * sizeof(vec_t));
 
 	// Construction
-	constexpr Vector vecZero(0, 0, 0);
+	static constexpr Vector vecZero(0, 0, 0);
 	static_assert(vecZero == Vector::Zero());
 
-	constexpr Vector vecUpgrade(Vector2D(7, 7), 777ULL);
+	static constexpr Vector vecUpgrade(Vector2D(7, 7), 777ULL);
 	static_assert(vecUpgrade.x == 7 && vecUpgrade.y == 7 && vecUpgrade.z == 777.0);
 
-	constexpr Vector vec1({ 1, 2, 3 }), vec2({ 1, 2, 3, 4 });
+	static constexpr Vector vec1({ 1, 2, 3 }), vec2({ 1, 2, 3, 4 });
 	static_assert(vec1 == vec2 && vec1.x == 1 && vec2.y == 2 && vec1.z == vec2.z);
 
-	constexpr double rgdb1[] = { 1, 2, 3 };
-	constexpr unsigned int rgui1[] = { 1, 2, 3, 4 };
+	static constexpr double rgdb1[] = { 1, 2, 3 };
+	static constexpr unsigned int rgui1[] = { 1, 2, 3, 4 };
 	static_assert(Vector(rgdb1) == Vector(rgui1) && Vector(rgdb1) == vec1 && Vector(rgui1) == vec2);
 
-	constexpr array<long double, Vector::max_size()> rgldb1 { 1, 2, 3 };
-	constexpr array<long long, Vector::size() + 1> rgll1 { 1, 2, 3, 4 };
+	static constexpr array<long double, Vector::max_size()> rgldb1 { 1, 2, 3 };
+	static constexpr array<long long, Vector::size() + 1> rgll1 { 1, 2, 3, 4 };
 	static_assert(Vector(rgldb1) == Vector(rgll1));
 
 	// Operators
@@ -247,21 +249,21 @@ void UnitTest_Vector2D(void) noexcept
 	static_assert(sizeof(Vector2D) == 2 * sizeof(vec_t));
 
 	// Construction
-	constexpr Vector2D vecZero(0, 0);
+	static constexpr Vector2D vecZero(0, 0);
 	static_assert(vecZero == Vector2D::Zero());
 
-	constexpr Vector2D vecQuad(7);
+	static constexpr Vector2D vecQuad(7);
 	static_assert(vecQuad.width == 7 && vecQuad.height == 7);
 
-	constexpr Vector2D vec1({ 1, 2 }), vec2({ 1, 2, 3 });
+	static constexpr Vector2D vec1({ 1, 2 }), vec2({ 1, 2, 3 });
 	static_assert(vec1 == vec2 && vec1.x == 1 && vec2.y == 2);
 
-	constexpr double rgdb1[] = { 1, 2 };
-	constexpr unsigned int rgui1[] = { 1, 2, 3 };
+	static constexpr double rgdb1[] = { 1, 2 };
+	static constexpr unsigned int rgui1[] = { 1, 2, 3 };
 	static_assert(Vector2D(rgdb1) == Vector2D(rgui1) && Vector2D(rgdb1) == vec1 && Vector2D(rgui1) == vec2);
 
-	constexpr array<long double, 2> rgldb1 { 1, 2 };
-	constexpr array<long long, 3> rgll1 { 1, 2, 3 };
+	static constexpr array<long double, 2> rgldb1 { 1, 2 };
+	static constexpr array<long long, 3> rgll1 { 1, 2, 3 };
 	static_assert(Vector2D(rgldb1) == Vector2D(rgll1));
 
 	// Operators
@@ -745,11 +747,11 @@ int main(int argc, char* args[]) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
 
-	//UnitTest_Vector2D();
-	//UnitTest_Vector();
-	//UnitTest_UtlArithmetic();
+	UnitTest_Vector2D();
+	UnitTest_Vector();
 	//UnitTest_Matrix();
 	//UnitTest_Quaternion();
+	//UnitTest_UtlArithmetic();
 	//UnitTest_UtlRandom();
 	//UnitTest_UtlConcepts();
 
@@ -759,11 +761,25 @@ int main(int argc, char* args[]) noexcept
 	auto const arr = p->GetValue<std::array<unsigned, 3>>("Test");
 	auto const vec = p->GetValue<std::vector<unsigned>>("Test");
 
-	auto promisety = UTIL_SplitIntoNums<unsigned>("1 2 2.9", " ");
-	//std::vector<unsigned> vec(promisety.begin(), promisety.end());//p->GetValue<decltype(vec)>("Test");
-	
-	auto it = promisety.begin();
-	auto rng = it | std::views::take(3);
+	static constexpr std::string_view Str("1 2 3 4, 5, 6 7");
+	auto Promised = UTIL_SplitIntoNums<double>(Str, ", ");
+
+	constexpr std::string_view words{ "Hello-_-C++-_-20-_-!" };
+	constexpr std::string_view delim{ "-_" };
+	for (const auto word : std::views::split(words, delim))
+		std::cout << std::quoted(std::string_view(word.begin(), word.end())) << ' ';
+
+	//auto rng1 = Promised | std::views::take(2) | ::ranges::to<std::vector>;
+	//auto rng2 = Promised | std::views::take(3) | ::ranges::to<std::vector>;
+	//std::vector<double> vec1(rng1.begin(), rng1.end());
+	//std::vector<double> vec2(rng2.begin(), rng2.end());
+
+	//auto Converted = Promised | std::views::all;
+
+	//auto Promised2 = UTIL_SplitIntoNumsWithStrRemainder(Str, ", ");
+	//Vector2D v2(Promised | std::views::take(2));
+	//Vector v1(Promised | std::views::take(3));
+	//Quaternion q1(Promised | std::views::take(4));
 
 	return EXIT_SUCCESS;
 }
