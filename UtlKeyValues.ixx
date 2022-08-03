@@ -9,6 +9,9 @@ module;
 #include <filesystem>	// std::filesystem::path
 #include <format>	// std::format
 #include <string>	// std::string
+#include <ranges>
+#include <range/v3/range.hpp>	// #UPDATE_AT_CPP23
+#include <range/v3/view.hpp>
 
 // C
 #include <cassert>	// assert
@@ -404,7 +407,7 @@ export struct ValveKeyValues
 	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const T& DefValue = T {}) noexcept
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
-		if (!dat || !dat->m_pszValue)
+		if (!dat || !dat->m_pszValue) [[unlikely]]
 		{
 			if constexpr (std::convertible_to<T, std::string> && std::is_pointer_v<T>)
 				return DefValue == nullptr ? "" : DefValue;
@@ -429,20 +432,12 @@ export struct ValveKeyValues
 			if (!dat->m_pszValue)
 				return DefValue;
 
-			using ElemTy = std::decay_t<decltype(std::declval<T&>()[std::size_t{}])>;
+			using ElemTy = std::ranges::range_value_t<T>;
 
 			if constexpr (Arithmetic<ElemTy>)
-			{
-				// #UPDATE_AT_CPP23 ranges::to
-				auto Promise = UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0");
-				return T(Promise.begin(), Promise.end());
-			}
+				return UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
 			else
-			{
-				// #UPDATE_AT_CPP23 ranges::to
-				auto Promise = UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0");
-				return T(Promise.begin(), Promise.end());
-			}
+				return UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
 		}
 		else if constexpr (std::ranges::range<T>)
 		{
@@ -450,31 +445,19 @@ export struct ValveKeyValues
 				return DefValue;
 
 			T ret{};
-			auto itBegin = std::begin(ret);
-			auto itEnd = std::end(ret);
-
-			using ElemTy = std::decay_t<decltype(*itBegin)>;
+			using ElemTy = std::ranges::range_value_t<T>;
 
 			// #UPDATE_AT_CPP23 zip it!
 			if constexpr (Arithmetic<ElemTy>)
 			{
-				for (auto&& Number : UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0"))
-				{
-					if (itBegin != itEnd)
-						*itBegin++ = Number;
-					else
-						break;
-				}
+				// It must be a reference, otherwise the result would not be saved into ret.
+				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0")))
+					Ref = Val;
 			}
 			else if constexpr (std::convertible_to<std::string_view, ElemTy>)
 			{
-				for (auto&& Str : UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0"))
-				{
-					if (itBegin != itEnd)
-						*itBegin++ = Str;
-					else
-						break;
-				}
+				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0")))
+					Ref = static_cast<ElemTy>(Val);
 			}
 			else
 				static_assert(!sizeof(T), "Unsupported elem of range.");
@@ -489,77 +472,59 @@ export struct ValveKeyValues
 	template<typename... Tys> std::tuple<Tys...> GetValue(const char* pszSubkeyName = nullptr) noexcept requires(sizeof...(Tys) > 1)
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
-		if (!dat || !dat->m_pszValue)
+		if (!dat || !dat->m_pszValue) [[unlikely]]
 			return {};
 
-		for (auto&& Str : UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0"))
-		{
-		}
+		using Return_t = /*std::conditional_t<(sizeof...(Tys) > 2), */std::tuple<Tys...>/*, std::pair<Tys...>>*/;
+		Return_t Ret{};
 
-		char* p0 = _strdup(dat->m_pszValue);	// #MEM_ALLOC
-		bool bStrtokInited = false;
-		const auto fnStrtokWrapper = [&](void) -> const char*
+		auto InputSeq = std::views::counted(UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0").begin(), 0);
+		static auto const fnAssign = []<typename T>(T & Output, std::ranges::input_range auto & Input)
 		{
-			char* pRet = nullptr;
-
-			if (!bStrtokInited)
+			if constexpr (std::is_arithmetic_v<T>)
 			{
-				bStrtokInited = true;
-				pRet = std::strtok(p0, " \f\n\r\t\v");
+				// It actually iterate only once.
+				for (auto&& Str : std::views::counted(Input.begin(), 1)) Output = UTIL_StrToNum<T>(Str);
 			}
-			else
-				pRet = std::strtok(nullptr, " \f\n\r\t\v");
-
-			return pRet ? pRet : "";
-		};
-
-		// Fuck C++.
-		// So much trouble was caused due to that order of evaluation of arguments is unspecified.
-		// https://stackoverflow.com/questions/2934904/order-of-evaluation-in-c-function-parameters
-
-		const auto fn = [&]<typename T>(void) -> T
-		{
-			if constexpr (Arithmetic<T>)
-				return UTIL_StrToNum<T>(fnStrtokWrapper());
+			else if constexpr (std::is_enum_v<T>)
+			{
+				for (auto&& Str : std::views::counted(Input.begin(), 1)) Output = static_cast<T>(UTIL_StrToNum<std::underlying_type_t<T>>(Str));
+			}
 			else if constexpr (std::convertible_to<T, std::string_view>)
-				return fnStrtokWrapper();
-			else if constexpr (SpecialStructs<T>)
 			{
-				// Something went off here with MSVC or C++ standard.
-				// When I move this line into lambda fn2(), MemTy will guaranteed to be type 'double'
-				// WHY??? #POTENTIAL_BUG
-				using MemTy = std::decay_t<decltype(std::declval<T>()[0])>;
+				for (auto&& Str : std::views::counted(Input.begin(), 1)) Output = static_cast<T>(Str);
+			}
+			else if constexpr (std::ranges::range<T>)
+			{
+				using ElemTy = std::ranges::range_value_t<T>;
+				auto const DIST = std::ranges::distance(Output);
 
-				const auto fn2 = [&]<size_t... I>(std::index_sequence<I...> seq) -> T
+				assert(DIST > 0);
+
+				if constexpr (std::is_arithmetic_v<ElemTy>)
 				{
-					std::array<MemTy, seq.size()> rg{};
-					((rg[I] = UTIL_StrToNum<MemTy>(fnStrtokWrapper())), ...);
-					return T(rg[I]...);
-				};
-
-				if constexpr (ConvertibleToArray2<T>)
-					return fn2(std::make_index_sequence<2>{});
-				else if constexpr (ConvertibleToArray3<T>)
-					return fn2(std::make_index_sequence<3>{});
-				else if constexpr (ConvertibleToArray4<T>)
-					return fn2(std::make_index_sequence<4>{});
+					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, std::views::counted(Input.begin(), DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
+						Ref = Val;
+				}
+				else if constexpr (std::convertible_to<ElemTy, std::string_view>)
+				{
+					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, std::views::counted(Input.begin(), DIST)))
+						Ref = static_cast<ElemTy>(Val);
+				}
+				else
+					static_assert(!sizeof(ElemTy), "Unsupported elem of range.");
 			}
 			else
-				static_assert(!sizeof(T), "Unsupported type involved!");
+				static_assert(!sizeof(T), "Unsupported output type.");
+		};
+		static auto const fnHandle = [&InputSeq]<std::size_t... I>(auto & tpl, std::index_sequence<I...>&&)
+		{
+			(fnAssign(std::get<I>(tpl), InputSeq), ...);
 		};
 
-		using Return_t = std::tuple<Tys...>;
+		fnHandle(Ret, std::make_index_sequence<sizeof...(Tys)>{});
 
-		Return_t tpl;
-
-		[&] <size_t... I>(std::index_sequence<I...>)
-		{
-			((std::get<I>(tpl) = fn.template operator() <std::tuple_element_t<I, Return_t>> ()), ...);
-		}
-		(std::make_index_sequence<std::tuple_size_v<Return_t>>{});
-
-		free(p0);	// #MEM_FREED
-		return tpl;
+		return Ret;
 	}
 	template<typename T> bool SetValue(const char* pszSubkeyName, const T& Value) noexcept	// Create new entry on no found.
 	{
@@ -673,7 +638,7 @@ export struct ValveKeyValues
 			dat->m_pszValue = nullptr;
 		}
 
-		constexpr std::string_view pszFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
+		static constexpr std::string_view pszFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
 		const auto iCount = std::formatted_size(pszFormatter, Values...) + 1;
 
 		dat->m_pszValue = (char*)calloc(iCount, sizeof(char));

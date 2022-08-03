@@ -5,8 +5,7 @@
 #include <ranges>
 #include <source_location>
 #include <vector>
-
-#include <experimental/generator>	// Additional required by module.
+#include <coroutine>
 
 #include <cassert>
 #include <cmath>
@@ -29,6 +28,9 @@ import UtlKeyValues;
 import UtlLinearAlgebra;
 import UtlRandom;
 import UtlString;
+
+using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 void Log(const auto& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
 {
@@ -631,7 +633,7 @@ void UnitTest_UtlRandom(void) noexcept
 	for (int i = 0; i < TOTAL_RUN; ++i)
 		++counts[UTIL_Random(0, 9)];
 
-	for (int i = 0; i < counts.size(); ++i)
+	for (size_t i = 0; i < counts.size(); ++i)
 	{
 		const double rat = (double)counts[i] / (double)TOTAL_RUN;
 		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
@@ -646,7 +648,7 @@ void UnitTest_UtlRandom(void) noexcept
 	for (int i = 0; i < TOTAL_RUN; ++i)
 		++counts[(size_t)std::round(UTIL_Random(-0.5, 9.5))];
 
-	for (int i = 0; i < counts.size(); ++i)
+	for (size_t i = 0; i < counts.size(); ++i)
 	{
 		const double rat = (double)counts[i] / (double)TOTAL_RUN;
 		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
@@ -677,7 +679,7 @@ void UnitTest_UtlRandom(void) noexcept
 		++counts[UTIL_SeededRandom(uiSeed, 0, 9)];
 
 	std::cout << " - Seed: " << uiSeed << '\n';
-	for (int i = 0; i < counts.size(); ++i)
+	for (size_t i = 0; i < counts.size(); ++i)
 	{
 		const double rat = (double)counts[i] / (double)TOTAL_RUN;
 		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
@@ -696,7 +698,7 @@ void UnitTest_UtlRandom(void) noexcept
 		++counts[(size_t)std::round(UTIL_SeededRandom(uiSeed, -0.5, 9.5))];
 
 	std::cout << " - Seed: " << uiSeed << '\n';
-	for (int i = 0; i < counts.size(); ++i)
+	for (size_t i = 0; i < counts.size(); ++i)
 	{
 		const double rat = (double)counts[i] / (double)TOTAL_RUN;
 		avg_err[rat < 0.1 ? 0 : 1] += (rat - 0.1) / 0.1;
@@ -747,8 +749,8 @@ int main(int argc, char* args[]) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
 
-	UnitTest_Vector2D();
-	UnitTest_Vector();
+	//UnitTest_Vector2D();
+	//UnitTest_Vector();
 	//UnitTest_Matrix();
 	//UnitTest_Quaternion();
 	//UnitTest_UtlArithmetic();
@@ -756,30 +758,33 @@ int main(int argc, char* args[]) noexcept
 	//UnitTest_UtlConcepts();
 
 	auto p = new ValveKeyValues;
-	p->SetValue("Test", 1, 2, 2.9);
+	p->SetValue("Test", 1, 2, 3, '4', "5", 6.0, 7U, 8L, "9"sv, 10LL, 11ULL, 12);
 
 	auto const arr = p->GetValue<std::array<unsigned, 3>>("Test");
+	auto const arr2 = p->GetValue<std::array<std::string_view, 3>>("Test");
 	auto const vec = p->GetValue<std::vector<unsigned>>("Test");
+	auto const vec2 = p->GetValue<std::vector<std::string>>("Test");
+	//std::cout << p->GetValue<Vector2D>("Test");
+	//std::cout << p->GetValue<Vector>("Test");
+	//std::cout << p->GetValue<Quaternion>("Test");
 
-	static constexpr std::string_view Str("1 2 3 4, 5, 6 7");
-	auto Promised = UTIL_SplitIntoNums<double>(Str, ", ");
+	//static constexpr std::string_view Str("1 2 3 4, 5, 6  7,,8 ,9 10 11 12");
+	//auto Promised = UTIL_Split(Str, ", ");
+	//auto C = std::views::counted(Promised.begin(), 0);
+	//std::cout << Vector2D(std::views::counted(C.begin(), 2) | std::views::transform(UTIL_StrToNum<double>)) << '\n';
+	//std::cout << Vector(std::views::counted(C.begin(), 3) | std::views::transform(UTIL_StrToNum<long double>)) << '\n';
+	//std::cout << Quaternion(std::views::counted(C.begin(), 4) | std::views::transform(UTIL_StrToNum<float>)) << '\n';
 
-	constexpr std::string_view words{ "Hello-_-C++-_-20-_-!" };
-	constexpr std::string_view delim{ "-_" };
-	for (const auto word : std::views::split(words, delim))
-		std::cout << std::quoted(std::string_view(word.begin(), word.end())) << ' ';
+	//std::tuple<Vector2D, Vector, Quaternion, std::string[3]> RET{};
+	//using ElemTy = std::ranges::range_value_t<std::tuple_element_t<0, decltype(RET)>>;
+	//auto const DIST = std::ranges::distance(std::get<0>(RET));
+	//for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ std::get<0>(RET) }, std::views::counted(C.begin(), DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
+	//	Ref = static_cast<ElemTy>(Val);
 
-	//auto rng1 = Promised | std::views::take(2) | ::ranges::to<std::vector>;
-	//auto rng2 = Promised | std::views::take(3) | ::ranges::to<std::vector>;
-	//std::vector<double> vec1(rng1.begin(), rng1.end());
-	//std::vector<double> vec2(rng2.begin(), rng2.end());
+	//fnHandle(std::make_index_sequence<std::tuple_size_v<decltype(RET)>>{});
+	//fmt::print("{}\n{}\n{}\n{}\n", fmt::join(std::get<0>(RET), ", "), fmt::join(std::get<1>(RET), ", "), fmt::join(std::get<2>(RET), ", "), fmt::join(std::get<3>(RET), ", "));
 
-	//auto Converted = Promised | std::views::all;
-
-	//auto Promised2 = UTIL_SplitIntoNumsWithStrRemainder(Str, ", ");
-	//Vector2D v2(Promised | std::views::take(2));
-	//Vector v1(Promised | std::views::take(3));
-	//Quaternion q1(Promised | std::views::take(4));
+	auto const [vec1, str2, longlong3, short4, char5, float6, double7] = p->GetValue<Vector, std::string, long long, short, char, float, double>("Test");
 
 	return EXIT_SUCCESS;
 }

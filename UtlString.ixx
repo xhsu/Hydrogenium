@@ -4,7 +4,8 @@ module;
 #include <array>
 #include <charconv>
 #include <string>
-#include <experimental/generator>
+#include <coroutine>
+#include <cppcoro/generator.hpp>	// #UPDATE_AT_CPP23
 
 // C
 #include <cassert>
@@ -346,7 +347,7 @@ export int UTIL_GetStringType(const char* src) noexcept	// [0 - string] [1 - int
 }
 
 export
-std::experimental::generator<std::string_view> UTIL_Split(std::string_view const& s, char const* delimiters) noexcept
+cppcoro::generator<std::string_view> UTIL_Split(std::string_view const& s, char const* delimiters) noexcept
 {
 	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
 		s.npos != pos || s.npos != lastPos;
@@ -360,7 +361,7 @@ std::experimental::generator<std::string_view> UTIL_Split(std::string_view const
 }
 
 export template <Arithmetic T>
-std::experimental::generator<T> UTIL_SplitIntoNums(std::string_view const& s, char const* delimiters) noexcept
+cppcoro::generator<T> UTIL_SplitIntoNums(std::string_view const& s, char const* delimiters) noexcept
 {
 	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
 		s.npos != pos || s.npos != lastPos;
@@ -374,7 +375,7 @@ std::experimental::generator<T> UTIL_SplitIntoNums(std::string_view const& s, ch
 }
 
 export template <Arithmetic T>
-std::experimental::generator<std::pair<T, std::string_view>> UTIL_SplitIntoNumsWithStrRemainder(std::string_view const& s, char const* delimiters) noexcept
+cppcoro::generator<std::pair<T, std::string_view>> UTIL_SplitIntoNumsWithStrRemainder(std::string_view const& s, char const* delimiters) noexcept
 {
 	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
 		s.npos != pos || s.npos != lastPos;
