@@ -288,4 +288,23 @@ struct VariadicTemplateWrapper
 	template <> static constexpr bool Isomer_v<> = Count_v == 0;
 };
 
+// #UPDATE_AT_CPP23 #UPDATE_AT_CPP26
+export template <typename T, std::size_t N>
+concept is_tuple_element = requires (T t) { // exposition only
+	typename std::tuple_element_t<N, std::remove_const_t<T>>;
+	{ std::get<N>(t) } -> std::convertible_to<std::tuple_element_t<N, T>&>;
+};
+
+export template <typename T>
+concept tuple_like = !std::is_reference_v<T> && requires {
+	typename std::tuple_size<T>::type;
+	std::same_as<decltype(std::tuple_size_v<T>), size_t>;
+}&& []<std::size_t... I>(std::index_sequence<I...>)
+{
+	return (is_tuple_element<T, I> && ...);
+}(std::make_index_sequence<std::tuple_size_v<T>>{});
+
+export template <typename T>
+concept pair_like = tuple_like<T> && std::tuple_size_v<T> == 2;
+
 #pragma endregion move to sperate file: type utility

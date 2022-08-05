@@ -7,33 +7,35 @@ module;
 // C++
 #include <concepts>	// std::integral, etc...
 #include <filesystem>	// std::filesystem::path
-#include <format>	// std::format
-#include <string>	// std::string
+#include <limits>	// std::numeric_limit<double>
 #include <ranges>
+#include <string>	// std::string
+
+// C++ external libs
 #include <range/v3/range.hpp>	// #UPDATE_AT_CPP23
 #include <range/v3/view.hpp>
+#include <experimental/generator>	// #UPDATE_AT_CPP23
+#include <fmt/ranges.h>
 
 // C
 #include <cassert>	// assert
 #include <cctype>	// isspace isdigit
 #include <cmath>	// roundf
 #include <cstdio>	// fopen fclose fread fwrite
-#include <cstring>	// malloc free strlen
 
 export module UtlKeyValues;
 
-import UtlArithmetic;
 import UtlBuffer;
-import UtlColor;
 import UtlConcepts;
-import UtlLinearAlgebra;
 import UtlString;
 
-template<typename T> concept ConvertibleToArray2 = std::same_as<std::decay_t<T>, Vector2D>;
-template<typename T> concept ConvertibleToArray3 = std::same_as<std::decay_t<T>, Vector>;
-template<typename T> concept ConvertibleToArray4 = std::same_as<std::decay_t<T>, Quaternion> || std::same_as<std::decay_t<T>, Color4b> || std::same_as<std::decay_t<T>, Color4f>;
-template<typename T> concept TreatableAsIfArray = requires(T t) { {t[size_t{}]}; };
-template<typename T> concept SpecialStructs = ConvertibleToArray2<T> || ConvertibleToArray3<T> || ConvertibleToArray4<T>;
+using std::string;
+using std::string_view;
+
+using Value_t = double;
+
+using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 // Entry - Subkey or KeyValue
 // Subkey - Contains only Entries, but no value for itself.
@@ -43,15 +45,10 @@ template<typename T> concept SpecialStructs = ConvertibleToArray2<T> || Converti
 
 export struct ValveKeyValues
 {
-	ValveKeyValues(void) noexcept
-	{
-		m_pszName = (char*)malloc(1 * sizeof(char));
-		m_pszName[0] = '\0';
-	}
-	explicit ValveKeyValues(const char* pszName) noexcept
-	{
-		SetName(pszName);
-	}
+	// Constructors
+	ValveKeyValues(void) noexcept = default;
+	explicit ValveKeyValues(const char* pszName) noexcept : m_szName(pszName) {}
+	explicit ValveKeyValues(string_view szName) noexcept : m_szName(szName) {}
 	explicit ValveKeyValues(const std::filesystem::path& hPath) noexcept
 	{
 #ifdef _DEBUG
@@ -66,40 +63,18 @@ export struct ValveKeyValues
 	}
 
 	// set/get name
-	const char* GetName(void) const noexcept
-	{
-		if (m_pszName)
-			return m_pszName;
-
-		return "";
-	}
-	void SetName(const char* pszName) noexcept
-	{
-		if (!pszName)
-			pszName = "";
-
-		if (m_pszName)
-		{
-			free(m_pszName);
-			m_pszName = nullptr;
-		}
-
-		size_t len = strlen(pszName);
-		m_pszName = (char*)calloc(len + 1, sizeof(char));
-		strcpy(m_pszName, pszName);
-	}
+	string& Name(void) noexcept { return m_szValue; }	// #UPDATE_AT_CPP23 explict this
+	const string& Name(void) const noexcept { return m_szValue; }
 
 	// load/save file
 	bool LoadFromFile(const char* resourceName) noexcept
 	{
-		FILE* f = fopen(resourceName, "r, ccs=UTF-8");
+		FILE* f = fopen(resourceName, "rb");
 		if (!f)
 			return false;
 
-		int fileSize;
-
 		fseek(f, 0, SEEK_END);
-		fileSize = ftell(f);
+		auto fileSize = ftell(f);
 		fseek(f, 0, SEEK_SET);
 
 		char* buffer = (char*)malloc(fileSize + 1);
@@ -117,7 +92,7 @@ export struct ValveKeyValues
 	}
 	bool SaveToFile(const char* resourceName) noexcept
 	{
-		FILE* f = fopen(resourceName, "w, ccs=UTF-8");
+		FILE* f = fopen(resourceName, "wb");
 		if (!f)
 			return false;
 
@@ -167,7 +142,7 @@ export struct ValveKeyValues
 			else
 			{
 				// set name for this key
-				pCurrentKey->SetName(token);
+				pCurrentKey->Name() = token;
 			}
 
 			// get the value
@@ -214,10 +189,8 @@ export struct ValveKeyValues
 		{
 			lastItem = dat;
 
-			if (!strcmp(pszName, dat->m_pszName))
-			{
+			if (dat->m_szName == pszName)
 				break;
-			}
 		}
 
 		if (!dat)
@@ -255,7 +228,7 @@ export struct ValveKeyValues
 
 			for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 			{
-				if (auto val = UTIL_StrToNum<int>(dat->GetName()); index <= val)
+				if (auto val = UTIL_StrToNum<int>(dat->m_szName); index <= val)
 					index = val + 1;
 			}
 
@@ -264,7 +237,7 @@ export struct ValveKeyValues
 		else
 			dat = new ValveKeyValues(pszName);
 
-		AddEntry(dat);
+		EnrollEntry(dat);
 		return dat;
 	}
 
@@ -277,7 +250,7 @@ export struct ValveKeyValues
 		ValveKeyValues* dat = nullptr;
 		for (dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 		{
-			if (!strcmp(pszName, dat->m_pszName))
+			if (pszName == dat->m_szName)
 				break;
 		}
 
@@ -288,8 +261,8 @@ export struct ValveKeyValues
 		return true;
 	}
 
-	// add/remove an existing entry
-	void AddEntry(ValveKeyValues* pEntry) noexcept
+	// add/remove an existing entry. no memory gets deleted or allocated.
+	void EnrollEntry(ValveKeyValues* pEntry) noexcept
 	{
 		if (m_pSub == nullptr)
 		{
@@ -307,7 +280,7 @@ export struct ValveKeyValues
 			pTempDat->m_pPeer = pEntry;
 		}
 	}
-	void RemoveEntry(ValveKeyValues* pEntry) noexcept
+	void DelistEntry(ValveKeyValues* pEntry) noexcept
 	{
 		if (!pEntry)
 			return;
@@ -390,15 +363,15 @@ export struct ValveKeyValues
 	}
 
 	// return true if not subkey or value included.
-	bool IsEmpty(void) const noexcept
+	inline bool IsEmpty(void) const noexcept
 	{
-		return !m_pSub && !m_pszValue;
+		return !m_pSub && m_szValue.empty();
 	}
-	bool IsKeyValue(void) const noexcept
+	inline bool IsKeyValue(void) const noexcept
 	{
-		return m_pszValue != nullptr;
+		return m_szValue.empty();
 	}
-	bool IsSubkey(void) const noexcept
+	inline bool IsSubkey(void) const noexcept
 	{
 		return m_pSub != nullptr;
 	}
@@ -407,9 +380,9 @@ export struct ValveKeyValues
 	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const T& DefValue = T {}) noexcept
 	{
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
-		if (!dat || !dat->m_pszValue) [[unlikely]]
+		if (!dat || dat->m_szValue.empty()) [[unlikely]]
 		{
-			if constexpr (std::convertible_to<T, std::string> && std::is_pointer_v<T>)
+			if constexpr (std::convertible_to<T, string> && std::is_pointer_v<T>)
 				return DefValue == nullptr ? "" : DefValue;
 			else
 				return DefValue;
@@ -423,25 +396,28 @@ export struct ValveKeyValues
 		{
 			return static_cast<T>(std::round(dat->m_flValue));
 		}
-		else if constexpr (std::convertible_to<T, std::string_view>)
+		else if constexpr (std::convertible_to<T, string_view>)
 		{
-			return dat->m_pszValue;
+			if constexpr (std::is_pointer_v<T>)
+				return dat->m_szValue.c_str();
+			else
+				return dat->m_szValue;
 		}
 		else if constexpr (ResizableContainer<T>)
 		{
-			if (!dat->m_pszValue)
+			if (dat->m_szValue.empty())
 				return DefValue;
 
 			using ElemTy = std::ranges::range_value_t<T>;
 
 			if constexpr (Arithmetic<ElemTy>)
-				return UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
+				return UTIL_SplitIntoNums<ElemTy>(dat->m_szValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
 			else
-				return UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
+				return UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
 		}
 		else if constexpr (std::ranges::range<T>)
 		{
-			if (!dat->m_pszValue)
+			if (dat->m_szValue.empty())
 				return DefValue;
 
 			T ret{};
@@ -451,50 +427,91 @@ export struct ValveKeyValues
 			if constexpr (Arithmetic<ElemTy>)
 			{
 				// It must be a reference, otherwise the result would not be saved into ret.
-				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_SplitIntoNums<ElemTy>(dat->m_pszValue, " \f\n\r\t\v\0")))
+				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_SplitIntoNums<ElemTy>(dat->m_szValue, " \f\n\r\t\v\0")))
 					Ref = Val;
 			}
-			else if constexpr (std::convertible_to<std::string_view, ElemTy>)
+			else if constexpr (std::convertible_to<string_view, ElemTy>)
 			{
-				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0")))
+				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0")))
 					Ref = static_cast<ElemTy>(Val);
 			}
+			else if constexpr (tuple_like<ElemTy> || std::ranges::range<T>)
+				static_assert(!sizeof(T), "No 2D array or tuple allowed.");
 			else
 				static_assert(!sizeof(T), "Unsupported elem of range.");
 
 			return ret;
 		}
+		else if constexpr (tuple_like<T>)
+			static_assert(!sizeof(T), "Directly put multiple return types into angled brackets, do not wrap with anything.");
 		else
 			static_assert(!sizeof(T), "Unsupported type involved.");
 
 		return DefValue;
 	}
-	template<typename... Tys> std::tuple<Tys...> GetValue(const char* pszSubkeyName = nullptr) noexcept requires(sizeof...(Tys) > 1)
+	template<typename... Tys> auto GetValue(const char* pszSubkeyName = nullptr) noexcept requires(sizeof...(Tys) > 1)
 	{
+		static constexpr auto RetTypeDeducer = [](void) consteval
+		{
+			/*
+			* This is essentially 
+			std::conditional_t<(sizeof...(Tys) > 2), std::tuple<Tys...>, std::pair<Tys...>> Ret{};
+			* However, all three template parameters of std::conditional_t are forced evaluated/instantiated,
+			therefore things like std::pair<T, U, V> would causes program ill-formed. It doesn't matter that this non-sense 'pair' never put into use.
+			*/
+			if constexpr (sizeof...(Tys) == 2)
+				return std::pair<Tys...>{};
+			else
+				return std::tuple<Tys...>{};
+		};
+		decltype(RetTypeDeducer()) Ret{};
+
 		ValveKeyValues* dat = FindEntry(pszSubkeyName);
-		if (!dat || !dat->m_pszValue) [[unlikely]]
-			return {};
+		if (!dat || dat->m_szValue.empty()) [[unlikely]]
+			return Ret;
 
-		using Return_t = /*std::conditional_t<(sizeof...(Tys) > 2), */std::tuple<Tys...>/*, std::pair<Tys...>>*/;
-		Return_t Ret{};
+		// The whold complex factory shenanigan is due to the one loss of regular views::take
+		// Method provided by: https://stackoverflow.com/q/73207032/15860107
 
-		auto InputSeq = std::views::counted(UTIL_Split(dat->m_pszValue, " \f\n\r\t\v\0").begin(), 0);
-		static auto const fnAssign = []<typename T>(T & Output, std::ranges::input_range auto & Input)
+		static auto const fnTakeFactory = []<typename GeneratorTy>(GeneratorTy && gen) requires(requires{ typename GeneratorTy::iterator::value_type; })
+		{
+			return [gen = std::move(gen)](std::ptrdiff_t iTakeCount) mutable
+				-> std::experimental::generator<typename GeneratorTy::iterator::value_type>
+			{
+				decltype(iTakeCount) i = 0;
+
+				if (not (i++ < iTakeCount))
+					co_return;
+
+				for (auto&& e : gen)
+				{
+					co_yield e;
+
+					if (not (i++ < iTakeCount))
+						break;
+				}
+			};
+		};
+		auto Take = fnTakeFactory(UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0"));
+		static auto const fnAssign = [&Take]<typename T>(T & Output)
 		{
 			if constexpr (std::is_arithmetic_v<T>)
 			{
 				// It actually iterate only once.
-				for (auto&& Str : std::views::counted(Input.begin(), 1)) Output = UTIL_StrToNum<T>(Str);
+				for (auto&& Str : Take(1))
+					Output = UTIL_StrToNum<T>(Str);
 			}
 			else if constexpr (std::is_enum_v<T>)
 			{
-				for (auto&& Str : std::views::counted(Input.begin(), 1)) Output = static_cast<T>(UTIL_StrToNum<std::underlying_type_t<T>>(Str));
+				for (auto&& Str : Take(1))
+					Output = static_cast<T>(UTIL_StrToNum<std::underlying_type_t<T>>(Str));
 			}
-			else if constexpr (std::convertible_to<T, std::string_view>)
+			else if constexpr (std::convertible_to<T, string_view>)
 			{
-				for (auto&& Str : std::views::counted(Input.begin(), 1)) Output = static_cast<T>(Str);
+				for (auto&& Str : Take(1))
+					Output = static_cast<T>(Str);
 			}
-			else if constexpr (std::ranges::range<T>)
+			else if constexpr (std::ranges::range<T>)	// Tuples and pairs won't be supported in this case. It just doesn't make sense.
 			{
 				using ElemTy = std::ranges::range_value_t<T>;
 				auto const DIST = std::ranges::distance(Output);
@@ -503,12 +520,12 @@ export struct ValveKeyValues
 
 				if constexpr (std::is_arithmetic_v<ElemTy>)
 				{
-					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, std::views::counted(Input.begin(), DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
+					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, Take(DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
 						Ref = Val;
 				}
-				else if constexpr (std::convertible_to<ElemTy, std::string_view>)
+				else if constexpr (std::convertible_to<ElemTy, string_view>)
 				{
-					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, std::views::counted(Input.begin(), DIST)))
+					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, Take(DIST)))
 						Ref = static_cast<ElemTy>(Val);
 				}
 				else
@@ -517,11 +534,14 @@ export struct ValveKeyValues
 			else
 				static_assert(!sizeof(T), "Unsupported output type.");
 		};
-		static auto const fnHandle = [&InputSeq]<std::size_t... I>(auto & tpl, std::index_sequence<I...>&&)
+		static auto const fnHandle = []<std::size_t... I>(auto & tpl, std::index_sequence<I...>&&)
 		{
-			(fnAssign(std::get<I>(tpl), InputSeq), ...);
+			// The existance of this function is because that... fucking C++ does not define the order of function parameter evaluation.
+			// Detail explain: https://stackoverflow.com/q/2934904/15860107
+			(fnAssign(std::get<I>(tpl)), ...);
 		};
 
+		// And it seems like parameter pack cannot unpack in initializer list.
 		fnHandle(Ret, std::make_index_sequence<sizeof...(Tys)>{});
 
 		return Ret;
@@ -532,92 +552,32 @@ export struct ValveKeyValues
 		if (!dat)
 			return false;
 
-		if (dat->m_pszValue)
+		if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
 		{
-			free(dat->m_pszValue);
-			dat->m_pszValue = nullptr;
+			dat->m_szValue = std::to_string(Value);
+			dat->m_flValue = static_cast<Value_t>(Value);
 		}
-
-		if constexpr (std::integral<T> || std::floating_point<T> || std::is_enum_v<T>)
+		else if constexpr (std::convertible_to<T, string_view>)	// Since string is also a type of range, it must place before it. Otherwise the string will be split by ' ' every other letter.
 		{
-			const auto sz = std::to_string(Value);
-			dat->m_pszValue = (char*)calloc(sz.length() + 1, sizeof(char));
-			strcpy(dat->m_pszValue, sz.c_str());
+			dat->m_szValue = Value;
 
-			dat->m_flValue = static_cast<double>(Value);
-		}
-		else if constexpr (SpecialStructs<T>)
-		{
-			const auto fn = [&]<size_t... I>(std::index_sequence<I...> seq)
-			{
-				const auto iCount = std::formatted_size(UTIL_SpacedFormatter<seq.size()>(), Value[I]...) + 1;
-				dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
-				std::format_to_n(dat->m_pszValue, iCount - 1, UTIL_SpacedFormatter<seq.size()>(), Value[I]...);
-			};
-
-			if constexpr (ConvertibleToArray2<T>)
-				fn(std::make_index_sequence<2>{});
-			else if constexpr (ConvertibleToArray3<T>)
-				fn(std::make_index_sequence<3>{});
-			else
-			{
-				if (IsColor<T> && Value[3] == 0)
-					fn(std::make_index_sequence<3>{});
-				else
-					fn(std::make_index_sequence<4>{});
-			}
-
-			dat->m_flValue = 0;
-		}
-		else if constexpr (std::convertible_to<T, std::string_view>)
-		{
-			if constexpr (std::is_pointer_v<std::decay_t<T>>)
-			{
-				size_t len = strlen(Value);
-				dat->m_pszValue = (char*)malloc(len + 1);
-				strcpy(dat->m_pszValue, Value);
-			}
-			else	// i.e. std::string.
-			{
-				dat->m_pszValue = (char*)malloc(Value.length() + 1);
-				strcpy_s(dat->m_pszValue, Value.length() + 1, Value.data());
-			}
-
-			switch (UTIL_GetStringType(dat->m_pszValue))
+			switch (UTIL_GetStringType(dat->m_szValue.c_str()))
 			{
 			default:
 			case 0:	// String
-				dat->m_flValue = 0;
+				dat->m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 				break;
 
 			case 1:	// Integer
 			case 2:	// Floating point
-				dat->m_flValue = UTIL_StrToNum<decltype(dat->m_flValue)>(dat->m_pszValue);
+				dat->m_flValue = UTIL_StrToNum<Value_t>(dat->m_szValue);
 				break;
 			}
 		}
-		else if constexpr (Array<T>)	// Take fixed arrays first.
+		else if constexpr (std::ranges::range<T> || tuple_like<T>)	// Tuple-like concept? #UPDATE_AT_CPP23 #UPDATE_AT_CPP26
 		{
-			constexpr auto iArraySize = std::size(T{});	// Had to create one instance here. std::decltype<> doesn't work. But this is compile-time thing, it's alright I guess..?
-
-			[&] <size_t... I>(std::index_sequence<I...>)
-			{
-				const auto iCount = std::formatted_size(UTIL_SpacedFormatter<iArraySize>(), Value[I]...) + 1;
-				dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
-				std::format_to_n(dat->m_pszValue, iCount - 1, UTIL_SpacedFormatter<iArraySize>(), Value[I]...);
-			}
-			(std::make_index_sequence<iArraySize>{});
-		}
-		else if constexpr (Iterable<T>)	// For dynamic containers.
-		{
-			std::string szBuf;
-			for (auto it = std::begin(Value); it != std::end(Value); ++it)
-				szBuf += std::format("{} ", *it);
-
-			szBuf.pop_back();	// Remove the last ' '.
-
-			dat->m_pszValue = (char*)calloc(szBuf.length() + 1, sizeof(char));
-			strcpy_s(dat->m_pszValue, szBuf.length() + 1, szBuf.c_str());
+			dat->m_szValue = fmt::format("{}", fmt::join(Value, " "));
+			dat->m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 		}
 		else
 		{
@@ -632,19 +592,25 @@ export struct ValveKeyValues
 		if (!dat)
 			return false;
 
-		if (dat->m_pszValue)
+		static auto constexpr fnFetch = [](auto&& Param) constexpr -> decltype(auto)
 		{
-			free(dat->m_pszValue);
-			dat->m_pszValue = nullptr;
-		}
+			using T = std::decay_t<decltype(Param)>;
 
-		static constexpr std::string_view pszFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
-		const auto iCount = std::formatted_size(pszFormatter, Values...) + 1;
+			if constexpr (std::convertible_to<T, string_view>)
+				return Param;	// #INVESTIGATE why can't I use std::forward here?
+			else if constexpr (pair_like<T>)
+				return fmt::join(std::tuple{ Param }, " ");	// Well, since {fmt} doesn't support pair itself...
+			else if constexpr (std::ranges::range<T> || tuple_like<T>)
+				return fmt::join(Param, " ");	// #FIXME_UNKNOWN_BUG This would lead to the requirement of including fmt/ranges.h in imported source file.
+			else
+				return Param;
+		};
 
-		dat->m_pszValue = (char*)calloc(iCount, sizeof(char));
-		std::format_to_n(dat->m_pszValue, iCount - 1, pszFormatter, Values...);
+		// Have to convert like this.
+		static constexpr string_view szFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
 
-		dat->m_flValue = 0;
+		dat->m_szValue = fmt::format(szFormatter, fnFetch(Values)...);
+		dat->m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 
 		return true;
 	}
@@ -656,16 +622,14 @@ export struct ValveKeyValues
 			delete m_pSub;
 		m_pSub = nullptr;
 
-		if (m_pszValue)
-			delete m_pszValue;
-		m_pszValue = nullptr;
+		m_szValue.clear();
 		m_flValue = 0;
 	}
 
 private:
 	void RemoveEverything(void) noexcept
 	{
-		ValveKeyValues* dat;
+		ValveKeyValues* dat = nullptr;
 		ValveKeyValues* datNext = nullptr;
 
 		for (dat = m_pSub; dat != nullptr; dat = datNext)
@@ -674,6 +638,7 @@ private:
 			dat->m_pPeer = nullptr;
 			delete dat;
 		}
+		m_pSub = nullptr;
 
 		for (dat = m_pPeer; dat && dat != this; dat = datNext)
 		{
@@ -681,14 +646,12 @@ private:
 			dat->m_pPeer = nullptr;
 			delete dat;
 		}
+		m_pPeer = nullptr;
 
-		m_flValue = 0;
+		m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 
-		if (m_pszValue)
-		{
-			free(m_pszValue);
-			m_pszValue = nullptr;
-		}
+		m_szValue.clear();
+		m_szName.clear();
 	}
 
 	void RecursiveLoadFromBuffer(CBuffer& buf) noexcept
@@ -732,17 +695,9 @@ private:
 				type = UTIL_GetStringType(token);
 
 				if (type == 1 || type == 2)
-					dat->m_flValue = std::stof(token);
+					dat->m_flValue = UTIL_StrToNum<Value_t>(token);
 
-				if (dat->m_pszValue)
-				{
-					free(dat->m_pszValue);
-					dat->m_pszValue = nullptr;
-				}
-
-				size_t len = strlen(token);
-				dat->m_pszValue = (char*)malloc(len + 1);
-				strcpy_s(dat->m_pszValue, len + 1, token);
+				dat->m_szValue = token;
 			}
 		}
 	}
@@ -750,7 +705,7 @@ private:
 	{
 		WriteIndents(buf, indentLevel);
 		buf.Write("\"", 1);
-		buf.Write(m_pszName, strlen(m_pszName));
+		buf.Write(m_szName.c_str(), m_szName.length());
 		buf.Write("\"\n", 2);
 		WriteIndents(buf, indentLevel);
 		buf.Write("{\n", 2);
@@ -758,7 +713,7 @@ private:
 		int iBlockAlignedCharCount = 0;
 		for (ValveKeyValues* dat = GetFirstKeyValue(); dat != nullptr; dat = dat->GetNextKeyValue())	// Skip all subkeys. Only keyvalues involved.
 		{
-			int iCurTotalStrlen = (int)strlen(dat->GetName()) + 2;	// Plus "" on both side.
+			int iCurTotalStrlen = (int)dat->m_szName.length() + 2;	// Plus "" on both side.
 
 			if (iBlockAlignedCharCount < iCurTotalStrlen)
 				iBlockAlignedCharCount = iCurTotalStrlen;
@@ -782,7 +737,7 @@ private:
 
 				// Key
 				buf.Write("\"", 1);
-				buf.Write(dat->GetName(), strlen(dat->GetName()));
+				buf.Write(dat->m_szName.c_str(), dat->m_szName.length());
 				buf.Write("\"", 1);
 
 				// Indent(s)
@@ -801,7 +756,7 @@ private:
 
 	size_t GetIndentCountBetweenKeyAndValue(int iBlockAlignedCharCount) noexcept
 	{
-		int iTotalKeyStrlen = (int)strlen(GetName()) + 2;	// Plus "" on both side.
+		int iTotalKeyStrlen = (int)m_szName.length() + 2;	// Plus "" on both side.
 		int iDelta = iBlockAlignedCharCount - iTotalKeyStrlen;	// Have to be signed.
 
 		assert(iDelta >= 0);
@@ -883,11 +838,12 @@ private:
 		}
 	}
 
-	char* m_pszName{ nullptr };
+private:
+	string m_szName{};
 
-	char* m_pszValue{ nullptr };
-	double m_flValue{ 0.0 };
+	string m_szValue{};
+	Value_t m_flValue = 0.0;
 
-	ValveKeyValues* m_pPeer{ nullptr };
-	ValveKeyValues* m_pSub{ nullptr };
+	ValveKeyValues* m_pPeer = nullptr;
+	ValveKeyValues* m_pSub = nullptr;
 };

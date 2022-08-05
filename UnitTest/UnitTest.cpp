@@ -6,12 +6,14 @@
 #include <source_location>
 #include <vector>
 #include <coroutine>
+#include <experimental/generator>
 
 #include <cassert>
 #include <cmath>
 
 #include "../gcem/include/gcem.hpp"
 #include <fmt/color.h>
+#include <fmt/ranges.h>
 #include <range/v3/range.hpp>
 #include <range/v3/view.hpp>
 
@@ -744,6 +746,66 @@ void UnitTest_UtlConcepts(void) noexcept
 	//static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t, char8_t>>);
 }
 
+void UnitTest_UtlKeyValues(void) noexcept
+{
+	static constexpr auto fnIsOdd = [](int i) constexpr { return i % 2; };
+	static constexpr auto fnIsPrime = [](int i) constexpr
+	{
+		for (int j = 2; j * j <= i; ++j)
+			if (i % j == 0)
+				return false;
+
+		return true;
+	};
+
+	auto p = new ValveKeyValues("UnitTest_UtlKeyValues");
+	p->SetValue("Test", std::array{ 1, 2, 3 }, '4', "5", std::make_tuple(6.0, 7.0f, 8L), "9"sv, std::make_pair(10LL, 11ULL), (long double)12);
+	p->SetValue("Prime", std::views::iota(1) | std::views::filter(fnIsOdd) | std::views::filter(fnIsPrime) | std::views::take(24) | ::ranges::to<std::vector>);	// #FIXME_UNKNOWN_BUG Why I have to convert this into std::vector first???
+	p->CreateEntry("Linear Algebra")->SetValue("Vector2D", Vector2D(std::numbers::inv_pi, std::numbers::pi));
+	p->FindEntry("Linear Algebra")->SetValue("Vector", Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
+	p->FindEntry("Linear Algebra")->SetValue("Quaternion", Quaternion(Vector(1, 1, 1).Normalize(), 120));
+	assert(p->SaveToFile("UnitTest_UtlKeyValues.txt"));
+	assert(p->LoadFromFile("UnitTest_UtlKeyValues.txt"));
+
+	assert((p->GetValue<long, float>("Prime") == std::pair{ 1L, 3.0f }));
+	assert((p->GetValue<long, float, double>("Prime") == std::tuple{ 1L, 3.0f, 5.0 }));
+
+	auto p2 = p->FindEntry("Linear Algebra");
+	assert(p2);
+
+	assert(p2->GetValue<Vector2D>("Vector2D") == Vector2D(std::numbers::inv_pi, std::numbers::pi));
+	assert(p2->GetValue<Vector>("Vector") == Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
+	assert(p2->GetValue<Quaternion>("Quaternion") == Quaternion(Vector(1, 1, 1).Normalize(), 120));
+
+	assert((p->GetValue<std::array<unsigned, 3>>("Test") == std::array{ 1u, 2u, 3u }));
+	assert((p->GetValue<std::array<std::string_view, 3>>("Test") == std::array{ "1"sv, "2"sv, "3"sv }));
+	//assert((p->GetValue<std::vector<unsigned>>("Test") == std::vector{ 1u, 2u, 3u }));
+	//assert((p->GetValue<std::vector<std::string>>("Test") == std::vector{ "1"s, "2"s, "3"s }));
+	assert(p->GetValue<Vector2D>("Test") == Vector2D(1, 2));
+	assert(p->GetValue<Vector>("Test") == Vector(1, 2, 3));
+	assert(p->GetValue<Quaternion>("Test") == Quaternion(1, 2, 3, 4));
+	assert((p->GetValue<double, int>("Test") == std::make_pair(1.0, 2)));
+	assert((p->GetValue<double, int, long>("Test") == std::make_tuple(1.0, 2, 3L)));
+
+	static_assert(requires(ValveKeyValues vkv) { { vkv.GetValue<double>("") } -> std::same_as<double>; });
+	static_assert(requires(ValveKeyValues vkv) { { vkv.GetValue<double, int>("") } -> std::same_as<std::pair<double, int>>; });
+	static_assert(requires(ValveKeyValues vkv) { { vkv.GetValue<double, int, long>("") } -> std::same_as<std::tuple<double, int, long>>; });
+
+	auto const [vec1, str2, longlong3, short4, char5, float6, double7, rgstr8, rgstr9]
+		= p->GetValue<Vector, std::string, long long, short, char, float, double, std::string[2], std::array<std::string, 3>>("Test");
+
+	assert(vec1 == Vector(1, 2, 3));
+	assert(str2 == "4"s);
+	assert(longlong3 == 5LL);
+	assert(short4 == (short)6);
+	assert(char5 == '\x7');
+	assert(float6 == 8.0f);
+	assert(double7 == 9.0);
+	assert(rgstr8[0] == "10"s);
+	assert(rgstr8[1] == "11"s);
+	assert((rgstr9 == std::array{ "12"s, ""s, ""s }));
+}
+
 
 int main(int argc, char* args[]) noexcept
 {
@@ -756,35 +818,7 @@ int main(int argc, char* args[]) noexcept
 	//UnitTest_UtlArithmetic();
 	//UnitTest_UtlRandom();
 	//UnitTest_UtlConcepts();
-
-	auto p = new ValveKeyValues;
-	p->SetValue("Test", 1, 2, 3, '4', "5", 6.0, 7U, 8L, "9"sv, 10LL, 11ULL, 12);
-
-	auto const arr = p->GetValue<std::array<unsigned, 3>>("Test");
-	auto const arr2 = p->GetValue<std::array<std::string_view, 3>>("Test");
-	auto const vec = p->GetValue<std::vector<unsigned>>("Test");
-	auto const vec2 = p->GetValue<std::vector<std::string>>("Test");
-	//std::cout << p->GetValue<Vector2D>("Test");
-	//std::cout << p->GetValue<Vector>("Test");
-	//std::cout << p->GetValue<Quaternion>("Test");
-
-	//static constexpr std::string_view Str("1 2 3 4, 5, 6  7,,8 ,9 10 11 12");
-	//auto Promised = UTIL_Split(Str, ", ");
-	//auto C = std::views::counted(Promised.begin(), 0);
-	//std::cout << Vector2D(std::views::counted(C.begin(), 2) | std::views::transform(UTIL_StrToNum<double>)) << '\n';
-	//std::cout << Vector(std::views::counted(C.begin(), 3) | std::views::transform(UTIL_StrToNum<long double>)) << '\n';
-	//std::cout << Quaternion(std::views::counted(C.begin(), 4) | std::views::transform(UTIL_StrToNum<float>)) << '\n';
-
-	//std::tuple<Vector2D, Vector, Quaternion, std::string[3]> RET{};
-	//using ElemTy = std::ranges::range_value_t<std::tuple_element_t<0, decltype(RET)>>;
-	//auto const DIST = std::ranges::distance(std::get<0>(RET));
-	//for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ std::get<0>(RET) }, std::views::counted(C.begin(), DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
-	//	Ref = static_cast<ElemTy>(Val);
-
-	//fnHandle(std::make_index_sequence<std::tuple_size_v<decltype(RET)>>{});
-	//fmt::print("{}\n{}\n{}\n{}\n", fmt::join(std::get<0>(RET), ", "), fmt::join(std::get<1>(RET), ", "), fmt::join(std::get<2>(RET), ", "), fmt::join(std::get<3>(RET), ", "));
-
-	auto const [vec1, str2, longlong3, short4, char5, float6, double7] = p->GetValue<Vector, std::string, long long, short, char, float, double>("Test");
+	UnitTest_UtlKeyValues();
 
 	return EXIT_SUCCESS;
 }
