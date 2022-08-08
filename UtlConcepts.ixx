@@ -5,6 +5,7 @@ module;
 #include <forward_list>
 #include <list>
 #include <map>
+#include <optional>	// Could be remove on split.
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
@@ -229,6 +230,25 @@ concept AnyOrder = _impl_AnyOrder<Tuple_t, std::tuple<Tys...>>::value;
 export template <typename Tuple1_t, typename Tuple2_t>
 concept tuple_any_order = _impl_AnyOrder<Tuple1_t, Tuple2_t>::value;
 
+// #UPDATE_AT_CPP23 #UPDATE_AT_CPP26
+export template <typename T, std::size_t N>
+concept is_tuple_element = requires (T t) { // exposition only
+	typename std::tuple_element_t<N, std::remove_const_t<T>>;
+	{ std::get<N>(t) } -> std::convertible_to<std::tuple_element_t<N, T>&>;
+};
+
+export template <typename T>
+concept tuple_like = !std::is_reference_v<T> && requires {
+	typename std::tuple_size<T>::type;
+	std::same_as<decltype(std::tuple_size_v<T>), size_t>;
+}&& []<std::size_t... I>(std::index_sequence<I...>)
+{
+	return (is_tuple_element<T, I> && ...);
+}(std::make_index_sequence<std::tuple_size_v<T>>{});
+
+export template <typename T>
+concept pair_like = tuple_like<T> && std::tuple_size_v<T> == 2;
+
 #pragma endregion Type traits
 
 #pragma region move to sperate file: type utility
@@ -288,23 +308,22 @@ struct VariadicTemplateWrapper
 	template <> static constexpr bool Isomer_v<> = Count_v == 0;
 };
 
-// #UPDATE_AT_CPP23 #UPDATE_AT_CPP26
-export template <typename T, std::size_t N>
-concept is_tuple_element = requires (T t) { // exposition only
-	typename std::tuple_element_t<N, std::remove_const_t<T>>;
-	{ std::get<N>(t) } -> std::convertible_to<std::tuple_element_t<N, T>&>;
-};
-
-export template <typename T>
-concept tuple_like = !std::is_reference_v<T> && requires {
-	typename std::tuple_size<T>::type;
-	std::same_as<decltype(std::tuple_size_v<T>), size_t>;
-}&& []<std::size_t... I>(std::index_sequence<I...>)
+export template <typename GeneratorTy>
+auto UTIL_Fountainize(GeneratorTy&& GenRange) noexcept
 {
-	return (is_tuple_element<T, I> && ...);
-}(std::make_index_sequence<std::tuple_size_v<T>>{});
+	using Ty = GeneratorTy::iterator::value_type;
 
-export template <typename T>
-concept pair_like = tuple_like<T> && std::tuple_size_v<T> == 2;
+	return [GenRange = std::move(GenRange), iter = GenRange.begin(), itEnd = GenRange.end()]() mutable -> std::optional<Ty>
+	{
+		if (iter != itEnd)
+		{
+			Ty ret = *iter;
+			++iter;
+			return ret;
+		}
+
+		return std::nullopt;
+	};
+}
 
 #pragma endregion move to sperate file: type utility
