@@ -725,7 +725,7 @@ void UnitTest_UtlConcepts(void) noexcept
 
 	using IntegralSet = VariadicTemplateWrapper<__int8, __int16, __int32, __int64>;
 	using FloatingPointSet = VariadicTemplateWrapper<float, double, long double>;
-	using CharacterSet = VariadicTemplateWrapper<char, char8_t, wchar_t, char16_t, char32_t>;
+	using CharacterSet = VariadicTemplateWrapper<char, wchar_t, char16_t, char32_t>;
 	using FourLongs = VariadicTemplateWrapper<long, long, long, long>;
 	static_assert(std::same_as<IntegralSet::type<0>, __int8>);
 	static_assert(std::same_as<IntegralSet::type<3>, __int64>);
@@ -742,8 +742,25 @@ void UnitTest_UtlConcepts(void) noexcept
 	static_assert(FloatingPointSet::Index_v<long double> == 2);
 	static_assert(FourLongs::Index_v<__int32> == FourLongs::npos);
 	static_assert(std::same_as<IntegralSet::type<IntegralSet::Index_v<__int16>>, __int16>);
-	static_assert(CharacterSet::Isomer_v<char16_t, char32_t, char, wchar_t, char8_t>);
+	static_assert(CharacterSet::Isomer_v<char16_t, char32_t, char, wchar_t>);
 	//static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t, char8_t>>);
+}
+
+void PrintVKV(ValveKeyValues* p, unsigned char iIndent = 0) noexcept
+{
+	fmt::print("{0}\"{1}\"\n{0}{{\n", std::string(iIndent, '\t'), p->Name());
+
+	for (auto pCur = p->GetFirstEntry(); pCur; pCur = pCur->GetNextEntry())
+	{
+		if (pCur->IsKeyValue())
+			fmt::print("{0}\"{1}\"\t\"{2}\"\n", std::string(iIndent + 1, '\t'), pCur->Name(), pCur->GetValue<std::string_view>());
+		else if (pCur->IsSubkey())
+			PrintVKV(pCur, iIndent + 1);
+		else
+			std::unreachable();
+	}
+
+	fmt::print("{}}}\n", std::string(iIndent, '\t'));
 }
 
 void UnitTest_UtlKeyValues(void) noexcept
@@ -764,6 +781,13 @@ void UnitTest_UtlKeyValues(void) noexcept
 	p->CreateEntry("Linear Algebra")->SetValue("Vector2D", Vector2D(std::numbers::inv_pi, std::numbers::pi));
 	p->FindEntry("Linear Algebra")->SetValue("Vector", Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
 	p->FindEntry("Linear Algebra")->SetValue("Quaternion", Quaternion(Vector(1, 1, 1).Normalize(), 120));
+	p->SetValue("Escape", "This is a string containing \\\" // 'comment' with in same line would be included!\nA new line!!!");
+	p->CreateEntry("UTF-8")->SetValue(u8"Latina", u8"Heraclius");
+	p->FindEntry("UTF-8")->SetValue(u8"Ελληνικά", u8"Ἡράκλειος");
+	p->FindEntry("UTF-8")->SetValue(u8"Français", u8"Héraclius");
+	p->FindEntry("UTF-8")->SetValue(u8"Русский", u8"Ираклий");
+	p->FindEntry("UTF-8")->SetValue(u8"日本語", u8"ヘラクレイオス");
+	p->FindEntry("UTF-8")->SetValue(u8"中文", u8"希拉克略");
 	assert(p->SaveToFile("UnitTest_UtlKeyValues.txt"));
 	assert(p->LoadFromFile("UnitTest_UtlKeyValues.txt"));
 
@@ -804,12 +828,135 @@ void UnitTest_UtlKeyValues(void) noexcept
 	assert(rgstr8[0] == "10"s);
 	assert(rgstr8[1] == "11"s);
 	assert((rgstr9 == std::array{ "12"s, ""s, ""s }));
+
+	PrintVKV(p);
 }
+
+
+std::experimental::generator<std::string_view> ReadToken(std::string_view StrV) noexcept
+{
+	for (std::size_t iCur = 0, iSegmentEnds = 0, iSize = StrV.size();
+		iCur < iSize && iSegmentEnds < iSize;
+		/* Do Nothing */)
+	{
+		for (; iCur < iSize && isspace(StrV[iCur]); ++iCur) {}	// L Trim
+
+		if (iCur >= iSize)
+			co_return;	// END
+
+		if (iCur + 1 < iSize && StrV[iCur] == '/' && StrV[iCur + 1] == '/')	// Handle comment line.
+		{
+			if (iCur = StrV.find_first_of('\n', iCur); iCur++ == StrV.npos)
+				co_return;
+			else
+				continue;
+		}
+
+		if (StrV[iCur] == '{' || StrV[iCur] == '}')
+		{
+			co_yield StrV.substr(iCur, 1);
+			++iCur;
+			continue;
+		}
+
+		if (iCur = StrV.find_first_of('"', iCur); iCur == StrV.npos)
+			co_return;
+
+		++iCur;	// Skip the " symbol itself.
+
+		for (auto iSearchPos = iCur; iSearchPos < iSize; ++iSearchPos)	// Escape supported. But only for \" and not for \\"
+		{
+			if (iSegmentEnds = StrV.find_first_of('"', iSearchPos); iSegmentEnds == StrV.npos)
+				co_return;
+
+			if (StrV[iSegmentEnds - 1] == '\\')
+				continue;
+
+			break;
+		}
+
+		assert(iCur < iSegmentEnds);
+
+		co_yield StrV.substr(iCur, iSegmentEnds - iCur);
+
+		iCur = iSegmentEnds + 1;
+	}
+
+	co_return;
+}
+
+auto TokenFountain(std::experimental::generator<std::string_view>&& GenObj) noexcept
+{
+	return [GenObj = std::move(GenObj), iter = GenObj.begin(), Sentinel = GenObj.end()]() mutable -> std::string_view
+	{
+		if (iter != Sentinel)
+		{
+			auto str = *iter;
+			++iter;
+			return str;
+		}
+		else
+			return "";
+	};
+}
+
+void Recursive(ValveKeyValues* p, auto&& Fountain) noexcept requires(std::convertible_to<std::invoke_result_t<decltype(Fountain)>, std::string_view>)
+{
+	for (auto szToken = Fountain(); szToken != ""; szToken = Fountain())
+	{
+		if (szToken == "}")
+		{
+			return;
+		}
+		else if (auto szToken2 = Fountain(); szToken2 != "")
+		{
+			if (szToken2 == "{")
+			{
+				auto p2 = new ValveKeyValues(szToken);
+				p->EnrollEntry(p2);
+				Recursive(p2, Fountain);
+			}
+			else
+				p->EnrollEntry(new ValveKeyValues(szToken, szToken2));
+		}
+	}
+}
+
 
 
 int main(int argc, char* args[]) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
+
+	if (auto f = fopen("UnitTest_UtlKeyValues.txt", "rb");  f)
+	{
+		fseek(f, 0, SEEK_END);
+
+		auto const iFileSize = ftell(f);
+		char* p = (char*)calloc(iFileSize + 1, sizeof(char));
+		std::string_view StrV(p, p + iFileSize);
+
+		fseek(f, 0, SEEK_SET);
+		fread(p, sizeof(char), iFileSize, f);
+
+		auto fnFountain = TokenFountain(ReadToken(StrV));
+		auto pKeyValue = new ValveKeyValues(fnFountain());
+
+#ifdef _DEBUG
+		assert(fnFountain() == "{");
+#else
+		fnFountain();	// Drop the coming '{'
+#endif
+
+		Recursive(pKeyValue, fnFountain);
+		PrintVKV(pKeyValue);
+
+		//for (auto&& szToken : ReadToken(StrV))
+		//	fmt::print("{}{}\n", fmt::styled("YIELD: ", fg(fmt::color::lime_green)), szToken);
+
+		free(p); p = nullptr;
+		fclose(f); f = nullptr;
+	}
 
 	//UnitTest_Vector2D();
 	//UnitTest_Vector();

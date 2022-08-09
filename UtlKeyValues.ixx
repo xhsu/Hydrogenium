@@ -43,10 +43,28 @@ using namespace std::string_view_literals;
 // Key - the "Name" of a Subkey.
 // Value - the "Number/String" part of a KeyValue.
 
+template <typename T>
+concept string_pair = pair_like<T> && std::convertible_to<std::tuple_element_t<0, T>, string_view> && std::convertible_to<std::tuple_element_t<1, T>, string_view>;
+
 export struct ValveKeyValues
 {
 	// Constructors
 	ValveKeyValues(void) noexcept = default;
+	ValveKeyValues(string_view szName, string_view szValue) noexcept : m_szName(szName), m_szValue(szValue)
+	{
+		switch (UTIL_GetStringType(m_szValue.c_str()))
+		{
+		case 1:
+		case 2:
+			m_flValue = UTIL_StrToNum<Value_t>(m_szValue);
+			break;
+
+		case 0:
+		default:
+			m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
+			break;
+		}
+	}
 	explicit ValveKeyValues(const char* pszName) noexcept : m_szName(pszName) {}
 	explicit ValveKeyValues(string_view szName) noexcept : m_szName(szName) {}
 	explicit ValveKeyValues(const std::filesystem::path& hPath) noexcept
@@ -57,14 +75,15 @@ export struct ValveKeyValues
 		LoadFromFile(hPath.string().c_str());
 #endif
 	}
+	explicit ValveKeyValues(string_pair auto const& Pair) noexcept : ValveKeyValues(std::get<0>(Pair), std::get<1>(Pair)) {}
 	virtual ~ValveKeyValues(void) noexcept
 	{
-		RemoveEverything();
+		Purge();
 	}
 
 	// set/get name
-	string& Name(void) noexcept { return m_szValue; }	// #UPDATE_AT_CPP23 explict this
-	const string& Name(void) const noexcept { return m_szValue; }
+	string& Name(void) noexcept { return m_szName; }	// #UPDATE_AT_CPP23 explict this
+	const string& Name(void) const noexcept { return m_szName; }
 
 	// load/save file
 	bool LoadFromFile(const char* resourceName) noexcept
@@ -116,7 +135,7 @@ export struct ValveKeyValues
 		buf.Write(pBuffer, strlen(pBuffer) + 1);
 		buf.Seek(seek::set, 0);
 
-		RemoveEverything();
+		Purge();
 
 		ValveKeyValues* pPreviousKey = nullptr;
 		ValveKeyValues* pCurrentKey = this;
@@ -369,7 +388,7 @@ export struct ValveKeyValues
 	}
 	inline bool IsKeyValue(void) const noexcept
 	{
-		return m_szValue.empty();
+		return !m_szValue.empty();
 	}
 	inline bool IsSubkey(void) const noexcept
 	{
@@ -473,7 +492,7 @@ export struct ValveKeyValues
 		// The whold complex factory shenanigan is due to the one loss of regular views::take
 		// Method provided by: https://stackoverflow.com/q/73207032/15860107
 
-		static auto const fnTakeFactory = []<typename GeneratorTy>(GeneratorTy && gen) requires(requires{ typename GeneratorTy::iterator::value_type; })
+		static auto const fnTakeAdaptor = []<typename GeneratorTy>(GeneratorTy && gen) requires(requires{ typename GeneratorTy::iterator::value_type; })
 		{
 			return [gen = std::move(gen)](std::ptrdiff_t iTakeCount) mutable
 				-> std::experimental::generator<typename GeneratorTy::iterator::value_type>
@@ -483,7 +502,7 @@ export struct ValveKeyValues
 				if (not (i++ < iTakeCount))
 					co_return;
 
-				for (auto&& e : gen)
+				for (auto&& e : gen)	// #POTENTIAL_BUG multiple begin() call on the same generator would be UB.
 				{
 					co_yield e;
 
@@ -492,7 +511,7 @@ export struct ValveKeyValues
 				}
 			};
 		};
-		auto Take = fnTakeFactory(UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0"));
+		auto Take = fnTakeAdaptor(UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0"));
 		static auto const fnAssign = [&Take]<typename T>(T & Output)
 		{
 			if constexpr (std::is_arithmetic_v<T>)
@@ -627,7 +646,7 @@ export struct ValveKeyValues
 	}
 
 private:
-	void RemoveEverything(void) noexcept
+	void Purge(void) noexcept
 	{
 		ValveKeyValues* dat = nullptr;
 		ValveKeyValues* datNext = nullptr;
@@ -756,7 +775,7 @@ private:
 
 	size_t GetIndentCountBetweenKeyAndValue(int iBlockAlignedCharCount) noexcept
 	{
-		int iTotalKeyStrlen = (int)m_szName.length() + 2;	// Plus "" on both side.
+		int const iTotalKeyStrlen = (int)m_szName.length() + 2;	// Plus "" on both side.
 		int iDelta = iBlockAlignedCharCount - iTotalKeyStrlen;	// Have to be signed.
 
 		assert(iDelta >= 0);
@@ -780,7 +799,7 @@ private:
 		char* pw = token;
 		char ch;
 
-		while (1)
+		while (true)
 		{
 		skipwhite:
 			do { ch = buf.getc(); } while (ch > 0 && ch < 0x80 && isspace(ch));	// UTF-8
@@ -801,7 +820,6 @@ private:
 			{
 				pw[0] = ch;
 				pw[1] = 0;
-
 				return true;
 			}
 
@@ -832,7 +850,6 @@ private:
 			if (ch == '\0')
 			{
 				*pw = 0;
-
 				return false;
 			}
 		}
@@ -842,7 +859,9 @@ private:
 	string m_szName{};
 
 	string m_szValue{};
-	Value_t m_flValue = 0.0;
+	Value_t m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
+
+	string m_szBlockComment{};
 
 	ValveKeyValues* m_pPeer = nullptr;
 	ValveKeyValues* m_pSub = nullptr;
