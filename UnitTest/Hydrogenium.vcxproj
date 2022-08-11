@@ -171,10 +171,12 @@
     <ClCompile Include="..\UtlString.ixx" />
     <ClCompile Include="..\UtlWinConsole.ixx" />
     <ClCompile Include="UnitTest.cpp" />
+    <ClCompile Include="UnitTest_UtlLinearAlgebra.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp" />
     <ClInclude Include="..\UtlFormatter.hpp" />
+    <ClInclude Include="UnitTest.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

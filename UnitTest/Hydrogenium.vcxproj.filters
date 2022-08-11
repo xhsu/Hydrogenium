@@ -40,6 +40,7 @@
     <ClCompile Include="..\UtlKeyValues.ixx">
       <Filter>Modules</Filter>
     </ClCompile>
+    <ClCompile Include="UnitTest_UtlLinearAlgebra.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">
@@ -48,5 +49,6 @@
     <ClInclude Include="..\UtlFormatter.hpp">
       <Filter>Modules</Filter>
     </ClInclude>
+    <ClInclude Include="UnitTest.hpp" />
   </ItemGroup>
 </Project>

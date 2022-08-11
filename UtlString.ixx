@@ -128,14 +128,14 @@ void UTIL_Trim(Ty& str) noexcept
 	str.erase(find_if(str.rbegin(), str.rend(), fnNotSpace).base(), str.end());	// R trim. std::reverse_iterator<Iter>::base() represents the true position of reversed iterator.
 }
 
-export template<typename Ty>
-void UTIL_ReplaceAll(Ty& str, const Ty& from, const Ty& to) noexcept
+export template<CharacterType Ty>
+void UTIL_ReplaceAll(std::basic_string<Ty>& str, const std::basic_string_view<Ty>& from, const std::basic_string_view<Ty>& to) noexcept
 {
 	if (from.empty())
 		return;
 
-	std::decay_t<decltype(Ty::npos)> start_pos = 0;
-	while ((start_pos = str.find(from, start_pos)) != Ty::npos)
+	std::size_t start_pos = 0;
+	while ((start_pos = str.find(from, start_pos)) != str.npos)
 	{
 		str.replace(start_pos, from.length(), to);
 		start_pos += to.length();	// In case 'to' contains 'from', like replacing 'x' with 'yx'

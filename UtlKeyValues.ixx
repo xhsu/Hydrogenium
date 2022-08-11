@@ -15,6 +15,7 @@ module;
 #include <range/v3/range.hpp>	// #UPDATE_AT_CPP23
 #include <range/v3/view.hpp>
 #include <experimental/generator>	// #UPDATE_AT_CPP23
+#include <fmt/core.h>
 #include <fmt/ranges.h>
 
 // C
@@ -25,7 +26,6 @@ module;
 
 export module UtlKeyValues;
 
-import UtlBuffer;
 import UtlConcepts;
 import UtlString;
 
@@ -36,6 +36,73 @@ using Value_t = double;
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
+
+std::experimental::generator<std::string_view> TokenGenerator(std::string_view StrV) noexcept
+{
+	for (std::size_t iCur = 0, iSegmentEnds = 0, iSize = StrV.size();
+		iCur < iSize && iSegmentEnds < iSize;
+		/* Do Nothing */)
+	{
+		for (; iCur < iSize && isspace(StrV[iCur]); ++iCur) {}	// L Trim
+
+		if (iCur >= iSize)
+			co_return;	// END
+
+		if (iCur + 1 < iSize && StrV[iCur] == '/' && StrV[iCur + 1] == '/')	// Handle comment line.
+		{
+			if (iCur = StrV.find_first_of('\n', iCur); iCur++ == StrV.npos)
+				co_return;
+			else
+				continue;
+		}
+
+		if (StrV[iCur] == '{' || StrV[iCur] == '}')
+		{
+			co_yield StrV.substr(iCur, 1);
+			++iCur;
+			continue;
+		}
+
+		if (iCur = StrV.find_first_of('"', iCur); iCur == StrV.npos)
+			co_return;
+
+		++iCur;	// Skip the " symbol itself.
+
+		for (auto iSearchPos = iCur; iSearchPos < iSize; ++iSearchPos)	// Escape supported. But only for \" and not for \\"
+		{
+			if (iSegmentEnds = StrV.find_first_of('"', iSearchPos); iSegmentEnds == StrV.npos)
+				co_return;
+
+			if (StrV[iSegmentEnds - 1] == '\\')
+				continue;
+
+			break;
+		}
+
+		assert(iCur < iSegmentEnds);
+
+		co_yield StrV.substr(iCur, iSegmentEnds - iCur);
+
+		iCur = iSegmentEnds + 1;
+	}
+
+	co_return;
+}
+
+auto TokenFountain(std::experimental::generator<std::string_view>&& GenObj) noexcept
+{
+	return [GenObj = std::move(GenObj), iter = GenObj.begin(), Sentinel = GenObj.end()]() mutable -> std::string_view
+	{
+		if (iter != Sentinel)
+		{
+			auto str = *iter;
+			++iter;
+			return str;
+		}
+		else
+			return "";
+	};
+}
 
 // Entry - Subkey or KeyValue
 // Subkey - Contains only Entries, but no value for itself.
@@ -64,6 +131,8 @@ export struct ValveKeyValues
 			m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 			break;
 		}
+
+		UTIL_ReplaceAll(m_szValue, "\\\""sv, "\""sv);
 	}
 	explicit ValveKeyValues(const char* pszName) noexcept : m_szName(pszName) {}
 	explicit ValveKeyValues(string_view szName) noexcept : m_szName(szName) {}
@@ -76,187 +145,148 @@ export struct ValveKeyValues
 #endif
 	}
 	explicit ValveKeyValues(string_pair auto const& Pair) noexcept : ValveKeyValues(std::get<0>(Pair), std::get<1>(Pair)) {}
-	virtual ~ValveKeyValues(void) noexcept
-	{
-		Purge();
-	}
+	virtual ~ValveKeyValues(void) noexcept { Purge(); }
+
+	ValveKeyValues(const ValveKeyValues&) = delete;
+	ValveKeyValues(ValveKeyValues&&) = delete;
+	ValveKeyValues& operator=(const ValveKeyValues&) = delete;
+	ValveKeyValues& operator=(ValveKeyValues&&) = delete;
 
 	// set/get name
 	string& Name(void) noexcept { return m_szName; }	// #UPDATE_AT_CPP23 explict this
 	const string& Name(void) const noexcept { return m_szName; }
 
 	// load/save file
-	bool LoadFromFile(const char* resourceName) noexcept
+	bool LoadFromFile(const char* pszFile) noexcept
 	{
-		FILE* f = fopen(resourceName, "rb");
-		if (!f)
-			return false;
-
-		fseek(f, 0, SEEK_END);
-		auto fileSize = ftell(f);
-		fseek(f, 0, SEEK_SET);
-
-		char* buffer = (char*)malloc(fileSize + 1);
-
-		fread(buffer, fileSize, 1, f);
-
-		fclose(f);
-
-		buffer[fileSize] = 0;
-		LoadFromBuffer(buffer);
-
-		free(buffer);
-
-		return true;
-	}
-	bool SaveToFile(const char* resourceName) noexcept
-	{
-		FILE* f = fopen(resourceName, "wb");
-		if (!f)
-			return false;
-
-		CBuffer buf(0x10000); // 64KB
-		RecursiveSaveToBuffer(buf);
-
-		fwrite(buf.Get(), buf.Tell(), 1, f);
-
-		fclose(f);
-
-		return true;
-	}
-
-	// load from text buffer
-	bool LoadFromBuffer(const char* pBuffer) noexcept
-	{
-		CBuffer buf;
-		char token[100];
-		bool got;
-
-		buf.Write(pBuffer, strlen(pBuffer) + 1);
-		buf.Seek(seek::set, 0);
-
-		Purge();
-
-		ValveKeyValues* pPreviousKey = nullptr;
-		ValveKeyValues* pCurrentKey = this;
-
-		while (true)
+		[[likely]]
+		if (auto f = fopen(pszFile, "rb"); f)
 		{
-			// get the key
-			got = ReadToken(token, buf);
+			fseek(f, 0, SEEK_END);
 
-			// expected 'ident' but end of file
-			if (!got)
-				break;
+			auto const iFileSize = ftell(f);
+			char* p = (char*)calloc(iFileSize + 1, sizeof(char));
 
-			if (!pCurrentKey)
+			fseek(f, 0, SEEK_SET);
+			fread(p, sizeof(char), iFileSize, f);
+
+			string_view StrV(p, p + iFileSize);
+			auto fnFountain = TokenFountain(TokenGenerator(StrV));
+
+			Purge();	// Remove everything of current vkv. (Release memoory)
+			m_szName = fnFountain();	// First token must be the name of the head vkv.
+
+			[[likely]]
+			if (auto szSecondToken = fnFountain(); szSecondToken != "")
 			{
-				pCurrentKey = new ValveKeyValues(token);
-
-				if (pPreviousKey)
+				[[unlikely]]
+				if (szSecondToken != "{")	// this file contains only one kv pair.
 				{
-					pPreviousKey->m_pPeer = pCurrentKey;
+					SetValue(nullptr, szSecondToken);
+					return true;
 				}
 			}
 			else
-			{
-				// set name for this key
-				pCurrentKey->Name() = token;
-			}
+				return false;
 
-			// get the value
-			got = ReadToken(token, buf);
+			RecursiveRead(fnFountain);
 
-			// expected 'ident' or '{' but end of file
-			if (!got)
-				break;
+			free(p); p = nullptr;
+			fclose(f); f = nullptr;
 
-			// get the key
-			if (token[0] == '{')
-			{
-				pCurrentKey->RecursiveLoadFromBuffer(buf);
-			}
-
-			pPreviousKey = pCurrentKey;
-			pCurrentKey = nullptr;
+			return true;
 		}
 
-		return true;
+		return false;
 	}
-	bool SaveToBuffer(char* pBuffer, size_t* piSize) noexcept
+	bool SaveToFile(const char* resourceName) noexcept
 	{
-		CBuffer buf(0x10000);
-		RecursiveSaveToBuffer(buf);
+		[[likely]]
+		if (auto f = fopen(resourceName, "wb"); f)
+		{
+			RecursiveSave(f);
 
-		memcpy(pBuffer, buf.Get(), buf.Tell());
+			fclose(f); f = nullptr;
+			return true;
+		}
 
-		*piSize = buf.Tell();
-
-		return true;
+		return false;
 	}
 
-	// find an entry
-	ValveKeyValues* FindEntry(const char* pszName, bool bCreate = false) noexcept
+	// Print to console
+	void PrintC(unsigned char iIndent = 0) const noexcept
+	{
+		auto const iSpaceCountForThisSubkey = GetSpaceCountBtnAllSubKeyValues();
+
+		fmt::print("{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
+
+		for (auto pCur = GetFirstEntry(); pCur; pCur = pCur->GetNextEntry())
+		{
+			if (pCur->IsKeyValue())
+			{
+				fmt::print(
+					"{0}{1:<{3}}\"{2}\"\n",
+					string(iIndent + 1, '\t'),
+					fmt::format("\"{}\"", pCur->m_szName), pCur->m_szValue,
+					iSpaceCountForThisSubkey
+				);
+			}
+			else if (pCur->IsSubkey())
+				pCur->PrintC(iIndent + 1);
+			else
+				std::unreachable();
+		}
+
+		fmt::print("{}}}\n", string(iIndent, '\t'));
+	}
+
+	// find or create an entry. Only creates an entry if named one cannot be found.
+	ValveKeyValues const* FindEntry(const char* pszName) const noexcept
 	{
 		if (!pszName || !pszName[0])
 			return this;
 
-		ValveKeyValues* lastItem = nullptr;
-		ValveKeyValues* dat;
+		ValveKeyValues* dat = nullptr;
 
 		for (dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 		{
-			lastItem = dat;
+			if (dat->m_szName == pszName)
+				break;
+		}
+
+		return dat;
+	}
+	ValveKeyValues* AccessEntry(const char* pszName) noexcept	// #UPDATE_AT_CPP23 assume never nullptr.
+	{
+		if (!pszName || !pszName[0])
+			return this;
+
+		ValveKeyValues* dat = nullptr;
+		ValveKeyValues* lastItem = nullptr;
+
+		for (dat = GetFirstEntry(); dat; dat = dat->GetNextEntry())
+		{
+			lastItem = dat;	// 'lastItem' would remain last item if dat becomes null in for check.
 
 			if (dat->m_szName == pszName)
 				break;
 		}
 
+		// Create one on no-found.
 		if (!dat)
 		{
-			if (bCreate)
-			{
-				dat = new ValveKeyValues(pszName);
+			dat = new ValveKeyValues(pszName);
 
-				if (lastItem)
-				{
-					lastItem->m_pPeer = dat;
-				}
-				else
-				{
-					m_pSub = dat;
-				}
+			if (lastItem)
+			{
+				lastItem->m_pPeer = dat;
 			}
 			else
 			{
-				return nullptr;
+				m_pSub = dat;
 			}
 		}
 
-		return dat;
-	}
-
-	// craete an entry
-	ValveKeyValues* CreateEntry(const char* pszName = nullptr) noexcept	// nullptr on pszName to represent a auto-index entry name.
-	{
-		ValveKeyValues* dat = nullptr;
-
-		if (!pszName)
-		{
-			int index = 1;
-
-			for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
-			{
-				if (auto val = UTIL_StrToNum<int>(dat->m_szName); index <= val)
-					index = val + 1;
-			}
-
-			dat = new ValveKeyValues(std::to_string(index).c_str());
-		}
-		else
-			dat = new ValveKeyValues(pszName);
-
-		EnrollEntry(dat);
 		return dat;
 	}
 
@@ -396,10 +426,12 @@ export struct ValveKeyValues
 	}
 
 	// value, nullptr if inquerying self.
-	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const T& DefValue = T {}) noexcept
+	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const T& DefValue = T {}) const noexcept
 	{
-		ValveKeyValues* dat = FindEntry(pszSubkeyName);
-		if (!dat || dat->m_szValue.empty()) [[unlikely]]
+		auto dat = FindEntry(pszSubkeyName);
+
+		[[unlikely]]
+		if (!dat || dat->m_szValue.empty())
 		{
 			if constexpr (std::convertible_to<T, string> && std::is_pointer_v<T>)
 				return DefValue == nullptr ? "" : DefValue;
@@ -468,7 +500,7 @@ export struct ValveKeyValues
 
 		return DefValue;
 	}
-	template<typename... Tys> auto GetValue(const char* pszSubkeyName = nullptr) noexcept requires(sizeof...(Tys) > 1)
+	template<typename... Tys> auto GetValue(const char* pszSubkeyName = nullptr) const noexcept requires(sizeof...(Tys) > 1)
 	{
 		static constexpr auto RetTypeDeducer = [](void) consteval
 		{
@@ -485,7 +517,7 @@ export struct ValveKeyValues
 		};
 		decltype(RetTypeDeducer()) Ret{};
 
-		ValveKeyValues* dat = FindEntry(pszSubkeyName);
+		auto dat = FindEntry(pszSubkeyName);
 		if (!dat || dat->m_szValue.empty()) [[unlikely]]
 			return Ret;
 
@@ -567,7 +599,7 @@ export struct ValveKeyValues
 	}
 	template<typename T> bool SetValue(const char* pszSubkeyName, const T& Value) noexcept	// Create new entry on no found.
 	{
-		ValveKeyValues* dat = FindEntry(pszSubkeyName, true);
+		ValveKeyValues* dat = AccessEntry(pszSubkeyName);
 		if (!dat)
 			return false;
 
@@ -579,6 +611,9 @@ export struct ValveKeyValues
 		else if constexpr (std::convertible_to<T, string_view>)	// Since string is also a type of range, it must place before it. Otherwise the string will be split by ' ' every other letter.
 		{
 			dat->m_szValue = Value;
+
+			if (dat->m_szValue.contains('"'))
+				UTIL_ReplaceAll(dat->m_szValue, "\\\""sv, "\""sv);
 
 			switch (UTIL_GetStringType(dat->m_szValue.c_str()))
 			{
@@ -607,7 +642,7 @@ export struct ValveKeyValues
 	}
 	template<typename... Tys> bool SetValue(const char* pszSubkeyName, const Tys&... Values) noexcept requires(sizeof...(Values) > 1)	// Create new entry on no found.
 	{
-		ValveKeyValues* dat = FindEntry(pszSubkeyName, true);
+		ValveKeyValues* dat = AccessEntry(pszSubkeyName);
 		if (!dat)
 			return false;
 
@@ -615,7 +650,7 @@ export struct ValveKeyValues
 		{
 			using T = std::decay_t<decltype(Param)>;
 
-			if constexpr (std::convertible_to<T, string_view>)
+			if constexpr (std::convertible_to<T, string_view>)	// It's not a dupe of the 'else' case. strings are all range, it would fall into the fmt::join case if not escape here.
 				return Param;	// #INVESTIGATE why can't I use std::forward here?
 			else if constexpr (pair_like<T>)
 				return fmt::join(std::tuple{ Param }, " ");	// Well, since {fmt} doesn't support pair itself...
@@ -631,6 +666,9 @@ export struct ValveKeyValues
 		dat->m_szValue = fmt::format(szFormatter, fnFetch(Values)...);
 		dat->m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 
+		if (dat->m_szValue.contains('"'))
+			UTIL_ReplaceAll(dat->m_szValue, "\\\""sv, "\""sv);
+
 		return true;
 	}
 
@@ -642,7 +680,7 @@ export struct ValveKeyValues
 		m_pSub = nullptr;
 
 		m_szValue.clear();
-		m_flValue = 0;
+		m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 	}
 
 private:
@@ -673,107 +711,70 @@ private:
 		m_szName.clear();
 	}
 
-	void RecursiveLoadFromBuffer(CBuffer& buf) noexcept
+	void RecursiveRead(auto&& fnFountain) noexcept requires(std::convertible_to<std::invoke_result_t<decltype(fnFountain)>, string_view>)
 	{
-		char token[2048];
-		bool got;
-		int type;
-
-		while (1)
+		for (auto szToken = fnFountain(); szToken != ""; szToken = fnFountain())
 		{
-			// get the key
-			got = ReadToken(token, buf);
-
-			// expected 'ident' or '}' but end of file
-			if (!got)
-				break;
-
-			// close the key
-			if (token[0] == '}')
-				break;
-
-			ValveKeyValues* dat = CreateEntry(token);
-
-			// get the value
-			got = ReadToken(token, buf);
-
-			// expected '{' or 'ident' but end of file
-			if (!got)
-				break;
-
-			// expected '{' or 'ident' but got '}'
-			if (token[0] == '}')
-				break;
-
-			if (token[0] == '{')
+			if (szToken == "}")
 			{
-				dat->RecursiveLoadFromBuffer(buf);
+				return;
 			}
+			else if (auto szToken2 = fnFountain(); szToken2 != "")
+			{
+				if (szToken2 == "{")
+				{
+					auto p2 = new ValveKeyValues(szToken);
+					EnrollEntry(p2);
+					p2->RecursiveRead(fnFountain);
+				}
+				else
+					EnrollEntry(new ValveKeyValues(szToken, szToken2));
+			}
+		}
+	}
+	void RecursiveSave(FILE* f, std::size_t iIndent = 0) noexcept
+	{
+		auto const iSpaceCountForThisSubkey = GetSpaceCountBtnAllSubKeyValues();
+
+		fmt::print(f, "{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
+
+		for (auto pCur = GetFirstEntry(); pCur; pCur = pCur->GetNextEntry())
+		{
+			if (pCur->IsKeyValue())
+			{
+				// Since we stripped the \" at the load-in stage, we have to 'restore it' when saving.
+				if (pCur->m_szValue.contains('"'))
+				{
+					string szDup = pCur->m_szValue;
+					UTIL_ReplaceAll(szDup, "\""sv, "\\\""sv);
+
+					fmt::print(f,
+						"{0}{1:<{3}}\"{2}\"\n",
+						string(iIndent + 1, '\t'),	// Pre-indent
+						fmt::format("\"{}\"", pCur->m_szName), szDup,	// KV
+						iSpaceCountForThisSubkey
+					);
+				}
+				else
+				{
+					fmt::print(f,
+						"{0}{1:<{3}}\"{2}\"\n",
+						string(iIndent + 1, '\t'),	// Pre-indent
+						fmt::format("\"{}\"", pCur->m_szName), pCur->m_szValue,	// KV
+						iSpaceCountForThisSubkey
+					);
+				}
+			}
+			else if (pCur->IsSubkey())
+				pCur->RecursiveSave(f, iIndent + 1);
 			else
-			{
-				type = UTIL_GetStringType(token);
-
-				if (type == 1 || type == 2)
-					dat->m_flValue = UTIL_StrToNum<Value_t>(token);
-
-				dat->m_szValue = token;
-			}
-		}
-	}
-	void RecursiveSaveToBuffer(CBuffer& buf, size_t indentLevel = 0) noexcept
-	{
-		WriteIndents(buf, indentLevel);
-		buf.Write("\"", 1);
-		buf.Write(m_szName.c_str(), m_szName.length());
-		buf.Write("\"\n", 2);
-		WriteIndents(buf, indentLevel);
-		buf.Write("{\n", 2);
-
-		int iBlockAlignedCharCount = 0;
-		for (ValveKeyValues* dat = GetFirstKeyValue(); dat != nullptr; dat = dat->GetNextKeyValue())	// Skip all subkeys. Only keyvalues involved.
-		{
-			int iCurTotalStrlen = (int)dat->m_szName.length() + 2;	// Plus "" on both side.
-
-			if (iBlockAlignedCharCount < iCurTotalStrlen)
-				iBlockAlignedCharCount = iCurTotalStrlen;
+				std::unreachable();
 		}
 
-		if ((iBlockAlignedCharCount % 4) == 0)
-			++iBlockAlignedCharCount;	// Plus one. This is becuase we have to got at least one indent, the "key" and "value" cannot concatenate with each other.
-
-		while (iBlockAlignedCharCount % 4)	// And then find the next perfect aligned pos.
-			iBlockAlignedCharCount++;
-
-		for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
-		{
-			if (dat->m_pSub)	// This is a Subkey
-			{
-				dat->RecursiveSaveToBuffer(buf, indentLevel + 1);
-			}
-			else	// This is a Keyvalue pair.
-			{
-				WriteIndents(buf, indentLevel + 1);
-
-				// Key
-				buf.Write("\"", 1);
-				buf.Write(dat->m_szName.c_str(), dat->m_szName.length());
-				buf.Write("\"", 1);
-
-				// Indent(s)
-				WriteIndents(buf, dat->GetIndentCountBetweenKeyAndValue(iBlockAlignedCharCount));
-
-				// Value
-				buf.Write("\"", 1);
-				buf.Write(dat->GetValue<const char*>(), strlen(dat->GetValue<const char*>()));
-				buf.Write("\"\n", 2);
-			}
-		}
-
-		WriteIndents(buf, indentLevel);
-		buf.Write("}\n", 2);
+		fmt::print(f, "{}}}\n", string(iIndent, '\t'));
 	}
 
-	size_t GetIndentCountBetweenKeyAndValue(int iBlockAlignedCharCount) noexcept
+	std::size_t GetIndentCountBetweenKeyAndValue(int iBlockAlignedCharCount) const noexcept
 	{
 		int const iTotalKeyStrlen = (int)m_szName.length() + 2;	// Plus "" on both side.
 		int iDelta = iBlockAlignedCharCount - iTotalKeyStrlen;	// Have to be signed.
@@ -786,73 +787,19 @@ private:
 
 		return std::max(iIndentCount, 1);
 	}
-	void WriteIndents(CBuffer& buf, size_t indentLevel) noexcept
+	std::size_t GetSpaceCountBtnAllSubKeyValues(void) const noexcept
 	{
-		for (size_t i = 0; i < indentLevel; ++i)
+		if (!IsSubkey())
+			return 0;
+
+		std::size_t iMaxLen = 2;
+		for (auto pCur = GetFirstKeyValue(); pCur; pCur = pCur->GetNextKeyValue())
 		{
-			buf.Write("\t", 1);
+			if (pCur->m_szName.length() > iMaxLen)
+				iMaxLen = pCur->m_szName.length();
 		}
-	}
 
-	bool ReadToken(char* token, CBuffer& buf) noexcept
-	{
-		char* pw = token;
-		char ch;
-
-		while (true)
-		{
-		skipwhite:
-			do { ch = buf.getc(); } while (ch > 0 && ch < 0x80 && isspace(ch));	// UTF-8
-
-			if (ch == '/')
-			{
-				ch = buf.getc();
-
-				if (ch == '/')
-				{
-					do { ch = buf.getc(); } while (ch != '\n');
-
-					goto skipwhite;
-				}
-			}
-
-			if (ch == '{' || ch == '}')
-			{
-				pw[0] = ch;
-				pw[1] = 0;
-				return true;
-			}
-
-			if (ch == '"')
-			{
-				__int8 iEscapingCount = 0;
-			LAB_LOOP:;
-				*pw = buf.getc();
-
-				if (*pw == '\\')
-					iEscapingCount = iEscapingCount ? 0 : 2;	// Since the escape check is after flag reduction. So there were 2 characters we need to cover. The '\\' itself and the symbol next to it.
-				else if (iEscapingCount)
-					--iEscapingCount;
-
-				if (iEscapingCount == 2)	// The very '\\' causes escape must be overwrite. It can't be appear in the text.
-					goto LAB_LOOP;
-				else if (!iEscapingCount && *pw == '"')
-					goto LAB_LOOP_END;
-
-				++pw;
-				goto LAB_LOOP;
-
-			LAB_LOOP_END:;
-				*pw = 0;	// Remove the '"' used in pairing.
-				return true;
-			}
-
-			if (ch == '\0')
-			{
-				*pw = 0;
-				return false;
-			}
-		}
+		return iMaxLen + 3;	// 2 for "" and 1 for at least one addition space.
 	}
 
 private:
@@ -860,8 +807,6 @@ private:
 
 	string m_szValue{};
 	Value_t m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
-
-	string m_szBlockComment{};
 
 	ValveKeyValues* m_pPeer = nullptr;
 	ValveKeyValues* m_pSub = nullptr;

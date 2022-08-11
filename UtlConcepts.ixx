@@ -284,7 +284,7 @@ struct VariadicTemplateWrapper
 	static constexpr bool AllSame_v = Count_v == 0 || Count_v == 1 || std::conjunction_v<std::is_same<type<0>, Tys>...>;
 	template <typename T> static constexpr bool Exists_v = std::disjunction_v<std::is_same<T, Tys>...>;
 	template <typename T> static constexpr std::size_t value = (std::is_same_v<T, Tys> +...);
-	template <typename T> static constexpr std::size_t Index_v = []() constexpr
+	template <typename T> static constexpr std::size_t Index_v = []() consteval
 	{
 		if constexpr (Count_v == 0)
 			return npos;	//static_assert(!sizeof(T), "Empty packed parameters!");
@@ -304,7 +304,7 @@ struct VariadicTemplateWrapper
 		}
 	}();
 	template <typename... Tys2> static constexpr bool Isomer_v = AnyOrder<Tuple_t, Tys2...>;
-	//template <typename T> requires(requires{ typename T::Tuple_t; }) static constexpr bool Isomer_v<T> = tuple_any_order<Tuple_t, typename T::Tuple_t>;	// #FIXME
+	template <typename T> requires(requires{ typename T::Tuple_t; }) static constexpr bool Isomer_v<T> = tuple_any_order<Tuple_t, typename T::Tuple_t>;
 	template <> static constexpr bool Isomer_v<> = Count_v == 0;
 };
 

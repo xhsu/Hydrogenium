@@ -17,6 +17,8 @@
 #include <range/v3/range.hpp>
 #include <range/v3/view.hpp>
 
+#include "UnitTest.hpp"
+
 #ifndef _MSVC_LANG
 typedef char __int8;
 typedef short __int16;
@@ -34,16 +36,7 @@ import UtlString;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-void Log(const auto& sz, std::source_location hSourceLocation = std::source_location::current()) noexcept
-{
-	//cout_gold() << std::format("[{}] {}:({}, {}): {}\n", hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(), sz) << white_text;
-	fmt::print(
-		fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::yellow),
-		"[{}] {}:({}, {}): {}\n",
-		hSourceLocation.file_name(), hSourceLocation.function_name(), hSourceLocation.line(), hSourceLocation.column(),
-		sz
-	);
-}
+
 
 // #DEV_TOOL unit test fn
 //void UnitTest_ValveKeyValues(void) noexcept
@@ -87,283 +80,8 @@ void Log(const auto& sz, std::source_location hSourceLocation = std::source_loca
 //	auto [_v1, _v2, _v3, _v4, _v5] = pkv2->GetValue<Color4b, Quaternion, Vector, Vector2D, Color4f>("tuple");
 //}
 
-void UnitTest_Vector(void) noexcept
-{
-	Log("Starting...");
-
-	static_assert(std::ranges::range<Vector>);
-
-	using std::array;
-	static_assert(sizeof(Vector) == 3 * sizeof(vec_t));
-
-	// Construction
-	static constexpr Vector vecZero(0, 0, 0);
-	static_assert(vecZero == Vector::Zero());
-
-	static constexpr Vector vecUpgrade(Vector2D(7, 7), 777ULL);
-	static_assert(vecUpgrade.x == 7 && vecUpgrade.y == 7 && vecUpgrade.z == 777.0);
-
-	static constexpr Vector vec1({ 1, 2, 3 }), vec2({ 1, 2, 3, 4 });
-	static_assert(vec1 == vec2 && vec1.x == 1 && vec2.y == 2 && vec1.z == vec2.z);
-
-	static constexpr double rgdb1[] = { 1, 2, 3 };
-	static constexpr unsigned int rgui1[] = { 1, 2, 3, 4 };
-	static_assert(Vector(rgdb1) == Vector(rgui1) && Vector(rgdb1) == vec1 && Vector(rgui1) == vec2);
-
-	static constexpr array<long double, Vector::max_size()> rgldb1 { 1, 2, 3 };
-	static constexpr array<long long, Vector::size() + 1> rgll1 { 1, 2, 3, 4 };
-	static_assert(Vector(rgldb1) == Vector(rgll1));
-
-	// Operators
-	static_assert(-vec1 == Vector { -1, -2, -3 });
-	static_assert(-vec1 != Vector { -1.0f + std::numeric_limits<vec_t>::epsilon(), -2.0f, -3.0f });
-	static_assert(vec1 < 4);
-	static_assert(vec1 >= Vector::K());
-	static_assert(vec1 + vec2 == vec1 * 2);
-	static_assert(vec1 - vec2 == Vector::Zero());
-
-	// Static methods
-	auto vec3 = vec1;
-	vec3 += vec2;
-	vec3 /= 2U;
-	assert(vec3 == vec2);
-
-	vec3.Clear();
-	assert(vec3 == Vector::Zero());
-
-	static_assert(CrossProduct(Vector::I(), Vector::J()) == Vector::K());
-
-	// Methods
-	array<int, 4> rgi1 {};
-	int rgi2[4] {};
-	vec1.CopyToArray(rgi1);
-	vec1.CopyToIter(rgi2);
-	assert(
-		rgi1[0] == rgi2[0] &&
-		rgi1[1] == rgi2[1] &&
-		rgi1[2] == rgi2[2] &&
-		rgi1[3] == rgi2[3]
-	);
-
-	const auto gcemlen = gcem::sqrt(vec1.LengthSquared());
-	const auto stdlen = std::sqrt(vec1.LengthSquared());
-
-	//assert(vec1.Length() == std::sqrt(1 * 1 + 2 * 2));
-	std::cout << "============SQRT TESTS=============\n";
-	std::cout << std::setprecision(std::numeric_limits<vec_t>::max_digits10 + 1)
-		<< " - Vector::Length " << vec1.Length() << " (Error: " << (vec1.Length() - stdlen) / stdlen * 100.0f << "%)" << '\n'
-		<< " - gcem::sqrt " << gcemlen << " (Error: " << (gcemlen - stdlen) / stdlen * 100.0f << "%)" << '\n'
-		<< " - std::sqrt " << stdlen << "\n\n";
-
-	vec3 = vec1 / stdlen;
-
-	static_assert(vec1.Length2D() == Vector2D(1, 2).Length());
-	static_assert(vec2.Length2DSquared() == Vector2D(1, 2).LengthSquared());
-
-	std::cout << "============NORM TESTS=============\n";
-	std::cout << " - std::sqrt \n" << vec3;
-	std::cout << " - Vector::Normalize \n" << vec1.Normalize() << '\n';
-
-	std::cout << "============SET LEN TESTS=============\n"
-		<< " - std::sqrt\n" << (vec3 = vec1 * (2.0f / stdlen))
-		<< " - Vector::SetLength\n" << vec1.SetLength(2) << '\n';
-
-	static_assert(!vec1.IsZero() && Vector2D::Zero().IsZero());
-	static_assert(!vec2.IsNaN() && Vector2D(std::numeric_limits<float>::quiet_NaN(), 0).IsNaN());
-
-	assert(vec3.Make2D().SetLength(2).Approx(Vector2D(1, 2).SetLength(2), 1e-5f));
-
-	// Conversion
-	//static_assert(!(bool)Vector2D::Zero() && (bool)vec1); #FIXME_UNKNOWN_BUG
-	assert((float)Vector::I() == (float)Vector::J() && gcem::round((real_t)vec3) == 2);
-
-	// Linear Algebra
-
-	constexpr Vector angle { 48, -93, 19 };
-	static_assert(DotProduct(angle.Forward(), angle.Right()) == 0);
-	static_assert(DotProduct(angle.Right(), angle.Up()) == 0);
-	static_assert(DotProduct(angle.Up(), angle.Forward()) < 1e-5f);
-	static_assert(CrossProduct(angle.Forward(), angle.Right()) == -angle.Up());
-	static_assert(CrossProduct(angle.Right(), angle.Up()) == -angle.Forward());
-	static_assert(CrossProduct(angle.Up(), angle.Forward()) == -angle.Right());
-
-	const auto [f, r, u] = angle.AngleVectors();
-	assert(Vector::VectorsAngles(f, r, u) == angle);
-
-	static_assert(Vector::Zero().Forward() == Vector::I());
-	static_assert(Vector(0, 90, 0).Forward() == Vector::J());
-	static_assert(Vector(-90, 0, 0).Forward() == Vector::K());
-
-	static_assert(Vector::I().VectorAngles() == Vector::Zero());
-	static_assert(Vector::J().VectorAngles() == Vector(0, 90, 0));
-	static_assert(Vector::K().VectorAngles() == Vector(90, 0, 0));
-
-	static_assert(Vector::I().RotateZ(90) == Vector::J());
-	static_assert(Vector::J().RotateX(90) == Vector::K());
-	static_assert(Vector::K().RotateY(90) == Vector::I());
-
-	// STL Containers Compatibility
-	std::cout << "============ITER TESTS=============\n";
-	std::cout << "begin/end(via for_each): ";
-	for (const auto& fl : vec1)
-		std::cout << fl << ' ';
-	std::cout << '\n';
-
-	std::cout << "rbegin/rend: ";
-	for (auto it = vec1.crbegin(); it != vec1.crend(); ++it)
-		std::cout << *it << ' ';
-	std::cout << '\n';
-
-	static_assert(vec1.at(0) == 1 && vec2.at(1) == 2 && vec1.at(2) == vec2.at(2));
-	//static_assert(vec1[1] == 2 && vec2[0] == 1 && vec1[2] == vec2[2]);	#FIXME Cannot cast pointer type in compile-time.
-	static_assert(*vec1.data() == 1);
-	static_assert(vec2.front() == 1 && vec2.back() == 3);
-	static_assert(!vec3.empty() && vec3.size() == vec3.max_size());
-
-	Vector vec5(7, 8, 9);
-	vec5.fill(0);
-	vec5.swap(vec3);
-	assert(vec3 == Vector::Zero() && (int)vec5.Length() == 2);
-
-	// External Helper Fn
-	static_assert((Vector::I() ^ Vector::J()) == (Vector::J() ^ Vector::K()));
-	//static_assert(gcem::round(Vector2D::I().Rotate(60) ^ Vector2D::J().Rotate(-45)) == 15);
-
-	constexpr Vector vec6(1, 1, 1);
-	static_assert((vec6 ^ Vector::I()) == (vec6 ^ Vector::J()) && (vec6 ^ Vector::J()) == (vec6 ^ Vector::K()));
-	static_assert(DotProduct(vec6, Vector::I()) == DotProduct(vec6, Vector::J()));
-	static_assert(DotProduct2D(vec6, Vector::K()) == 0);
-	static_assert(
-		CrossProduct(Vector::I(), Vector::J()) == Vector::K() &&
-		CrossProduct(Vector::J(), Vector::K()) == Vector::I() &&
-		CrossProduct(Vector::K(), Vector::I()) == Vector::J()
-	);
-	static_assert(CrossProduct(Vector::I(), vec6) == -CrossProduct(vec6, Vector::I()));
-
-	Log("Successful.\n");
-}
-
-void UnitTest_Vector2D(void) noexcept
-{
-	Log("Starting...");
-
-	static_assert(std::ranges::range<Vector2D>);
-
-	using std::array;
-	static_assert(sizeof(Vector2D) == 2 * sizeof(vec_t));
-
-	// Construction
-	static constexpr Vector2D vecZero(0, 0);
-	static_assert(vecZero == Vector2D::Zero());
-
-	static constexpr Vector2D vecQuad(7);
-	static_assert(vecQuad.width == 7 && vecQuad.height == 7);
-
-	static constexpr Vector2D vec1({ 1, 2 }), vec2({ 1, 2, 3 });
-	static_assert(vec1 == vec2 && vec1.x == 1 && vec2.y == 2);
-
-	static constexpr double rgdb1[] = { 1, 2 };
-	static constexpr unsigned int rgui1[] = { 1, 2, 3 };
-	static_assert(Vector2D(rgdb1) == Vector2D(rgui1) && Vector2D(rgdb1) == vec1 && Vector2D(rgui1) == vec2);
-
-	static constexpr array<long double, 2> rgldb1 { 1, 2 };
-	static constexpr array<long long, 3> rgll1 { 1, 2, 3 };
-	static_assert(Vector2D(rgldb1) == Vector2D(rgll1));
-
-	// Operators
-	static_assert(-vec1 == Vector2D { -1, -2 });
-	static_assert(-vec1 != Vector2D { -1.0f + std::numeric_limits<float>::epsilon(), -2.0f });
-	static_assert(vec1 < 3);
-	static_assert(vec1 >= Vector2D::J());
-	static_assert(vec1 + vec2 == vec1 * 2);
-	static_assert(vec1 - vec2 == Vector2D::Zero());
-
-	// Static methods
-	auto vec3 = vec1;
-	vec3 += vec2;
-	vec3 /= 2U;
-	assert(vec3 == vec2);
-
-	vec3.Clear();
-	assert(vec3 == Vector2D::Zero());
-
-	// Methods
-	array<int, 4> rgi1 {};
-	int rgi2[4] {};
-	vec1.CopyToArray(rgi1);
-	vec1.CopyToIter(rgi2);
-	assert(
-		rgi1[0] == rgi2[0] &&
-		rgi1[1] == rgi2[1] &&
-		rgi1[2] == rgi2[2] &&
-		rgi1[3] == rgi2[3]
-	);
-
-	const auto gcemlen = gcem::sqrt(vec1.LengthSquared());
-	const auto stdlen = std::sqrt(vec1.LengthSquared());
-
-	//assert(vec1.Length() == std::sqrt(1 * 1 + 2 * 2));
-	std::cout << "============SQRT TESTS=============\n";
-	std::cout << std::setprecision(std::numeric_limits<float>::max_digits10 + 1)
-		<< "Vector2D::Length " << vec1.Length() << " (Error: " << (vec1.Length() - stdlen) / stdlen * 100.0f << "%)" << '\n'
-		<< "gcem::sqrt " << gcemlen << " (Error: " << (gcemlen - stdlen) / stdlen * 100.0f << "%)" << '\n'
-		<< "std::sqrt " << stdlen << "\n\n";
-
-	vec3 = vec1 / stdlen;
-
-	std::cout << "============NORM TESTS=============\n";
-	std::cout << "std::sqrt \n" << vec3;
-	std::cout << "Vector2D::Normalize \n" << vec1.Normalize() << '\n';
-
-	std::cout << "============SET LEN TESTS=============\n"
-		<< "std::sqrt\n" << (vec3 = vec1 * (2.0f / stdlen))
-		<< "Vector2D::SetLength\n" << vec1.SetLength(2) << '\n';
-
-	static_assert(!vec1.IsZero() && Vector2D::Zero().IsZero());
-	static_assert(!vec2.IsNaN() && Vector2D(std::numeric_limits<float>::quiet_NaN(), 0).IsNaN());
-
-	// Conversion
-	//static_assert(!(bool)Vector2D::Zero() && (bool)vec1); #FIXME_UNKNOWN_BUG
-	static_assert(Vector2D::I().Rotate(90) == Vector2D::J());
-	assert((float)Vector2D::I() == (float)Vector2D::J() && gcem::round((real_t)vec3) == 2);
-
-	// Linear Algebra
-	constexpr Vector2D vec4 = Vector2D::I().Rotate(45);
-	static_assert(vec4.x == vec4.y);
-
-	static_assert(Vector2D::I().Angle() == 0 && Vector2D::J().Angle() == 90);
-	assert(vec4.Angle() == 45);
-
-	// STL Containers Compatibility
-	std::cout << "============ITER TESTS=============\n";
-	std::cout << "begin/end(via for_each): ";
-	for (const auto& fl : vec1)
-		std::cout << fl << ' ';
-	std::cout << '\n';
-
-	std::cout << "rbegin/rend: ";
-	for (auto it = vec1.crbegin(); it != vec1.crend(); ++it)
-		std::cout << *it << ' ';
-	std::cout << '\n';
-
-	static_assert(vec1.at(0) == 1 && vec2.at(1) == 2);
-	//static_assert(vec1[1] == 2 && vec2[0] == 1);	#FIXME Cannot cast pointer type in compile-time.
-	static_assert(*vec1.data() == 1);
-	static_assert(vec2.front() == 1 && vec2.back() == 2);
-	static_assert(!vec3.empty() && vec3.size() == vec3.max_size());
-
-	Vector2D vec5(8, 9);
-	vec5.fill(0);
-	vec5.swap(vec3);
-	assert(vec3 == Vector2D::Zero() && std::round(vec5.Length()) == 2);
-
-	// External Helper Fn
-	static_assert((Vector2D::I() ^ Vector2D::J()) == 90);
-	static_assert(gcem::round(Vector2D::I().Rotate(60) ^ Vector2D::J().Rotate(-45)) == 15);
-	static_assert(CrossProduct(vec1, Vector2D(3, 4)) == Vector(0, 0, -2));
-
-	Log("Successful.\n");
-}
+extern void UnitTest_Vector2D(void) noexcept;
+extern void UnitTest_Vector(void) noexcept;
 
 void UnitTest_UtlArithmetic(void) noexcept
 {
@@ -743,24 +461,7 @@ void UnitTest_UtlConcepts(void) noexcept
 	static_assert(FourLongs::Index_v<__int32> == FourLongs::npos);
 	static_assert(std::same_as<IntegralSet::type<IntegralSet::Index_v<__int16>>, __int16>);
 	static_assert(CharacterSet::Isomer_v<char16_t, char32_t, char, wchar_t>);
-	//static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t, char8_t>>);
-}
-
-void PrintVKV(ValveKeyValues* p, unsigned char iIndent = 0) noexcept
-{
-	fmt::print("{0}\"{1}\"\n{0}{{\n", std::string(iIndent, '\t'), p->Name());
-
-	for (auto pCur = p->GetFirstEntry(); pCur; pCur = pCur->GetNextEntry())
-	{
-		if (pCur->IsKeyValue())
-			fmt::print("{0}\"{1}\"\t\"{2}\"\n", std::string(iIndent + 1, '\t'), pCur->Name(), pCur->GetValue<std::string_view>());
-		else if (pCur->IsSubkey())
-			PrintVKV(pCur, iIndent + 1);
-		else
-			std::unreachable();
-	}
-
-	fmt::print("{}}}\n", std::string(iIndent, '\t'));
+	static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t>>);
 }
 
 void UnitTest_UtlKeyValues(void) noexcept
@@ -778,23 +479,23 @@ void UnitTest_UtlKeyValues(void) noexcept
 	auto p = new ValveKeyValues("UnitTest_UtlKeyValues");
 	p->SetValue("Test", std::array{ 1, 2, 3 }, '4', "5", std::make_tuple(6.0, 7.0f, 8L), "9"sv, std::make_pair(10LL, 11ULL), (long double)12);
 	p->SetValue("Prime", std::views::iota(1) | std::views::filter(fnIsOdd) | std::views::filter(fnIsPrime) | std::views::take(24) | ::ranges::to<std::vector>);	// #FIXME_UNKNOWN_BUG Why I have to convert this into std::vector first???
-	p->CreateEntry("Linear Algebra")->SetValue("Vector2D", Vector2D(std::numbers::inv_pi, std::numbers::pi));
-	p->FindEntry("Linear Algebra")->SetValue("Vector", Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
-	p->FindEntry("Linear Algebra")->SetValue("Quaternion", Quaternion(Vector(1, 1, 1).Normalize(), 120));
-	p->SetValue("Escape", "This is a string containing \\\" // 'comment' with in same line would be included!\nA new line!!!");
-	p->CreateEntry("UTF-8")->SetValue(u8"Latina", u8"Heraclius");
-	p->FindEntry("UTF-8")->SetValue(u8"Ελληνικά", u8"Ἡράκλειος");
-	p->FindEntry("UTF-8")->SetValue(u8"Français", u8"Héraclius");
-	p->FindEntry("UTF-8")->SetValue(u8"Русский", u8"Ираклий");
-	p->FindEntry("UTF-8")->SetValue(u8"日本語", u8"ヘラクレイオス");
-	p->FindEntry("UTF-8")->SetValue(u8"中文", u8"希拉克略");
+	p->AccessEntry("Linear Algebra")->SetValue("Vector2D", Vector2D(std::numbers::inv_pi, std::numbers::pi));
+	p->AccessEntry("Linear Algebra")->SetValue("Vector", Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
+	p->AccessEntry("Linear Algebra")->SetValue("Quaternion", Quaternion(Vector(1, 1, 1).Normalize(), 120));
+	p->SetValue("Escape", "This is a string containing '\"' // 'comment' with in same line would be included!\nA new line!!!");
+	p->AccessEntry("UTF-8")->SetValue(u8"Latina", u8"Heraclius");
+	p->AccessEntry("UTF-8")->SetValue(u8"Ελληνικά", u8"Ἡράκλειος");
+	p->AccessEntry("UTF-8")->SetValue(u8"Français", u8"Héraclius");
+	p->AccessEntry("UTF-8")->SetValue(u8"Русский", u8"Ираклий");
+	p->AccessEntry("UTF-8")->SetValue(u8"日本語", u8"ヘラクレイオス");
+	p->AccessEntry("UTF-8")->SetValue(u8"中文", u8"希拉克略");
 	assert(p->SaveToFile("UnitTest_UtlKeyValues.txt"));
 	assert(p->LoadFromFile("UnitTest_UtlKeyValues.txt"));
 
 	assert((p->GetValue<long, float>("Prime") == std::pair{ 1L, 3.0f }));
 	assert((p->GetValue<long, float, double>("Prime") == std::tuple{ 1L, 3.0f, 5.0 }));
 
-	auto p2 = p->FindEntry("Linear Algebra");
+	auto p2 = p->AccessEntry("Linear Algebra");
 	assert(p2);
 
 	assert(p2->GetValue<Vector2D>("Vector2D") == Vector2D(std::numbers::inv_pi, std::numbers::pi));
@@ -829,134 +530,13 @@ void UnitTest_UtlKeyValues(void) noexcept
 	assert(rgstr8[1] == "11"s);
 	assert((rgstr9 == std::array{ "12"s, ""s, ""s }));
 
-	PrintVKV(p);
+	p->PrintC();
 }
 
 
-std::experimental::generator<std::string_view> ReadToken(std::string_view StrV) noexcept
-{
-	for (std::size_t iCur = 0, iSegmentEnds = 0, iSize = StrV.size();
-		iCur < iSize && iSegmentEnds < iSize;
-		/* Do Nothing */)
-	{
-		for (; iCur < iSize && isspace(StrV[iCur]); ++iCur) {}	// L Trim
-
-		if (iCur >= iSize)
-			co_return;	// END
-
-		if (iCur + 1 < iSize && StrV[iCur] == '/' && StrV[iCur + 1] == '/')	// Handle comment line.
-		{
-			if (iCur = StrV.find_first_of('\n', iCur); iCur++ == StrV.npos)
-				co_return;
-			else
-				continue;
-		}
-
-		if (StrV[iCur] == '{' || StrV[iCur] == '}')
-		{
-			co_yield StrV.substr(iCur, 1);
-			++iCur;
-			continue;
-		}
-
-		if (iCur = StrV.find_first_of('"', iCur); iCur == StrV.npos)
-			co_return;
-
-		++iCur;	// Skip the " symbol itself.
-
-		for (auto iSearchPos = iCur; iSearchPos < iSize; ++iSearchPos)	// Escape supported. But only for \" and not for \\"
-		{
-			if (iSegmentEnds = StrV.find_first_of('"', iSearchPos); iSegmentEnds == StrV.npos)
-				co_return;
-
-			if (StrV[iSegmentEnds - 1] == '\\')
-				continue;
-
-			break;
-		}
-
-		assert(iCur < iSegmentEnds);
-
-		co_yield StrV.substr(iCur, iSegmentEnds - iCur);
-
-		iCur = iSegmentEnds + 1;
-	}
-
-	co_return;
-}
-
-auto TokenFountain(std::experimental::generator<std::string_view>&& GenObj) noexcept
-{
-	return [GenObj = std::move(GenObj), iter = GenObj.begin(), Sentinel = GenObj.end()]() mutable -> std::string_view
-	{
-		if (iter != Sentinel)
-		{
-			auto str = *iter;
-			++iter;
-			return str;
-		}
-		else
-			return "";
-	};
-}
-
-void Recursive(ValveKeyValues* p, auto&& Fountain) noexcept requires(std::convertible_to<std::invoke_result_t<decltype(Fountain)>, std::string_view>)
-{
-	for (auto szToken = Fountain(); szToken != ""; szToken = Fountain())
-	{
-		if (szToken == "}")
-		{
-			return;
-		}
-		else if (auto szToken2 = Fountain(); szToken2 != "")
-		{
-			if (szToken2 == "{")
-			{
-				auto p2 = new ValveKeyValues(szToken);
-				p->EnrollEntry(p2);
-				Recursive(p2, Fountain);
-			}
-			else
-				p->EnrollEntry(new ValveKeyValues(szToken, szToken2));
-		}
-	}
-}
-
-
-
-int main(int argc, char* args[]) noexcept
+int main(int argc, char* argv[]) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
-
-	if (auto f = fopen("UnitTest_UtlKeyValues.txt", "rb");  f)
-	{
-		fseek(f, 0, SEEK_END);
-
-		auto const iFileSize = ftell(f);
-		char* p = (char*)calloc(iFileSize + 1, sizeof(char));
-		std::string_view StrV(p, p + iFileSize);
-
-		fseek(f, 0, SEEK_SET);
-		fread(p, sizeof(char), iFileSize, f);
-
-		auto fnFountain = TokenFountain(ReadToken(StrV));
-		auto pKeyValue = new ValveKeyValues(fnFountain());
-
-#ifdef _DEBUG
-		assert(fnFountain() == "{");
-#else
-		fnFountain();	// Drop the coming '{'
-#endif
-
-		Recursive(pKeyValue, fnFountain);
-		PrintVKV(pKeyValue);
-
-		//for (auto&& szToken : ReadToken(StrV))
-		//	fmt::print("{}{}\n", fmt::styled("YIELD: ", fg(fmt::color::lime_green)), szToken);
-
-		free(p); p = nullptr;
-		fclose(f); f = nullptr;
-	}
 
 	//UnitTest_Vector2D();
 	//UnitTest_Vector();
