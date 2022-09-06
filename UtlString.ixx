@@ -1,11 +1,11 @@
-module;
+﻿module;
 
 // C++
 #include <array>
 #include <charconv>
 #include <string>
 #include <coroutine>
-#include <cppcoro/generator.hpp>	// #UPDATE_AT_CPP23
+#include <experimental/generator>
 
 // C
 #include <cassert>
@@ -347,7 +347,7 @@ export int UTIL_GetStringType(const char* src) noexcept	// [0 - string] [1 - int
 }
 
 export
-cppcoro::generator<std::string_view> UTIL_Split(std::string_view const& s, char const* delimiters) noexcept
+std::experimental::generator<std::string_view> UTIL_Split(std::string_view const& s, char const* delimiters) noexcept
 {
 	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
 		s.npos != pos || s.npos != lastPos;
@@ -361,7 +361,7 @@ cppcoro::generator<std::string_view> UTIL_Split(std::string_view const& s, char 
 }
 
 export template <Arithmetic T>
-cppcoro::generator<T> UTIL_SplitIntoNums(std::string_view const& s, char const* delimiters) noexcept
+std::experimental::generator<T> UTIL_SplitIntoNums(std::string_view const& s, char const* delimiters) noexcept
 {
 	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
 		s.npos != pos || s.npos != lastPos;
@@ -375,7 +375,7 @@ cppcoro::generator<T> UTIL_SplitIntoNums(std::string_view const& s, char const* 
 }
 
 export template <Arithmetic T>
-cppcoro::generator<std::pair<T, std::string_view>> UTIL_SplitIntoNumsWithStrRemainder(std::string_view const& s, char const* delimiters) noexcept
+std::experimental::generator<std::pair<T, std::string_view>> UTIL_SplitIntoNumsWithStrRemainder(std::string_view const& s, char const* delimiters) noexcept
 {
 	for (auto lastPos = s.find_first_not_of(delimiters, 0), pos = s.find_first_of(delimiters, lastPos);
 		s.npos != pos || s.npos != lastPos;
@@ -920,3 +920,89 @@ constexpr bool islower_c(wchar_t c) noexcept
 		return false;
 	}
 }
+
+export
+constexpr bool isspace_c(char c) noexcept
+{
+	switch (c)
+	{
+	case ' ':
+	case '\f':
+	case '\n':
+	case '\r':
+	case '\t':
+	case '\v':
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+export template <std::size_t iSize>
+constexpr std::size_t strcnt(const unsigned char(&rgsz)[iSize]) noexcept
+{
+	std::size_t iStrLen = 0;
+
+	for (auto &&c : rgsz)
+	{
+		if ((c < 0b10000000 && c > 0)
+			|| (c & 0b11100000) == 0b11000000
+			|| (c & 0b11110000) == 0b11100000
+			|| (c & 0b11111000) == 0b11110000
+			)
+		{
+			++iStrLen;
+		}
+	}
+
+	return iStrLen;
+}
+
+/* Unit test for strcnt, UTF-8 character counter function.
+* Current unavailable due to fucking MS.
+* 
+	static constexpr unsigned char pszu8Latin[] = u8"Heraclius";
+	static constexpr unsigned char pszu8Greek[] = u8"Ἡράκλειος";
+	static constexpr unsigned char pszu8French[] = u8"Héraclius";
+	static constexpr unsigned char pszu8Russian[] = u8"Ираклий";
+	static constexpr unsigned char pszu8Japanese[] = u8"ヘラクレイオス";
+	static constexpr unsigned char pszu8Chinese[] = u8"希拉克略";
+
+	//static_assert(strcnt(pszu8Latin) == 9);
+	//static_assert(strcnt(pszu8Greek) == 9);
+	//static_assert(strcnt(pszu8French) == 9);
+	//static_assert(strcnt(pszu8Russian) == 7);
+	//static_assert(strcnt(pszu8Japanese) == 7);
+	//static_assert(strcnt(pszu8Chinese) == 4);
+
+	std::cout << strcnt(pszu8Latin) << '\n';
+	std::cout << strcnt(pszu8Greek) << '\n';
+	std::cout << strcnt(pszu8French) << '\n';
+	std::cout << strcnt(pszu8Russian) << '\n';
+	std::cout << strcnt(pszu8Japanese) << '\n';
+	std::cout << strcnt(pszu8Chinese) << '\n';
+
+* Dynamic runtime function:
+export
+constexpr std::size_t strcnt(const unsigned char *psz) noexcept
+{
+	std::size_t iStrLen = 0;
+
+	for (auto p = psz; *p != '\0'; ++p)
+	{
+		auto &&c = *p;
+
+		if (c < 0b10000000
+			|| (c & 0b11100000) == 0b11000000
+			|| (c & 0b11110000) == 0b11100000
+			|| (c & 0b11111000) == 0b11110000
+			)
+		{
+			++iStrLen;
+		}
+	}
+
+	return iStrLen;
+}
+*/

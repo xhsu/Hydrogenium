@@ -116,24 +116,24 @@ void UnitTest_Matrix(void) noexcept
 	static_assert(sizeof(TransformMx) == TransformMx::ROWS * TransformMx::COLUMNS * sizeof(mxs_t));
 	static_assert(TransformMx::ROWS == 3 && TransformMx::COLUMNS == 3 && TransformMx::SQUARE_MX && TransformMx::RxC == 9 && TransformMx::DIAGONAL == 3);
 
-	constexpr Matrix<3, 2> m3x2 =
+	static constexpr Matrix<3, 2> m3x2 =
 	{
 		{1, 2},
 		{3, 4},
 		{5, 6},
 	};
-	constexpr Matrix<2, 3> m2x3 =
+	static constexpr Matrix<2, 3> m2x3 =
 	{
 		{10, 11, 12},
 		{13, 14, 15},
 	};
-	constexpr Matrix<m3x2.ROWS, m2x3.COLUMNS> m3x3 =
+	static constexpr Matrix<m3x2.ROWS, m2x3.COLUMNS> m3x3 =
 	{
 		{36, 39, 42},
 		{82, 89, 96},
 		{128, 139, 150},
 	};
-	constexpr Matrix<m2x3.ROWS, m3x2.COLUMNS> m2x2 =
+	static constexpr Matrix<m2x3.ROWS, m3x2.COLUMNS> m2x2 =
 	{
 		{103, 136},
 		{130, 172},
@@ -142,7 +142,7 @@ void UnitTest_Matrix(void) noexcept
 	// Constructors
 	static_assert(TransformMx() == TransformMx::Zero());
 
-	constexpr int rgrgi[3][3] =
+	static constexpr int rgrgi[3][3] =
 	{
 		{36, 39, 42},
 		{82, 89, 96},
@@ -154,7 +154,7 @@ void UnitTest_Matrix(void) noexcept
 	static_assert((Matrix<2, 2>)TransformMx(36, 39, 42, 82, 89, 96, 128, 139, 150) == Matrix<2, 2>(36, 39, 82, 89));
 
 	// Static Methods
-	constexpr TransformMx mx1 =
+	constexpr TransformMx mx1 =	// #FIXME due to MSVC error, or this should be 'static'
 		TransformMx::Translate(7, 8)
 		* TransformMx::Rotation(120)
 		* TransformMx::Scale(4, 4, 1);
@@ -176,7 +176,7 @@ void UnitTest_Matrix(void) noexcept
 	static_assert((Matrix<3, 1>(1, 0, 0) | Matrix<3, 1>(0, 1, 0) | Matrix<3, 1>(0, 0, 1)) == Matrix<3, 3>::Identity());
 
 	// Methods
-	constexpr double DBL_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
+	static constexpr double DBL_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
 	static_assert(Matrix<2, 2>({ {DBL_NAN, 0}, {0, DBL_NAN} }).IsNaN());
 	static_assert(!mx1.IsNaN());
 
@@ -211,7 +211,7 @@ void UnitTest_Matrix(void) noexcept
 	}
 
 	// Element Access
-	static_assert([&mx1]<size_t... I>(std::index_sequence<I...>&&) -> bool
+	static_assert([]<size_t... I>(std::index_sequence<I...> &&) consteval -> bool
 	{
 		return ((mx1[I / mx1.ROWS][I % mx1.COLUMNS] == mx1.at(I / mx1.ROWS)[I % mx1.COLUMNS]) && ...);
 	}(std::make_index_sequence<mx1.RxC>{})

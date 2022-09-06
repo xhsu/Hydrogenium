@@ -128,7 +128,7 @@ void UnitTest_Vector2D(void) noexcept
 	assert((float)Vector2D::I() == (float)Vector2D::J() && gcem::round((real_t)vec3) == 2);
 
 	// Linear Algebra
-	constexpr Vector2D vec4 = Vector2D::I().Rotate(45);
+	static constexpr Vector2D vec4 = Vector2D::I().Rotate(45);
 	static_assert(vec4.x == vec4.y);
 
 	static_assert(Vector2D::I().Angle() == 0 && Vector2D::J().Angle() == 90);
@@ -287,7 +287,7 @@ void UnitTest_Vector(void) noexcept
 
 	// Linear Algebra
 
-	constexpr Vector angle{ 48, -93, 19 };
+	static constexpr Vector angle{ 48, -93, 19 };
 	static_assert(DotProduct(angle.Forward(), angle.Right()) == 0);
 	static_assert(DotProduct(angle.Right(), angle.Up()) == 0);
 	static_assert(DotProduct(angle.Up(), angle.Forward()) < 1e-5f);
@@ -334,7 +334,7 @@ void UnitTest_Vector(void) noexcept
 	static_assert((Vector::I() ^ Vector::J()) == (Vector::J() ^ Vector::K()));
 	//static_assert(gcem::round(Vector2D::I().Rotate(60) ^ Vector2D::J().Rotate(-45)) == 15);
 
-	constexpr Vector vec6(1, 1, 1);
+	static constexpr Vector vec6(1, 1, 1);
 	static_assert((vec6 ^ Vector::I()) == (vec6 ^ Vector::J()) && (vec6 ^ Vector::J()) == (vec6 ^ Vector::K()));
 	static_assert(DotProduct(vec6, Vector::I()) == DotProduct(vec6, Vector::J()));
 	static_assert(DotProduct2D(vec6, Vector::K()) == 0);
