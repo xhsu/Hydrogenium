@@ -39,11 +39,11 @@ export namespace Hydrogenium
 		Corrections. Entropy 2021, 23, 86.
 		*/
 
-		float xhalf = 0.5f * x;
+		float const xhalf = 0.5f * x;
 		int i = std::bit_cast<int, float>(x);
 		i = 0x5f376908 - (i >> 1);
 
-		float y = std::bit_cast<float, int>(i);
+		float y = std::bit_cast<float>(i);
 		y = y * (1.50087896f - xhalf * y * y);
 		y = y * (1.50000057f - xhalf * y * y);	// Second iteration.
 
@@ -99,14 +99,13 @@ export namespace Hydrogenium
 		return ret;
 	}
 
-	template <ProperIter ItTy>
-	[[nodiscard]] std::size_t hash(ItTy itBegin, ItTy itEnd) noexcept
+	[[nodiscard]] std::size_t hash(std::ranges::range auto&& obj) noexcept
 	{
 		std::size_t ret = 0;
-		std::hash<std::decay_t<decltype(*itBegin)>> hasher{};
+		std::hash<std::ranges::range_value_t<decltype(obj)>> hasher{};
 
-		for (; itBegin != itEnd; ++itBegin)
-			ret ^= hasher(*itBegin) + UINT_MAX_OVER_PHI + (ret << 6) + (ret >> 2);
+		for (auto const& elem : obj)
+			ret ^= hasher(elem) + UINT_MAX_OVER_PHI + (ret << 6) + (ret >> 2);
 
 		return ret;
 	}
