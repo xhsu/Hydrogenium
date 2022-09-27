@@ -220,19 +220,19 @@ export struct ValveKeyValues
 
 		fmt::print("{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
 
-		for (auto pCur = GetFirstEntry(); pCur; pCur = pCur->GetNextEntry())
+		for (auto&& obj : *this)
 		{
-			if (pCur->IsKeyValue())
+			if (obj.IsKeyValue())
 			{
 				fmt::print(
 					"{0}{1:<{3}}\"{2}\"\n",
 					string(iIndent + 1, '\t'),
-					fmt::format("\"{}\"", pCur->m_szName), pCur->m_szValue,
+					fmt::format("\"{}\"", obj.m_szName), obj.m_szValue,
 					iSpaceCountForThisSubkey
 				);
 			}
-			else if (pCur->IsSubkey())
-				pCur->PrintC(iIndent + 1);
+			else if (obj.IsSubkey())
+				obj.PrintC(iIndent + 1);
 			else
 				std::unreachable();
 		}
@@ -358,14 +358,8 @@ export struct ValveKeyValues
 	}
 
 	// get entry
-	ValveKeyValues* GetFirstEntry(void) const noexcept
-	{
-		return m_pSub;
-	}
-	ValveKeyValues* GetNextEntry(void) const noexcept
-	{
-		return m_pPeer;
-	}
+	ValveKeyValues *GetFirstEntry(void) const noexcept { return m_pSub; }
+	ValveKeyValues *GetNextEntry(void) const noexcept { return m_pPeer; }
 	ValveKeyValues* GetFirstSubkey(void) const noexcept
 	{
 		ValveKeyValues* dat = m_pSub;
@@ -426,7 +420,7 @@ export struct ValveKeyValues
 	}
 
 	// value, nullptr if inquerying self.
-	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const T& DefValue = T {}) const noexcept
+	template<typename T> T GetValue(const char* pszSubkeyName = nullptr, const std::type_identity_t<T>& DefValue = T {}) const noexcept	// Type identity: disable template argument deduction.
 	{
 		auto dat = FindEntry(pszSubkeyName);
 
@@ -683,6 +677,50 @@ export struct ValveKeyValues
 		m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 	}
 
+	// iterator support.
+	struct iterator final
+	{
+		iterator(ValveKeyValues *p) noexcept : m_p(p) {}
+		iterator(const iterator &rhs) noexcept : m_p(rhs.m_p) {}
+		iterator(iterator &&rhs) noexcept : m_p(rhs.m_p) {}
+		iterator &operator=(const iterator &rhs) noexcept { m_p = rhs.m_p; return *this; }
+		iterator &operator=(iterator &&rhs) noexcept { m_p = rhs.m_p; return *this; }
+		~iterator() noexcept = default;
+
+		iterator &operator++(void) noexcept { m_p = m_p->GetNextEntry(); return *this; }
+		ValveKeyValues &operator*(void) noexcept { return *m_p; }
+		ValveKeyValues *operator->(void) noexcept { return m_p; }
+
+		constexpr bool operator== (const iterator &rhs) const noexcept { return m_p == rhs.m_p; }
+
+		ValveKeyValues *m_p = nullptr;
+	};
+
+	struct const_iterator final
+	{
+		const_iterator(const ValveKeyValues *p) noexcept : m_p(p) {}
+		const_iterator(const iterator &rhs) noexcept : m_p(rhs.m_p) {}
+		const_iterator(const const_iterator &rhs) noexcept : m_p(rhs.m_p) {}
+		const_iterator(const_iterator &&rhs) noexcept : m_p(rhs.m_p) {}
+		const_iterator &operator=(const iterator &rhs) noexcept { m_p = rhs.m_p; return *this; }
+		const_iterator &operator=(const const_iterator &rhs) noexcept { m_p = rhs.m_p; return *this; }
+		const_iterator &operator=(const_iterator &&rhs) noexcept { m_p = rhs.m_p; return *this; }
+		~const_iterator() noexcept = default;
+
+		const_iterator &operator++(void) noexcept { m_p = m_p->GetNextEntry(); return *this; }
+		const ValveKeyValues &operator*(void) const noexcept { return *m_p; }
+		const ValveKeyValues *operator->(void) const noexcept { return m_p; }
+
+		constexpr bool operator== (const const_iterator &rhs) const noexcept { return m_p == rhs.m_p; }
+
+		const ValveKeyValues *m_p = nullptr;
+	};
+
+	inline iterator begin(void) noexcept { return iterator(GetFirstEntry()); }
+	inline const_iterator begin(void) const noexcept { return const_iterator(GetFirstEntry()); }
+	inline iterator end(void) noexcept { return iterator(nullptr); }
+	inline const_iterator end(void) const noexcept { return const_iterator(nullptr); }
+
 private:
 	void Purge(void) noexcept
 	{
@@ -811,3 +849,6 @@ private:
 	ValveKeyValues* m_pPeer = nullptr;
 	ValveKeyValues* m_pSub = nullptr;
 };
+
+export
+constexpr bool operator==(const ValveKeyValues::iterator &lhs, const ValveKeyValues::const_iterator &rhs) noexcept { return lhs.m_p == rhs.m_p; }
