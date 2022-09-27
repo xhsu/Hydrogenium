@@ -5,10 +5,10 @@ module;
 
 export module UtlFunction;
 
-export template<typename T>
+export template <typename T>
 struct FunctionTraits : public std::false_type {};
 
-export template<typename R, typename ...Args>
+export template <typename R, typename ...Args>
 struct FunctionTraits<R(Args...)> : public std::true_type
 {
 	// Reflection
@@ -19,5 +19,14 @@ struct FunctionTraits<R(Args...)> : public std::true_type
 	static constexpr size_t ArgCount = sizeof...(Args);
 };
 
-export template<typename T>
+export template <typename T>
 concept IsFunction = FunctionTraits<T>::value;
+
+// Credit: https://youtu.be/iWKewYYKPHk?t=2214
+// This can be used as a functor overload set when std::visit involved. REQUIRES C++17
+// Usage: auto const f = LambdaSet { lambda1, lambda2, ... };
+export template <typename... Tys>
+struct LambdaSet : Tys...
+{
+	using Tys::operator()...;
+};
