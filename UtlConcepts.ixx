@@ -3,6 +3,7 @@ module;
 #include <concepts>
 #include <deque>
 #include <forward_list>
+#include <iostream>
 #include <list>
 #include <map>
 #include <optional>	// Could be remove on split.

@@ -8,14 +8,14 @@ module;
 #include <concepts>	// std::integral, etc...
 #include <filesystem>	// std::filesystem::path
 #include <limits>	// std::numeric_limit<double>
-#include <ranges>
+#include <ranges>	// std::ranges::range<T>
 #include <string>	// std::string
 
 // C++ external libs
 #include <range/v3/range.hpp>	// #UPDATE_AT_CPP23
 #include <range/v3/view.hpp>
 #include <experimental/generator>	// #UPDATE_AT_CPP23
-#include <fmt/core.h>
+#include <fmt/color.h>
 #include <fmt/ranges.h>
 
 // C
@@ -91,7 +91,7 @@ std::experimental::generator<std::string_view> TokenGenerator(std::string_view S
 
 auto TokenFountain(std::experimental::generator<std::string_view>&& GenObj) noexcept
 {
-	return [GenObj = std::move(GenObj), iter = GenObj.begin(), Sentinel = GenObj.end()]() mutable -> std::string_view
+	return [GenObj = std::move(GenObj), iter = GenObj.begin(), Sentinel = GenObj.end()]() mutable noexcept -> std::string_view
 	{
 		if (iter != Sentinel)
 		{
@@ -496,7 +496,7 @@ export struct ValveKeyValues
 	}
 	template<typename... Tys> auto GetValue(const char* pszSubkeyName = nullptr) const noexcept requires(sizeof...(Tys) > 1)
 	{
-		static constexpr auto RetTypeDeducer = [](void) consteval
+		static constexpr auto RetTypeDeducer = [](void) consteval noexcept
 		{
 			/*
 			* This is essentially 
@@ -518,9 +518,9 @@ export struct ValveKeyValues
 		// The whold complex factory shenanigan is due to the one loss of regular views::take
 		// Method provided by: https://stackoverflow.com/q/73207032/15860107
 
-		static auto const fnTakeAdaptor = []<typename GeneratorTy>(GeneratorTy && gen) requires(requires{ typename GeneratorTy::iterator::value_type; })
+		static auto const fnTakeAdaptor = []<typename GeneratorTy>(GeneratorTy && gen) noexcept requires(requires{ typename GeneratorTy::iterator::value_type; })
 		{
-			return [gen = std::move(gen)](std::ptrdiff_t iTakeCount) mutable
+			return [gen = std::move(gen)](std::ptrdiff_t iTakeCount) mutable noexcept
 				-> std::experimental::generator<typename GeneratorTy::iterator::value_type>
 			{
 				decltype(iTakeCount) i = 0;
@@ -538,7 +538,7 @@ export struct ValveKeyValues
 			};
 		};
 		auto Take = fnTakeAdaptor(UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0"));
-		static auto const fnAssign = [&Take]<typename T>(T & Output)
+		static auto const fnAssign = [&Take]<typename T>(T & Output) noexcept
 		{
 			if constexpr (std::is_arithmetic_v<T>)
 			{
@@ -579,7 +579,7 @@ export struct ValveKeyValues
 			else
 				static_assert(!sizeof(T), "Unsupported output type.");
 		};
-		static auto const fnHandle = []<std::size_t... I>(auto & tpl, std::index_sequence<I...>&&)
+		static auto const fnHandle = []<std::size_t... I>(auto & tpl, std::index_sequence<I...>&&) noexcept
 		{
 			// The existance of this function is because that... fucking C++ does not define the order of function parameter evaluation.
 			// Detail explain: https://stackoverflow.com/q/2934904/15860107
@@ -634,30 +634,28 @@ export struct ValveKeyValues
 
 		return true;
 	}
-	template<typename... Tys> bool SetValue(const char* pszSubkeyName, const Tys&... Values) noexcept requires(sizeof...(Values) > 1)	// Create new entry on no found.
+	template<typename... Tys> bool SetValue(const char* pszSubkeyName, Tys&&... Values) noexcept requires(sizeof...(Values) > 1)	// Create new entry on no found.
 	{
 		ValveKeyValues* dat = AccessEntry(pszSubkeyName);
 		if (!dat)
 			return false;
 
-		static auto constexpr fnFetch = [](auto&& Param) constexpr -> decltype(auto)
+		static auto constexpr fnFetch = []<typename T>(T&& Param) constexpr noexcept -> decltype(auto)
 		{
-			using T = std::decay_t<decltype(Param)>;
-
 			if constexpr (std::convertible_to<T, string_view>)	// It's not a dupe of the 'else' case. strings are all range, it would fall into the fmt::join case if not escape here.
-				return Param;	// #INVESTIGATE why can't I use std::forward here?
+				return std::forward<T>(Param);	// #INVESTIGATE #POTENTIAL_BUG should we return a std::forward thing here? ownership??
+			else if constexpr (requires { fmt::join(std::forward<T>(Param), " "); })
+				return fmt::join(std::forward<T>(Param), " "); // #FIXME_UNKNOWN_BUG This would lead to the requirement of including fmt/ranges.h in imported source file.
 			else if constexpr (pair_like<T>)
 				return fmt::join(std::tuple{ Param }, " ");	// Well, since {fmt} doesn't support pair itself...
-			else if constexpr (std::ranges::range<T> || tuple_like<T>)
-				return fmt::join(Param, " ");	// #FIXME_UNKNOWN_BUG This would lead to the requirement of including fmt/ranges.h in imported source file.
 			else
-				return Param;
+				return std::forward<T>(Param);
 		};
 
 		// Have to convert like this.
 		static constexpr string_view szFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
 
-		dat->m_szValue = fmt::format(szFormatter, fnFetch(Values)...);
+		dat->m_szValue = fmt::format(szFormatter, fnFetch(std::forward<Tys>(Values))...);
 		dat->m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 
 		if (dat->m_szValue.contains('"'))
