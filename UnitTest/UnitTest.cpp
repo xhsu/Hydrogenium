@@ -38,48 +38,6 @@ using namespace std::string_view_literals;
 
 
 
-// #DEV_TOOL unit test fn
-//void UnitTest_ValveKeyValues(void) noexcept
-//{
-//	std::cout << std::format("Running unit test function of type \"{}\" in " __FILE__ "\n", typeid(ValveKeyValues).name());
-//
-//	constexpr double CONSTEXPR_C_ARRAY[3] = { gcem::sqrt(2), gcem::sqrt(3), gcem::sqrt(5) };
-//
-//	auto pkv = new ValveKeyValues(std::filesystem::path("SavingArrayText.txt"));
-//
-//	cout_pink() << pkv->GetValue<const char*>("EscapeTest") << '\n';
-//
-//	Vector2D v2 = pkv->GetValue<Vector2D>("Vector2D");
-//	Vector v3 = pkv->GetValue<Vector>("Vector");
-//	Quaternion q = pkv->GetValue<Quaternion>("Quaternion");
-//	Color4b color4b = pkv->GetValue<Color4b>("Color4b");
-//	Color4f color4f = pkv->GetValue<Color4f>("Color4f");
-//
-//	pkv->SetValue("v2", v2);
-//	pkv->SetValue("v3", v3);
-//	pkv->SetValue("q", q);
-//	pkv->SetValue("color4b", color4b);
-//	pkv->SetValue("color4f", color4f);
-//
-//	auto pkv2 = pkv->CreateEntry("Subsection");
-//	pkv2->SetValue("init_list", 0b1, 0b11, 0b111, 0b1111, 0b11111);
-//	pkv2->SetValue("array", std::array<float, 3>{1.414f, 1.732f, 2.236f});
-//	pkv2->SetValue("c_array", CONSTEXPR_C_ARRAY);
-//	pkv2->SetValue("vector", std::vector<double>{std::numbers::e, std::numbers::egamma, std::numbers::pi});
-//	pkv2->SetValue("string", std::string { "what the hell" });
-//	pkv2->SetValue("const char*", "WHAT THE HECK");
-//	pkv2->SetValue("string_view", std::string_view { "Sectant" });
-//	pkv2->SetValue("tuple", v2, v3, q, color4b, color4f);
-//
-//	pkv->SaveToFile("SavingArrayText_out.txt");
-//
-//	auto a1 = pkv2->GetValue<std::array<double, 2>>("init_list");
-//	auto a2 = pkv2->GetValue<std::array<long double, 4>>("array");
-//	auto v4 = pkv2->GetValue<std::vector<float>>("vector");
-//
-//	auto [_v1, _v2, _v3, _v4, _v5] = pkv2->GetValue<Color4b, Quaternion, Vector, Vector2D, Color4f>("tuple");
-//}
-
 extern void UnitTest_Vector2D(void) noexcept;
 extern void UnitTest_Vector(void) noexcept;
 
@@ -478,7 +436,7 @@ void UnitTest_UtlKeyValues(void) noexcept
 
 	auto p = new ValveKeyValues("UnitTest_UtlKeyValues");
 	p->SetValue("Test", std::array{ 1, 2, 3 }, '4', "5", std::make_tuple(6.0, 7.0f, 8L), "9"sv, std::make_pair(10LL, 11ULL), (long double)12);
-	p->SetValue("Prime", std::views::iota(1) | std::views::filter(fnIsOdd) | std::views::filter(fnIsPrime) | std::views::take(24) | ::ranges::to<std::vector>);	// #FIXME_UNKNOWN_BUG Why I have to convert this into std::vector first???
+	p->SetValue("Prime", std::views::iota(1) | std::views::filter(fnIsOdd) | std::views::filter(fnIsPrime) | std::views::take(24) | ::ranges::to<std::vector>);	// #FIXME_UNKNOWN_BUG Why I have to convert this into std::vector first??? std::views::common doesn't work.
 	p->AccessEntry("Linear Algebra")->SetValue("Vector2D", Vector2D(std::numbers::inv_pi, std::numbers::pi));
 	p->AccessEntry("Linear Algebra")->SetValue("Vector", Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
 	p->AccessEntry("Linear Algebra")->SetValue("Quaternion", Quaternion(Vector(1, 1, 1).Normalize(), 120));

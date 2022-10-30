@@ -6,6 +6,7 @@
 #include <string>
 #include <coroutine>
 #include <experimental/generator>
+#include <ranges>
 
 // C
 #include <cassert>
@@ -116,7 +117,7 @@ void UTIL_Trim(Ty& str) noexcept
 {
 	using Char_t = std::decay_t<decltype(std::declval<Ty&>()[size_t{}])>;
 
-	static const auto fnNotSpace = [](std::make_unsigned_t<Char_t> c)
+	static constexpr auto fnNotSpace = [](std::make_unsigned_t<Char_t> c)
 	{
 		if constexpr (std::is_same_v<Char_t, char>/* || std::is_same_v<Char_t, char8_t>*/)
 			return !std::isspace(c);
@@ -472,25 +473,6 @@ struct UTIL_IntToString
 	// Member
 	char value[COUNT];
 };
-
-export template<typename Char_t>
-Char_t* UTIL_VarArgs(const Char_t* format, ...) noexcept requires(std::is_same_v<Char_t, char> || std::is_same_v<Char_t, wchar_t>)
-{
-	va_list argptr;
-	static constexpr size_t BUF_LEN = 2048;
-	static Char_t rgsz[BUF_LEN];
-
-	va_start(argptr, format);
-
-	if constexpr (std::is_same_v<Char_t, char>)
-		_vsnprintf_s(rgsz, BUF_LEN, format, argptr);
-	else if constexpr (std::is_same_v<Char_t, wchar_t>)
-		_vsnwprintf_s(rgsz, BUF_LEN, format, argptr);
-
-	va_end(argptr);
-
-	return rgsz;
-}
 
 export
 auto stristr(auto str, auto substr) noexcept requires(std::is_pointer_v<decltype(str)> && std::is_pointer_v<decltype(substr)>)
@@ -1006,3 +988,9 @@ constexpr std::size_t strcnt(const unsigned char *psz) noexcept
 	return iStrLen;
 }
 */
+
+export
+inline constexpr auto front_trim = std::views::drop_while(isspace_c);
+
+export
+inline constexpr auto back_trim = std::views::reverse | std::views::drop_while(isspace_c) | std::views::reverse;	// #FIXME doesn't work, don't know why.
