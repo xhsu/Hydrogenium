@@ -2,26 +2,31 @@ module;
 
 //#define ENABLE_HSL_COLOR
 
+// C
 #include <cassert>
-
-#include <algorithm>	// std::clamp
-#include <array>		// Using msvc array helper classes.
-#include <concepts>		// std::integral...
-#include <tuple>		// GetRGB returns a tuple
-
-// Static math lib
-#include "gcem/include/gcem.hpp"
 
 export module UtlColor;
 
+// C
+import <cstdint>;
 
+// C++
+import <algorithm>;	// std::clamp
+import <array>;		// Using msvc array helper classes.
+import <bit>;		// bit_cast
+import <concepts>;	// std::integral...
+import <tuple>;		// GetRGB returns a tuple
+
+// Static math lib
+import "gcem/include/gcem.hpp";
+
+// Friend module
 import UtlConcepts;
 
-union color32_helper_t
-{
-	uint32 hexColor;
-	uint8 ubColors[4];
-};
+
+using std::array;
+using std::bit_cast;
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Basic handler for an rgb set of colors
@@ -30,12 +35,12 @@ union color32_helper_t
 export struct Color4b
 {
 	// constructors
-	constexpr Color4b() noexcept : _color() { *((uint32*)this) = 0U; }
-	constexpr Color4b(uint8 r, uint8 g, uint8 b) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = 0; }
-	constexpr Color4b(uint8 r, uint8 g, uint8 b, uint8 a) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = a; }
-	constexpr Color4b(uint32 ulRGB, uint8 a) noexcept : _color() { _color[0] = (ulRGB & 0xFF0000) >> 16; _color[1] = (ulRGB & 0xFF00) >> 8; _color[2] = ulRGB & 0xFF; _color[3] = a; }
-	constexpr Color4b(uint32 color32) noexcept : _color() { SetRawColor(color32); }
-	explicit constexpr Color4b(std::ranges::range auto&& RangeObj) noexcept : _color() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<uint8>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
+	constexpr Color4b() noexcept : _color() { *((uint32_t*)this) = 0U; }
+	constexpr Color4b(uint8_t r, uint8_t g, uint8_t b) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = 0; }
+	constexpr Color4b(uint8_t r, uint8_t g, uint8_t b, uint8_t a) noexcept : _color() { _color[0] = r; _color[1] = g; _color[2] = b; _color[3] = a; }
+	constexpr Color4b(uint32_t ulRGB, uint8_t a) noexcept : _color() { _color[0] = (ulRGB & 0xFF0000) >> 16; _color[1] = (ulRGB & 0xFF00) >> 8; _color[2] = ulRGB & 0xFF; _color[3] = a; }
+	constexpr Color4b(uint32_t color32) noexcept : _color() { SetRawColor(color32); }
+	explicit constexpr Color4b(std::ranges::range auto&& RangeObj) noexcept : _color() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<uint8_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// set the color
 	// r - red component (0-255)
@@ -44,18 +49,18 @@ export struct Color4b
 	// a - alpha component, controls transparency (0 - transparent, 255 - opaque);
 	constexpr void SetColor(std::integral auto r, std::integral auto g, std::integral auto b, std::integral auto a) noexcept
 	{
-		_color[0] = static_cast<uint8>(r);
-		_color[1] = static_cast<uint8>(g);
-		_color[2] = static_cast<uint8>(b);
-		_color[3] = static_cast<uint8>(a);
+		_color[0] = static_cast<uint8_t>(r);
+		_color[1] = static_cast<uint8_t>(g);
+		_color[2] = static_cast<uint8_t>(b);
+		_color[3] = static_cast<uint8_t>(a);
 	}
 
 	constexpr void SetColor(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b, std::floating_point auto a) noexcept
 	{
-		_color[0] = static_cast<uint8>(r * 255.0);
-		_color[1] = static_cast<uint8>(g * 255.0);
-		_color[2] = static_cast<uint8>(b * 255.0);
-		_color[3] = static_cast<uint8>(a * 255.0);
+		_color[0] = static_cast<uint8_t>(r * 255.0);
+		_color[1] = static_cast<uint8_t>(g * 255.0);
+		_color[2] = static_cast<uint8_t>(b * 255.0);
+		_color[3] = static_cast<uint8_t>(a * 255.0);
 	}
 
 	constexpr void GetColor(std::integral auto& r, std::integral auto& g, std::integral auto& b, std::integral auto& a) const noexcept
@@ -74,12 +79,12 @@ export struct Color4b
 		a = static_cast<std::remove_reference_t<decltype(a)>>(_color[3]) / 255.0;
 	}
 
-	constexpr void SetRawColor(uint32 hexColorAGBR) noexcept
+	constexpr void SetRawColor(uint32_t hexColorAGBR) noexcept
 	{
-		*((uint32*)this) = hexColorAGBR;
+		*((uint32_t*)this) = hexColorAGBR;
 	}
 
-	constexpr void SetRawColor(uint32 ulRGB, uint8 a) noexcept
+	constexpr void SetRawColor(uint32_t ulRGB, uint8_t a) noexcept
 	{
 		_color[0] = (ulRGB & 0xFF0000) >> 16;	// r
 		_color[1] = (ulRGB & 0xFF00) >> 8;		// g
@@ -87,31 +92,31 @@ export struct Color4b
 		_color[3] = a;
 	}
 
-	constexpr uint32 GetRawColor() const noexcept	// Returns 0xAABBGGRR
+	constexpr uint32_t GetRawColor() const noexcept	// Returns 0xAABBGGRR
 	{
-		return *((uint32*)this);
+		return *((uint32_t*)this);
 	}
 
-	constexpr uint32 GetRawRGB() const noexcept	// Returns 0xRRGGBB
+	constexpr uint32_t GetRawRGB() const noexcept	// Returns 0xRRGGBB
 	{
-		return static_cast<uint32>(_color[0] << 16 | _color[1] << 8 | _color[2]);
+		return static_cast<uint32_t>(_color[0] << 16 | _color[1] << 8 | _color[2]);
 	}
 
-	constexpr uint8& r() noexcept	{ return _color[0]; }	// #UPDATE_AT_CPP23 deduce this
-	constexpr uint8& g() noexcept	{ return _color[1]; }
-	constexpr uint8& b() noexcept	{ return _color[2]; }
-	constexpr uint8& a() noexcept	{ return _color[3]; }
+	constexpr uint8_t& r() noexcept	{ return _color[0]; }	// #UPDATE_AT_CPP23 deduce this
+	constexpr uint8_t& g() noexcept	{ return _color[1]; }
+	constexpr uint8_t& b() noexcept	{ return _color[2]; }
+	constexpr uint8_t& a() noexcept	{ return _color[3]; }
 
-	constexpr uint8& operator[](std::integral auto index) noexcept { assert(index < _countof(_color)); return _color[index]; }
-	constexpr const uint8 operator[](std::integral auto index) const noexcept { assert(index < _countof(_color)); return _color[index]; }
+	constexpr uint8_t& operator[](std::integral auto index) noexcept { assert(index < _countof(_color)); return _color[index]; }
+	constexpr const uint8_t operator[](std::integral auto index) const noexcept { assert(index < _countof(_color)); return _color[index]; }
 
 	constexpr bool operator== (const Color4b& rhs) const noexcept { return (*((int*)this) == *((int*)&rhs)); }	// operator!= will be automatically generated in C++20.
 	constexpr Color4b& operator=(const Color4b& rhs) { *((int*)this) = *((int*)&rhs); return *this; }
 
-	constexpr decltype(auto) operator~() const noexcept { return Color4b(*((uint32*)this) ^ 0xFFFFFF); }	// Reversed color. It is easier on HEX calculation.
+	constexpr decltype(auto) operator~() const noexcept { return Color4b(*((uint32_t*)this) ^ 0xFFFFFF); }	// Reversed color. It is easier on HEX calculation.
 
 	// Iterators
-	using value_type = uint8;
+	using value_type = uint8_t;
 	using iterator = _STD _Array_iterator<value_type, 4>;
 	using const_iterator = _STD _Array_const_iterator<value_type, 4>;
 	using reverse_iterator = _STD reverse_iterator<iterator>;
@@ -135,7 +140,7 @@ export struct Color4b
 	[[nodiscard]] static consteval std::size_t max_size(void) noexcept { return static_cast<std::size_t>(4); }
 
 private:
-	uint8 _color[4];
+	uint8_t _color[4];
 };
 
 export struct Color4f
@@ -145,8 +150,8 @@ export struct Color4f
 	constexpr Color4f(std::integral auto r, std::integral auto g, std::integral auto b, std::integral auto a) noexcept : _color{ std::clamp(static_cast<double>(r) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(g) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0), std::clamp(static_cast<double>(a) / 255.0, 0.0, 1.0) } {}
 	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b) noexcept : _color{ std::clamp<double>(r, 0, 1), std::clamp<double>(g, 0, 1), std::clamp<double>(b, 0, 1), 0 } {}
 	constexpr Color4f(std::floating_point auto r, std::floating_point auto g, std::floating_point auto b, std::floating_point auto a) noexcept : _color{ std::clamp<double>(r, 0, 1), std::clamp<double>(g, 0, 1), std::clamp<double>(b, 0, 1), std::clamp<double>(a, 0, 1) } {}
-	constexpr Color4f(uint32 ulRGB, uint8 a) noexcept : _color{} { SetRawColor(ulRGB, a); }
-	constexpr Color4f(uint32 hexColorAGBR) noexcept : _color{} { SetRawColor(hexColorAGBR); }
+	constexpr Color4f(uint32_t ulRGB, uint8_t a) noexcept : _color{} { SetRawColor(ulRGB, a); }
+	constexpr Color4f(uint32_t hexColorAGBR) noexcept : _color{} { SetRawColor(hexColorAGBR); }
 	constexpr Color4f(const Color4b& color4ub) noexcept : _color{} { SetRawColor(color4ub); }
 	explicit constexpr Color4f(std::ranges::range auto&& RangeObj) noexcept : _color() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<double>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
@@ -169,27 +174,33 @@ export struct Color4f
 		_color[2] = std::clamp(static_cast<double>(b) / 255.0, 0.0, 1.0);
 	}
 
-	constexpr std::tuple<uint8, uint8, uint8> GetRGB(void) const noexcept
+	constexpr std::tuple<uint8_t, uint8_t, uint8_t> GetRGB(void) const noexcept
 	{
 		return std::make_tuple(
-			static_cast<uint8>(gcem::round(_color[0] * 255.0)),
-			static_cast<uint8>(gcem::round(_color[1] * 255.0)),
-			static_cast<uint8>(gcem::round(_color[2] * 255.0))
+			static_cast<uint8_t>(gcem::round(_color[0] * 255.0)),
+			static_cast<uint8_t>(gcem::round(_color[1] * 255.0)),
+			static_cast<uint8_t>(gcem::round(_color[2] * 255.0))
 		);
 	}
 
-	constexpr void SetRawColor(uint32 hexColorAGBR) noexcept
+	constexpr void SetRawColor(uint32_t hexColorAGBR) noexcept
 	{
-		color32_helper_t color;
-		color.hexColor = hexColorAGBR;
+		//color32_helper_t color;
+		//color.hexColor = hexColorAGBR;
 
-		_color[0] = static_cast<double>(color.ubColors[0]) / 255.0;
-		_color[1] = static_cast<double>(color.ubColors[1]) / 255.0;
-		_color[2] = static_cast<double>(color.ubColors[2]) / 255.0;
-		_color[3] = static_cast<double>(color.ubColors[3]) / 255.0;
+		auto const arr = bit_cast<array<uint8_t, 4>>(hexColorAGBR);
+
+		//_color[0] = static_cast<double>(color.ubColors[0]) / 255.0;
+		//_color[1] = static_cast<double>(color.ubColors[1]) / 255.0;
+		//_color[2] = static_cast<double>(color.ubColors[2]) / 255.0;
+		//_color[3] = static_cast<double>(color.ubColors[3]) / 255.0;
+		_color[0] = static_cast<double>(arr[0]) / 255.0;
+		_color[1] = static_cast<double>(arr[1]) / 255.0;
+		_color[2] = static_cast<double>(arr[2]) / 255.0;
+		_color[3] = static_cast<double>(arr[3]) / 255.0;
 	}
 
-	constexpr void SetRawColor(uint32 ulRGB, uint8 a) noexcept
+	constexpr void SetRawColor(uint32_t ulRGB, uint8_t a) noexcept
 	{
 		_color[0] = static_cast<double>((ulRGB & 0xFF0000) >> 16) / 255.0;
 		_color[1] = static_cast<double>((ulRGB & 0xFF00) >> 8) / 255.0;
@@ -205,31 +216,19 @@ export struct Color4f
 		_color[3] = static_cast<double>(color4ub[3]) / 255.0;
 	}
 
-	constexpr uint32 GetRawColor(void) const noexcept	// Returns 0xAABBGGRR
+	constexpr uint32_t GetRawColor(void) const noexcept	// Returns 0xAABBGGRR
 	{
-		color32_helper_t color;
-		color.ubColors[0] = r;
-		color.ubColors[1] = g;
-		color.ubColors[2] = b;
-		color.ubColors[3] = a;
-
-		return color.hexColor;
+		return bit_cast<uint32_t>(array{ r, g, b, a });
 	}
 
-	constexpr uint32 GetRawRGB(void) const noexcept	// Returns 0xRRGGBB
+	constexpr uint32_t GetRawRGB(void) const noexcept	// Returns 0xRRGGBB
 	{
-		return static_cast<uint32>(r << 16 | g << 8 | b);
+		return static_cast<uint32_t>(r << 16 | g << 8 | b);
 	}
 
 	constexpr Color4b GetColor4ubObj(void) const noexcept
 	{
-		color32_helper_t color;
-		color.ubColors[0] = r;
-		color.ubColors[1] = g;
-		color.ubColors[2] = b;
-		color.ubColors[3] = a;
-
-		return Color4b(color.hexColor);
+		return Color4b(r, g, b, a);
 	}
 
 	constexpr void SetHSV(const double& h, const double& s, const double& v) noexcept	// HSV to RGB. H[0-360], S[0-1], V[0-1]
@@ -545,15 +544,15 @@ export struct Color4f
 
 	// Color component retrieve functions.
 	// RGB type.
-	inline constexpr uint8 GetR() const noexcept { return static_cast<uint8>(gcem::round(_color[0] * 255.0)); }
-	inline constexpr uint8 GetG() const noexcept { return static_cast<uint8>(gcem::round(_color[1] * 255.0)); }
-	inline constexpr uint8 GetB() const noexcept { return static_cast<uint8>(gcem::round(_color[2] * 255.0)); }
-	inline constexpr uint8 GetA() const noexcept { return static_cast<uint8>(gcem::round(_color[3] * 255.0)); }
+	inline constexpr uint8_t GetR() const noexcept { return static_cast<uint8_t>(gcem::round(_color[0] * 255.0)); }
+	inline constexpr uint8_t GetG() const noexcept { return static_cast<uint8_t>(gcem::round(_color[1] * 255.0)); }
+	inline constexpr uint8_t GetB() const noexcept { return static_cast<uint8_t>(gcem::round(_color[2] * 255.0)); }
+	inline constexpr uint8_t GetA() const noexcept { return static_cast<uint8_t>(gcem::round(_color[3] * 255.0)); }
 
-	__declspec(property(get = GetR, put = SetR)) uint8 r;
-	__declspec(property(get = GetG, put = SetG)) uint8 g;
-	__declspec(property(get = GetB, put = SetB)) uint8 b;
-	__declspec(property(get = GetA, put = SetA)) uint8 a;
+	__declspec(property(get = GetR, put = SetR)) uint8_t r;
+	__declspec(property(get = GetG, put = SetG)) uint8_t g;
+	__declspec(property(get = GetB, put = SetB)) uint8_t b;
+	__declspec(property(get = GetA, put = SetA)) uint8_t a;
 
 	// HSV/HSL type.
 	constexpr double GetH() const noexcept	// Degree: [0-360]

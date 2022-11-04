@@ -1,15 +1,7 @@
 module;
 
-// C++
-#include <concepts>	// std::integral, etc...
-#include <filesystem>	// std::filesystem::path
-#include <limits>	// std::numeric_limit<double>
-#include <ranges>	// std::ranges::range<T>
-#include <string>	// std::string
-
 // C++ external libs
-#include <range/v3/range.hpp>	// #UPDATE_AT_CPP23
-#include <range/v3/view.hpp>
+#include <range/v3/all.hpp>	// #UPDATE_AT_CPP23
 #include <experimental/generator>	// #UPDATE_AT_CPP23
 #include <fmt/color.h>
 #include <fmt/ranges.h>
@@ -22,6 +14,14 @@ module;
 
 export module UtlKeyValues;
 
+// C++
+import <concepts>;	// std::integral, etc...
+import <filesystem>;	// std::filesystem::path
+import <limits>;	// std::numeric_limit<double>
+import <ranges>;	// std::ranges::range<T> #UNTESTED #POTENTIAL_BUG should cause namespace conflict.
+import <string>;	// std::string
+
+// Friendly modules
 import UtlConcepts;
 import UtlString;
 

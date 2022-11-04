@@ -1,9 +1,5 @@
 module;
 
-// C++
-#include <fstream>
-#include <string>
-
 // C
 #include <cassert>
 #include <sys/stat.h>
@@ -12,6 +8,10 @@ module;
 #include <windows.h>
 
 export module UtlFileSystem;
+
+// C++
+import <fstream>;
+import <string>;
 
 // Using string module.
 import UtlString;

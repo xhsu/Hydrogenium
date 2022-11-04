@@ -489,6 +489,8 @@ void UnitTest_UtlKeyValues(void) noexcept
 	assert((rgstr9 == std::array{ "12"s, ""s, ""s }));
 
 	p->PrintC();
+
+	delete p;
 }
 
 

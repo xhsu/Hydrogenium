@@ -1,9 +1,7 @@
-module;
-
-#include <random>
-#include <shared_mutex>
-
 export module UtlRandom;
+
+import <random>;
+import <shared_mutex>;
 
 import UtlConcepts;
 

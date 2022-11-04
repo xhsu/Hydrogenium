@@ -1,27 +1,16 @@
-module;
-
-#include <concepts>
-#include <deque>
-#include <forward_list>
-#include <iostream>
-#include <list>
-#include <map>
-#include <optional>	// Could be remove on split.
-#include <set>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-
 export module UtlConcepts;
 
-#pragma region Simple basic types
-
-export using uint8 = unsigned __int8;
-export using uint16 = unsigned __int16;
-export using uint32 = unsigned __int32;
-export using uint64 = unsigned __int64;
-
-#pragma endregion Simple basic types
+export import <concepts>;
+import <deque>;
+import <forward_list>;
+import <iostream>;
+import <list>;
+import <map>;
+import <optional>;	// Could be remove on split.
+import <set>;
+import <unordered_map>;
+import <unordered_set>;
+import <vector>;
 
 #pragma region String-related
 

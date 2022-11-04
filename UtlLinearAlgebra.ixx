@@ -14,24 +14,25 @@ module;
 // C
 #include <cassert>
 
-// C++
-#include <array>
-#include <concepts>
-#include <format>
-#include <iomanip>
-#include <iostream>
-#include <limits>
-#include <numbers>
-#include <ranges>
-
 #include <range/v3/range.hpp>	// #UPDATE_AT_CPP23 swap to std::ranges::zip
 #include <range/v3/view.hpp>
 
-// Static math lib
-#include "gcem/include/gcem.hpp"
-
 export module UtlLinearAlgebra;
 
+// C++
+import <array>;
+import <concepts>;
+import <format>;
+import <iomanip>;
+import <iostream>;
+import <limits>;
+import <numbers>;
+import <ranges>;
+
+// Static math lib
+import "gcem/include/gcem.hpp";
+
+// Friendly modules.
 import UtlArithmetic;
 import UtlConcepts;
 
@@ -40,9 +41,9 @@ template<typename A, size_t X> concept ProperArray = requires(A array) { require
 
 export using vec_t = float;
 export using real_t = std::conditional_t<sizeof(vec_t) <= 4, double, vec_t>;
-constexpr auto VEC_EPSILON = std::numeric_limits<vec_t>::epsilon();
-constexpr auto VEC_NAN = std::numeric_limits<vec_t>::quiet_NaN();
-constexpr auto VEC_INFINITY = std::numeric_limits<vec_t>::infinity();
+export inline constexpr auto VEC_EPSILON = std::numeric_limits<vec_t>::epsilon();
+export inline constexpr auto VEC_NAN = std::numeric_limits<vec_t>::quiet_NaN();
+export inline constexpr auto VEC_INFINITY = std::numeric_limits<vec_t>::infinity();
 
 // Used for many pathfinding and many other operations that are treated as planar rather than 3D.
 export struct Vector2D
@@ -688,9 +689,9 @@ export std::ostream& operator<<(std::ostream& o, const Vector& v) noexcept
 #endif // _IOSTREAM_
 
 export using mxs_t = double;
-constexpr auto MXS_EPSILON = std::numeric_limits<mxs_t>::epsilon();
-constexpr auto MXS_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
-constexpr auto MXS_INFINITY = std::numeric_limits<mxs_t>::infinity();
+export inline constexpr auto MXS_EPSILON = std::numeric_limits<mxs_t>::epsilon();
+export inline constexpr auto MXS_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
+export inline constexpr auto MXS_INFINITY = std::numeric_limits<mxs_t>::infinity();
 
 export template<size_t _rows, size_t _cols>
 requires(_rows > 0U && _cols > 0U)
@@ -1390,9 +1391,9 @@ export template<size_t _rows, size_t _cols> std::ostream& operator<<(std::ostrea
 #endif // _IOSTREAM_
 
 export using qtn_t = double;
-constexpr auto QTN_EPSILON = std::numeric_limits<qtn_t>::epsilon();
-constexpr auto QTN_NAN = std::numeric_limits<qtn_t>::quiet_NaN();
-constexpr auto QTN_INFINITY = std::numeric_limits<qtn_t>::infinity();
+export inline constexpr auto QTN_EPSILON = std::numeric_limits<qtn_t>::epsilon();
+export inline constexpr auto QTN_NAN = std::numeric_limits<qtn_t>::quiet_NaN();
+export inline constexpr auto QTN_INFINITY = std::numeric_limits<qtn_t>::infinity();
 
 export struct Quaternion
 {

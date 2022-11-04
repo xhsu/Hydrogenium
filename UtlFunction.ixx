@@ -1,9 +1,7 @@
-module;
-
-#include <functional>
-#include <tuple>
-
 export module UtlFunction;
+
+export import <functional>;
+export import <tuple>;
 
 export template <typename T>
 struct FunctionTraits : public std::false_type {};

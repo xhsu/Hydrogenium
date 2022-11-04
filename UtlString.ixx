@@ -1,13 +1,5 @@
 ﻿module;
 
-// C++
-#include <array>
-#include <charconv>
-#include <string>
-#include <coroutine>
-#include <experimental/generator>
-#include <ranges>
-
 // C
 #include <cassert>
 #include <cctype>
@@ -18,6 +10,15 @@
 
 export module UtlString;
 
+// C++
+import <array>;
+import <charconv>;
+export import <string>;
+export import <coroutine>;
+export import <experimental/generator>;
+import <ranges>;
+
+// Friendly modules.
 import UtlConcepts;
 
 export template<CharacterType chTy, size_t N>

@@ -18,6 +18,8 @@ void UnitTest_Vector2D(void) noexcept
 {
 	Log("Starting...");
 
+	//static_assert(std::is_trivial_v<Vector2D>);
+	static_assert(std::is_standard_layout_v<Vector2D>);
 	static_assert(std::ranges::range<Vector2D>);
 
 	using std::array;
@@ -166,6 +168,7 @@ void UnitTest_Vector(void) noexcept
 {
 	Log("Starting...");
 
+	static_assert(std::is_standard_layout_v<Vector>);
 	static_assert(std::ranges::range<Vector>);
 
 	using std::array;

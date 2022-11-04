@@ -1,20 +1,19 @@
-module;
-
-// C
-#include <cmath>
-
-// C++
-#include <algorithm>
-#include <array>
-#include <bit>
-#include <concepts>
-#include <limits>
-
-// Static math lib
-#include "gcem/include/gcem.hpp"
-
 export module UtlArithmetic;
 
+// C
+import <cmath>;
+
+// C++
+import <algorithm>;
+import <bit>;
+import <array>;
+import <concepts>;
+import <limits>;
+
+// 3rd party lib
+import "gcem/include/gcem.hpp";
+
+// Friendly modules.
 import UtlConcepts;
 
 using std::array;

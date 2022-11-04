@@ -41,6 +41,9 @@
       <Filter>Modules</Filter>
     </ClCompile>
     <ClCompile Include="UnitTest_UtlLinearAlgebra.cpp" />
+    <ClCompile Include="..\UtlHook.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">

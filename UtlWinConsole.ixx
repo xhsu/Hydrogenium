@@ -1,10 +1,10 @@
 module;
 
-#include <iostream>
-
 #include <Windows.h>
 
 export module UtlWinConsole;
+
+export import <iostream>;
 
 import UtlConcepts;
 
