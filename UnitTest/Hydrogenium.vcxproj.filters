@@ -44,6 +44,7 @@
     <ClCompile Include="..\UtlHook.ixx">
       <Filter>Modules</Filter>
     </ClCompile>
+    <ClCompile Include="UnitTest_UtlHook.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">
