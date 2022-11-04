@@ -155,3 +155,13 @@ inline void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]
 		assert(false && "Failure on UndoPatch()");
 	}
 }
+
+export
+inline void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
+{
+	auto const pTramp = *((uint32_t *)(&rgPatch[1])) + (uint32_t)pTargetAddr + 5;
+
+	VirtualFree((void *)pTramp, 0, MEM_RELEASE);
+
+	memset(&rgPatch[0], 0x00, sizeof(rgPatch));
+}
