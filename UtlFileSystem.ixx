@@ -1,5 +1,10 @@
 module;
 
+#pragma warning( push )
+#pragma warning( disable : 4005 )
+#pragma warning( disable : 5105 )
+#pragma warning( disable : 5106 )
+
 // C
 #include <cassert>
 #include <sys/stat.h>
@@ -174,3 +179,5 @@ export auto UTIL_GetFileSize(const char* psz) noexcept
 	static struct stat stat_buf;
 	return stat(psz, &stat_buf) == 0 ? stat_buf.st_size : -1;
 }
+
+#pragma warning( pop )

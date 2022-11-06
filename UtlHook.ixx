@@ -1,5 +1,10 @@
 module;
 
+#pragma warning( push )
+#pragma warning( disable : 4005 )
+#pragma warning( disable : 5105 )
+#pragma warning( disable : 5106 )
+
 #include <cassert>
 
 #define WIN32_LEAN_AND_MEAN
@@ -124,7 +129,7 @@ inline void UTIL_PreparePatch(void* pTargetAddr, void* pfnReplacement, unsigned 
 	rgPatch[0] = 0xE9;	// jmp ; relative jump
 	*((uint32_t *)(&rgPatch[1])) = (char *)pfnReplacement - (char *)pTargetAddr - 5;
 
-	memcpy(rgOriginalBytes, pTargetAddr, sizeof(rgPatch));
+	memcpy(rgOriginalBytes, pTargetAddr, sizeof(rgOriginalBytes));
 
 	if (ppfnOriginal)
 		*ppfnOriginal = bit_cast<void *>(*((uint32_t *)(&rgOriginalBytes[1])) + (uint32_t)pTargetAddr + 5u);
@@ -165,3 +170,52 @@ inline void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]
 
 	memset(&rgPatch[0], 0x00, sizeof(rgPatch));
 }
+
+export template <size_t dwPatternLen>
+void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, const unsigned char(&rgszPattern)[dwPatternLen]) noexcept
+{
+	DWORD dwStartAddr = bit_cast<DWORD>(pStartSearch);
+	const DWORD dwEndAddr = dwStartAddr + dwSearchLen - dwPatternLen;
+
+	while (dwStartAddr < dwEndAddr)
+	{
+		bool found = true;
+
+		for (DWORD i = 0; i < dwPatternLen; i++)
+		{
+			char const code = *(char *)(dwStartAddr + i);
+
+			if (rgszPattern[i] != '*' && rgszPattern[i] != code)
+			{
+				found = false;
+				break;
+			}
+		}
+
+		if (found)
+			return (void *)dwStartAddr;
+
+		dwStartAddr++;
+	}
+
+	return nullptr;
+}
+
+export
+inline DWORD MH_GetModuleBase(HMODULE hModule) noexcept
+{
+	MEMORY_BASIC_INFORMATION mem{};
+
+	if (!VirtualQuery(hModule, &mem, sizeof(MEMORY_BASIC_INFORMATION)))
+		return 0;
+
+	return (DWORD)mem.AllocationBase;
+}
+
+export
+inline DWORD MH_GetModuleSize(HMODULE hModule) noexcept
+{
+	return ((IMAGE_NT_HEADERS *)((DWORD)hModule + ((IMAGE_DOS_HEADER *)hModule)->e_lfanew))->OptionalHeader.SizeOfImage;
+}
+
+#pragma warning( pop )

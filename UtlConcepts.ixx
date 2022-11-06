@@ -1,16 +1,27 @@
 export module UtlConcepts;
 
+export import <any>;
 export import <concepts>;
 import <deque>;
+export import <expected>;
 import <forward_list>;
 import <iostream>;
 import <list>;
 import <map>;
-import <optional>;	// Could be remove on split.
+import <memory>;
+export import <optional>;	// Could be remove on split.
 import <set>;
 import <unordered_map>;
 import <unordered_set>;
+export import <variant>;
 import <vector>;
+
+using std::any;
+using std::expected;
+using std::optional;
+using std::shared_ptr;
+using std::unique_ptr;
+using std::variant;
 
 #pragma region String-related
 
@@ -146,6 +157,33 @@ concept StlStringView = _impl_StringViewDect<T>::value;
 export template<typename T>
 concept StlStringClass = _impl_StringDect<T>::value || _impl_StringViewDect<T>::value;
 
+template <typename... Tys>
+inline constexpr bool _impl_HasSpecializedIsAsOp = false;
+
+template <typename... Tys>
+inline constexpr bool _impl_HasSpecializedIsAsOp<variant<Tys...>> = true;
+
+template <>
+inline constexpr bool _impl_HasSpecializedIsAsOp<any> = true;
+
+template <typename T>
+inline constexpr bool _impl_HasSpecializedIsAsOp<optional<T>> = true;
+
+template <typename T, typename E>
+inline constexpr bool _impl_HasSpecializedIsAsOp<expected<T, E>> = true;
+
+template <typename T>
+inline constexpr bool _impl_HasSpecializedIsAsOp<shared_ptr<T>> = true;
+
+template <typename T, typename D>
+inline constexpr bool _impl_HasSpecializedIsAsOp<unique_ptr<T, D>> = true;
+
+template <typename T>
+inline constexpr bool _impl_HasSpecializedIsAsOp<T> = std::is_pointer_v<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept MustUseGeneralIsAsOp = !_impl_HasSpecializedIsAsOp<T>;
+
 #pragma endregion Template detector
 
 #pragma region Type traits
@@ -238,6 +276,97 @@ concept tuple_like = !std::is_reference_v<T> && requires {
 
 export template <typename T>
 concept pair_like = tuple_like<T> && std::tuple_size_v<T> == 2;
+
+// The operator 'is' #UNTESTED
+namespace Hydrogenium
+{
+	//export template <typename T, typename U> concept is = std::is_same_v<T, U> || (std::is_base_of_v<U, T> && std::is_convertible_v<const volatile T *, const volatile U *>);
+
+	export template <typename T, typename... Tys> constexpr bool is(const variant<Tys...> &v) noexcept { return std::holds_alternative<T>(v); }
+
+	export template <typename T> bool is(const any &v) noexcept { return v.type() == typeid(T); }
+
+	export template <typename T, typename U> constexpr bool is(const optional<U> &v) noexcept { if constexpr (!std::is_same_v<T, U>) return false; else return v.has_value(); }
+
+	export template <typename T, typename U, typename E> constexpr bool is(const expected<U, E> &v) noexcept { if constexpr (std::is_same_v<T, U>) return v.has_value(); else if constexpr (std::is_same_v<T, E>) return !v.has_value(); else return false; }
+
+	export template <typename T, typename U> bool is(const shared_ptr<U> &ptr) noexcept { return std::dynamic_pointer_cast<T>(ptr) != nullptr; }
+
+	export template <typename T, typename U, typename D> bool is(const unique_ptr<U, D> &ptr) noexcept { return dynamic_cast<T>(ptr.get()) != nullptr; }
+
+	export template <typename T> constexpr bool is(auto &&ptr) noexcept requires (std::is_pointer_v<std::remove_cvref_t<decltype(ptr)>>)
+	{
+		using F = std::remove_cvref_t<decltype(ptr)>;
+		using To_t = std::remove_pointer_t<std::remove_cvref_t<T>>;
+		using From_t = std::remove_pointer_t<F>;
+
+		if constexpr (std::derived_from<To_t, From_t>)	// downcast
+			return dynamic_cast<T>(ptr) != nullptr;
+		else if constexpr (std::derived_from<From_t, To_t>)	// upcast
+			return true;
+		else
+			return std::is_same_v<std::remove_cvref_t<T>, F>;	// Same type but different cv.
+	}
+
+	export template <typename T> constexpr bool is(MustUseGeneralIsAsOp auto &&val) noexcept { return std::is_same_v<std::remove_cvref_t<decltype(val)>, std::remove_cvref_t<T>>; }
+}
+
+// The operaotr 'as' #UNTESTED
+namespace Hydrogenium
+{
+	export template <typename T, typename... Tys> constexpr decltype(auto) as(const variant<Tys...> &v) noexcept { return std::get<T>(v); }
+
+	export template <typename T> decltype(auto) as(const any &v) noexcept { return std::any_cast<T>(v); }
+
+	export template <typename T, typename U> constexpr decltype(auto) as(const optional<U> &v) noexcept { if constexpr (std::is_same_v<T, U>) return *v; else return static_cast<T>(*v); }
+
+	export template <typename T, typename U, typename E> constexpr decltype(auto) as(const expected<U, E> &v) noexcept
+	{
+		if constexpr (std::is_same_v<T, U>)
+			return v.value();
+		else if constexpr (std::is_same_v<T, E>)
+			return v.error();
+		else if constexpr (std::is_convertible_v<U, T>)
+			return static_cast<T>(v.value());
+		else if constexpr (std::is_convertible_v<E, T>)
+			return static_cast<T>(v.error());
+		else
+			static_assert(std::_Always_false<T>, "Illegal usage of 'as': Uncastable type from std::expected<U, E>");
+	}
+
+	export template <typename T, typename U> decltype(auto) as(const shared_ptr<U> &ptr) noexcept { return std::dynamic_pointer_cast<T>(ptr); }
+
+	export template <typename T, typename U, typename D> decltype(auto) as(unique_ptr<U, D> &&ptr) noexcept
+	{
+		if (T result = dynamic_cast<T>(ptr.get()); result != nullptr)
+		{
+			ptr.release();
+			return unique_ptr<T, D>(result, std::move(ptr.get_deleter()));
+		}
+
+		return unique_ptr<T, D>(nullptr, ptr.get_deleter());
+	}
+
+	export template <typename T> decltype(auto) as(auto &&ptr) noexcept requires (std::is_pointer_v<std::remove_cvref_t<decltype(ptr)>>)
+	{
+		using F = std::remove_cvref_t<decltype(ptr)>;
+		using To_t = std::remove_pointer_t<std::remove_cvref_t<T>>;
+		using From_t = std::remove_pointer_t<F>;
+
+		if constexpr (std::is_same_v<std::remove_cvref_t<T>, F>)	// Same type but different cv.
+			return static_cast<T>(ptr);
+		else if constexpr (std::derived_from<To_t, From_t>)	// downcast
+			return dynamic_cast<T>(ptr);
+		else if constexpr (std::derived_from<From_t, To_t>)	// upcast
+			return static_cast<T>(ptr);
+		else if constexpr (std::is_same_v<F, void *> || std::is_same_v<std::remove_cvref_t<T>, void *>)	// typeless casting
+			return static_cast<T>(ptr);
+		else
+			static_assert(std::_Always_false<T>, "Illegal usage of 'as': 'From_t' have no safe way casting to 'To_t'.");
+	}
+
+	export template <typename T> constexpr decltype(auto) as(MustUseGeneralIsAsOp auto &&val) noexcept { return static_cast<T>(val); }
+}
 
 #pragma endregion Type traits
 

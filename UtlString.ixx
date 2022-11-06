@@ -1,5 +1,10 @@
 ﻿module;
 
+#pragma warning( push )
+#pragma warning( disable : 4005 )
+#pragma warning( disable : 5105 )
+#pragma warning( disable : 5106 )
+
 // C
 #include <cassert>
 #include <cctype>
@@ -995,3 +1000,5 @@ inline constexpr auto front_trim = std::views::drop_while(isspace_c);
 
 export
 inline constexpr auto back_trim = std::views::reverse | std::views::drop_while(isspace_c) | std::views::reverse;	// #FIXME doesn't work, don't know why.
+
+#pragma warning( pop )
