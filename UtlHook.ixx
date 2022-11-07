@@ -40,12 +40,9 @@ inline auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWOR
 }
 
 export [[nodiscard]]
-inline void const *UTIL_RetrieveVirtualFunctionTable(void *pObject) noexcept
+inline void **UTIL_RetrieveVirtualFunctionTable(void *pObject) noexcept
 {
-	const std::uintptr_t *const pvft = bit_cast<std::uintptr_t *>(pObject);
-	const std::uintptr_t *const vft = bit_cast<std::uintptr_t *>(*pvft);
-
-	return vft;
+	return *((void ***)(((char *)pObject)));
 }
 
 export [[nodiscard]]
@@ -124,21 +121,35 @@ inline void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnRep
 };
 
 export
-inline void UTIL_PreparePatch(void* pTargetAddr, void* pfnReplacement, unsigned char (&rgPatch)[5], unsigned char (&rgOriginalBytes)[5], void** ppfnOriginal = nullptr) noexcept
+inline void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned char(&rgPatch)[5], unsigned char(&rgOriginalBytes)[5], void **ppfnOriginal = nullptr) noexcept
 {
 	rgPatch[0] = 0xE9;	// jmp ; relative jump
 	*((uint32_t *)(&rgPatch[1])) = (char *)pfnReplacement - (char *)pTargetAddr - 5;
 
 	memcpy(rgOriginalBytes, pTargetAddr, sizeof(rgOriginalBytes));
 
-	if (ppfnOriginal)
+	if (ppfnOriginal && rgOriginalBytes[0] == 0xE9)
 		*ppfnOriginal = bit_cast<void *>(*((uint32_t *)(&rgOriginalBytes[1])) + (uint32_t)pTargetAddr + 5u);
+}
+
+export
+inline void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplacement, void **ppfnOriginal) noexcept
+{
+	if (UTIL_ChangeMemoryProtection(&vft[index], sizeof(pfnReplacement), PAGE_EXECUTE_READWRITE)) [[likely]]
+	{
+		*ppfnOriginal = vft[index];
+		vft[index] = pfnReplacement;
+	}
+	else
+	{
+		assert(false && "Failure on UTIL_VirtualTableInjection()");
+	}
 }
 
 export
 inline void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
 {
-	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgPatch), PAGE_EXECUTE_READWRITE))
+	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgPatch), PAGE_EXECUTE_READWRITE))	[[likely]]
 	{
 		memcpy(pTargetAddr, (void *)rgPatch, sizeof(rgPatch));
 	}
@@ -151,7 +162,7 @@ inline void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
 export
 inline void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]) noexcept
 {
-	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgOriginalBytes), PAGE_EXECUTE_READWRITE))
+	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgOriginalBytes), PAGE_EXECUTE_READWRITE))	[[likely]]
 	{
 		memcpy(pTargetAddr, rgOriginalBytes, sizeof(rgOriginalBytes));
 	}
@@ -171,11 +182,11 @@ inline void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]
 	memset(&rgPatch[0], 0x00, sizeof(rgPatch));
 }
 
-export template <size_t dwPatternLen>
-void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, const unsigned char(&rgszPattern)[dwPatternLen]) noexcept
+export template <size_t dwPatternSize, size_t dwPatternLen = dwPatternSize - 1U>
+void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, const unsigned char(&rgszPattern)[dwPatternSize]) noexcept
 {
 	DWORD dwStartAddr = bit_cast<DWORD>(pStartSearch);
-	const DWORD dwEndAddr = dwStartAddr + dwSearchLen - dwPatternLen;
+	const DWORD dwEndAddr = dwStartAddr + dwSearchLen - dwPatternLen;	// The last element of pattern must be drop, it is '\0' due to the nature of how C-style string works.
 
 	while (dwStartAddr < dwEndAddr)
 	{
@@ -183,7 +194,7 @@ void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, 
 
 		for (DWORD i = 0; i < dwPatternLen; i++)
 		{
-			char const code = *(char *)(dwStartAddr + i);
+			auto const code = *(unsigned char *)(dwStartAddr + i);
 
 			if (rgszPattern[i] != '*' && rgszPattern[i] != code)
 			{
@@ -192,6 +203,7 @@ void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, 
 			}
 		}
 
+		[[unlikely]]
 		if (found)
 			return (void *)dwStartAddr;
 
@@ -216,6 +228,14 @@ export
 inline DWORD MH_GetModuleSize(HMODULE hModule) noexcept
 {
 	return ((IMAGE_NT_HEADERS *)((DWORD)hModule + ((IMAGE_DOS_HEADER *)hModule)->e_lfanew))->OptionalHeader.SizeOfImage;
+}
+
+export template <size_t dwPatternSize>
+inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept
+{
+	auto const hModule = LoadLibraryA(pszModule);
+
+	return (char *)MH_SearchPattern((void *)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern) + iDisplacement;
 }
 
 #pragma warning( pop )
