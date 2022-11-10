@@ -78,7 +78,7 @@ Iter UTIL_GetRandomOne(Iter start, Iter end) noexcept
 
 export
 [[nodiscard]]
-auto UTIL_GetRandomOne(const Iterable auto& obj) noexcept
+decltype(auto) UTIL_GetRandomOne(const Iterable auto& obj) noexcept
 {
-	return UTIL_GetRandomOne(std::begin(obj), std::end(obj));
+	return *UTIL_GetRandomOne(std::begin(obj), std::end(obj));
 }
