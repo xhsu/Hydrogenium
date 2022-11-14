@@ -235,7 +235,7 @@ inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char
 {
 	auto const hModule = LoadLibraryA(pszModule);
 
-	return (char *)MH_SearchPattern((void *)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern) + iDisplacement;
+	return (void *)((std::uintptr_t)MH_SearchPattern((void *)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern) + iDisplacement);
 }
 
 #pragma warning( pop )
