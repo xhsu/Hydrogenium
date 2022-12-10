@@ -84,7 +84,7 @@ inline void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnRep
 	{
 		const auto val = which * 4 + 4;
 
-		// Takes a paramter from the trampoline's stack and pushes it onto the target's stack.
+		// Takes a parameter from the trampoline's stack and pushes it onto the target's stack.
 		rgSequence.append_range(array{ 0xFF, 0x75, val });		// pushl [ebp + 'val']
 	}
 
@@ -236,6 +236,19 @@ inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char
 	auto const hModule = LoadLibraryA(pszModule);
 
 	return (void *)((std::uintptr_t)MH_SearchPattern((void *)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern) + iDisplacement);
+}
+
+export
+inline void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept
+{
+	static DWORD dwProtect{};
+
+	[[likely]]
+	if (VirtualProtect(addr, sizeof(iByte), PAGE_EXECUTE_READWRITE, &dwProtect))
+	{
+		*(std::uint8_t *)addr = iByte;
+		VirtualProtect(addr, sizeof(iByte), dwProtect, &dwProtect);
+	}
 }
 
 #pragma warning( pop )
