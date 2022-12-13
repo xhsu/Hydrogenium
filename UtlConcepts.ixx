@@ -1,20 +1,6 @@
 export module UtlConcepts;
 
-export import <any>;
-export import <concepts>;
-import <deque>;
-export import <expected>;
-import <forward_list>;
-import <iostream>;
-import <list>;
-import <map>;
-import <memory>;
-export import <optional>;	// Could be remove on split.
-import <set>;
-import <unordered_map>;
-import <unordered_set>;
-export import <variant>;
-import <vector>;
+export import std;
 
 using std::any;
 using std::expected;
@@ -236,6 +222,9 @@ struct _impl_AnyOrder<std::tuple<T1, Tys1...>, std::tuple<Tys2...>>
 	static constexpr bool value = _impl_AnySame<T1, Tys2...> && std::conjunction_v<_impl_AnyOrder<std::tuple<Tys1...>, Remove_t<T1, Tys2...>>>;
 };
 
+export template <typename T>
+inline constexpr bool AlwaysFalse = false;
+
 //export template <typename... Tys>
 //constexpr bool AnyOrder = false;
 //
@@ -331,7 +320,7 @@ namespace Hydrogenium
 		else if constexpr (std::is_convertible_v<E, T>)
 			return static_cast<T>(v.error());
 		else
-			static_assert(std::_Always_false<T>, "Illegal usage of 'as': Uncastable type from std::expected<U, E>");
+			static_assert(AlwaysFalse<T>, "Illegal usage of 'as': Uncastable type from std::expected<U, E>");
 	}
 
 	export template <typename T, typename U> decltype(auto) as(const shared_ptr<U> &ptr) noexcept { return std::dynamic_pointer_cast<T>(ptr); }
@@ -362,7 +351,7 @@ namespace Hydrogenium
 		else if constexpr (std::is_same_v<F, void *> || std::is_same_v<std::remove_cvref_t<T>, void *>)	// typeless casting
 			return static_cast<T>(ptr);
 		else
-			static_assert(std::_Always_false<T>, "Illegal usage of 'as': 'From_t' have no safe way casting to 'To_t'.");
+			static_assert(AlwaysFalse<T>, "Illegal usage of 'as': 'From_t' have no safe way casting to 'To_t'.");
 	}
 
 	export template <typename T> constexpr decltype(auto) as(MustUseGeneralIsAsOp auto &&val) noexcept { return static_cast<T>(val); }

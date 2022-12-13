@@ -1,10 +1,6 @@
 export module UtlRandom;
 
-import <random>;
-
-#ifdef USING_MULTITHREAD
-import <shared_mutex>;
-#endif
+import std;
 
 import UtlConcepts;
 
@@ -33,7 +29,7 @@ T UTIL_Random(T low, T high) noexcept
 	if constexpr (AnySame<T, short, int, long, long long, unsigned short, unsigned int, unsigned long, unsigned long long>)
 		return std::uniform_int_distribution<T>(low, high)(gen);
 	else if constexpr (AnySame<T, float, double, long double>)
-		return std::uniform_real<T>(low, high)(gen);
+		return std::uniform_real_distribution<T>(low, high)(gen);
 	else
 		static_assert(!sizeof(T), "<T> Must be a arithmetic non-boolean type!");
 }
@@ -65,7 +61,7 @@ T UTIL_SeededRandom(MT19937_t::result_type uiSeed, T low, T high) noexcept
 	if constexpr (AnySame<T, short, int, long, long long, unsigned short, unsigned int, unsigned long, unsigned long long>)
 		return std::uniform_int_distribution<T>(low, high)(gen);
 	else if constexpr (AnySame<T, float, double, long double>)
-		return std::uniform_real<T>(low, high)(gen);
+		return std::uniform_real_distribution<T>(low, high)(gen);
 	else
 		static_assert(!sizeof(T), "<T> Must be a arithmetic non-boolean type!");
 }

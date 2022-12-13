@@ -8,11 +8,12 @@ module;
 
 // C
 #include <cassert>	// assert
-#include <cctype>	// isspace isdigit
-#include <cmath>	// roundf
-#include <cstdio>	// fopen fclose fread fwrite
 
 export module UtlKeyValues;
+
+import <cctype>;	// isspace isdigit
+import <cmath>;		// roundf
+import <cstdio>;	// fopen fclose fread fwrite
 
 // C++
 import <concepts>;	// std::integral, etc...

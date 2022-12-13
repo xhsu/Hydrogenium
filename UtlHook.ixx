@@ -12,11 +12,7 @@ module;
 
 export module UtlHook;
 
-import <cstdint>;
-
-import <array>;
-import <bit>;
-import <vector>;
+import std.compat;
 
 using std::array;
 using std::bit_cast;

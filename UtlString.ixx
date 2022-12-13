@@ -6,27 +6,18 @@
 #pragma warning( disable : 5106 )
 
 // C
-#include <cassert>
-#include <cctype>
-#include <cwctype>
-
-// Platform
-#include <Windows.h>
+#include <assert.h>
+#include <stdio.h>
 
 export module UtlString;
 
 // C++
-import <array>;
-import <charconv>;
-export import <string>;
-export import <coroutine>;
-export import <experimental/generator>;
-import <ranges>;
+import std.compat;
 
 // Friendly modules.
 import UtlConcepts;
 
-export template<CharacterType chTy, size_t N>
+export template <CharacterType chTy, size_t N>
 struct StringLiteral
 {
 	// Reflection
@@ -93,23 +84,23 @@ struct StringLiteral
 	Char_t value[N];
 
 	// Iterators
-	using value_type = Char_t;
-	using iterator = _STD _Array_iterator<value_type, size>;
-	using const_iterator = _STD _Array_const_iterator<value_type, size>;
-	using reverse_iterator = _STD reverse_iterator<iterator>;
-	using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
-	[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(value, 0); }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(value, 0); }
-	[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(value, size); }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(value, size); }
-	[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
-	[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
-	[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
-	[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
-	[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
-	[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
-	[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
+	//using value_type = Char_t;
+	//using iterator = _STD _Array_iterator<value_type, size>;
+	//using const_iterator = _STD _Array_const_iterator<value_type, size>;
+	//using reverse_iterator = _STD reverse_iterator<iterator>;
+	//using const_reverse_iterator = _STD reverse_iterator<const_iterator>;
+	//[[nodiscard]] constexpr iterator begin(void) noexcept { return iterator(value, 0); }	// #UPDATE_AT_CPP23 explict this
+	//[[nodiscard]] constexpr const_iterator begin(void) const noexcept { return const_iterator(value, 0); }
+	//[[nodiscard]] constexpr iterator end(void) noexcept { return iterator(value, size); }	// #UPDATE_AT_CPP23 explict this
+	//[[nodiscard]] constexpr const_iterator end(void) const noexcept { return const_iterator(value, size); }
+	//[[nodiscard]] constexpr reverse_iterator rbegin(void) noexcept { return reverse_iterator(end()); }	// #UPDATE_AT_CPP23 explict this
+	//[[nodiscard]] constexpr const_reverse_iterator rbegin(void) const noexcept { return const_reverse_iterator(end()); }
+	//[[nodiscard]] constexpr reverse_iterator rend(void) noexcept { return reverse_iterator(begin()); }	// #UPDATE_AT_CPP23 explict this
+	//[[nodiscard]] constexpr const_reverse_iterator rend(void) const noexcept { return const_reverse_iterator(begin()); }
+	//[[nodiscard]] constexpr const_iterator cbegin(void) const noexcept { return begin(); }
+	//[[nodiscard]] constexpr const_iterator cend(void) const noexcept { return end(); }
+	//[[nodiscard]] constexpr const_reverse_iterator crbegin(void) const noexcept { return rbegin(); }
+	//[[nodiscard]] constexpr const_reverse_iterator crend(void) const noexcept { return rend(); }
 };
 
 export template<StringLiteral A>	// C++ 20 feature.
@@ -118,12 +109,150 @@ consteval auto operator"" _s(void) noexcept
 	return A;
 }
 
-export template<typename Ty>
-void UTIL_Trim(Ty& str) noexcept
+// #UPDATE_AT_CPP23 real std::generator
+namespace std::experimental {
+	// NOTE WELL: _CPPUNWIND currently affects the ABI of generator.
+	template <class _Ty, class _Alloc = allocator<char>>
+	struct generator {
+		struct promise_type {
+			const _Ty *_Value;
+
+			generator get_return_object() noexcept {
+				return generator{ *this };
+			}
+
+			suspend_always initial_suspend() noexcept {
+				return {};
+			}
+
+			suspend_always final_suspend() noexcept {
+				return {};
+			}
+
+			void unhandled_exception() noexcept {}
+
+			suspend_always yield_value(const _Ty &_Val) noexcept {
+				_Value = std::addressof(_Val);
+				return {};
+			}
+
+			void return_void() noexcept {}
+
+			template <class _Uty>
+			_Uty &&await_transform(_Uty &&_Whatever) {
+				static_assert(_Always_false<_Uty>,
+					"co_await is not supported in coroutines of type std::experimental::generator");
+				return std::forward<_Uty>(_Whatever);
+			}
+
+			template <class _Alloc, class _Value_type>
+			using _Rebind_alloc_t = typename allocator_traits<_Alloc>::template rebind_alloc<_Value_type>;
+
+			using _Alloc_char = _Rebind_alloc_t<_Alloc, char>;
+			static_assert(is_same_v<char *, typename allocator_traits<_Alloc_char>::pointer>,
+				"generator does not support allocators with fancy pointer types");
+			static_assert(
+				allocator_traits<_Alloc_char>::is_always_equal::value &&is_default_constructible_v<_Alloc_char>,
+				"generator supports only stateless allocators");
+
+			static void *operator new(size_t _Size) {
+				_Alloc_char _Al{};
+				return allocator_traits<_Alloc_char>::allocate(_Al, _Size);
+			}
+
+			static void operator delete(void *_Ptr, size_t _Size) noexcept {
+				_Alloc_char _Al{};
+				return allocator_traits<_Alloc_char>::deallocate(_Al, static_cast<char *>(_Ptr), _Size);
+			}
+		};
+
+		struct iterator {
+			using iterator_category = input_iterator_tag;
+			using difference_type = ptrdiff_t;
+			using value_type = _Ty;
+			using reference = const _Ty &;
+			using pointer = const _Ty *;
+
+			coroutine_handle<promise_type> _Coro = nullptr;
+
+			iterator() = default;
+			explicit iterator(coroutine_handle<promise_type> _Coro_) noexcept : _Coro(_Coro_) {}
+
+			iterator &operator++() {
+				_Coro.resume();
+				if (_Coro.done()) {
+					_Coro = nullptr;
+				}
+
+				return *this;
+			}
+
+			void operator++(int) {
+				// This operator meets the requirements of the C++20 input_iterator concept,
+				// but not the Cpp17InputIterator requirements.
+				++ *this;
+			}
+
+			[[nodiscard]] bool operator==(const iterator &_Right) const noexcept {
+				return _Coro == _Right._Coro;
+			}
+
+			[[nodiscard]] bool operator!=(const iterator &_Right) const noexcept {
+				return !(*this == _Right);
+			}
+
+			[[nodiscard]] reference operator*() const noexcept {
+				return *_Coro.promise()._Value;
+			}
+
+			[[nodiscard]] pointer operator->() const noexcept {
+				return _Coro.promise()._Value;
+			}
+		};
+
+		[[nodiscard]] iterator begin() {
+			if (_Coro) {
+				_Coro.resume();
+				if (_Coro.done()) {
+					return {};
+				}
+			}
+
+			return iterator{ _Coro };
+		}
+
+		[[nodiscard]] iterator end() noexcept {
+			return {};
+		}
+
+		explicit generator(promise_type &_Prom) noexcept : _Coro(coroutine_handle<promise_type>::from_promise(_Prom)) {}
+
+		generator() = default;
+
+		generator(generator &&_Right) noexcept : _Coro(std::exchange(_Right._Coro, nullptr)) {}
+
+		generator &operator=(generator &&_Right) noexcept {
+			_Coro = std::exchange(_Right._Coro, nullptr);
+			return *this;
+		}
+
+		~generator() {
+			if (_Coro) {
+				_Coro.destroy();
+			}
+		}
+
+	private:
+		coroutine_handle<promise_type> _Coro = nullptr;
+	};
+} // namespace experimental
+
+export template <typename Ty>
+void UTIL_Trim(Ty* str) noexcept
 {
 	using Char_t = std::decay_t<decltype(std::declval<Ty&>()[size_t{}])>;
 
-	static constexpr auto fnNotSpace = [](std::make_unsigned_t<Char_t> c)
+	static constexpr auto fnNotSpace = [](std::make_unsigned_t<Char_t> c) noexcept
 	{
 		if constexpr (std::is_same_v<Char_t, char>/* || std::is_same_v<Char_t, char8_t>*/)
 			return !std::isspace(c);
@@ -131,8 +260,26 @@ void UTIL_Trim(Ty& str) noexcept
 			return !std::iswspace(c);
 	};
 
-	str.erase(str.begin(), find_if(str.begin(), str.end(), fnNotSpace));	// L trim
-	str.erase(find_if(str.rbegin(), str.rend(), fnNotSpace).base(), str.end());	// R trim. std::reverse_iterator<Iter>::base() represents the true position of reversed iterator.
+	str->erase(str->begin(), find_if(str->begin(), str->end(), fnNotSpace));	// L trim
+	str->erase(find_if(str->rbegin(), str->rend(), fnNotSpace).base(), str->end());	// R trim. std::reverse_iterator<Iter>::base() represents the true position of reversed iterator.
+}
+
+export
+std::string_view UTIL_Trim(const std::string_view& str) noexcept
+{
+	auto const iFirstNotSpace = str.find_first_not_of(" \f\n\r\t\v");
+	auto const iLastNotSpace = str.find_last_not_of(" \f\n\r\t\v");
+
+	assert(iLastNotSpace >= iFirstNotSpace);
+
+	if (iFirstNotSpace == str.npos && iLastNotSpace == str.npos)
+		return "";
+	else if (iFirstNotSpace == str.npos)
+		return str.substr(0, iLastNotSpace);
+	else if (iLastNotSpace == str.npos)
+		return str.substr(iFirstNotSpace);
+	else
+		return str.substr(iFirstNotSpace, iLastNotSpace - iFirstNotSpace + 1);
 }
 
 export template<CharacterType Ty>
@@ -241,18 +388,17 @@ struct DividedFile_t
 {
 	size_t	m_iSizeBefore{ 0U };
 	size_t	m_iSizeAfter{ 0U };
-	BYTE* m_pBinBefore{ nullptr };
-	BYTE* m_pBinAfter{ nullptr };
+	std::byte* m_pBinBefore{ nullptr };
+	std::byte * m_pBinAfter{ nullptr };
 
 	void Free(void) noexcept { if (m_pBinAfter) std::free(m_pBinAfter); if (m_pBinBefore) std::free(m_pBinBefore); m_pBinAfter = m_pBinBefore = nullptr; m_iSizeAfter = m_iSizeBefore = 0U; }
 }
 UTIL_GetBinaryStreamExceptKeyword(const char* szFilePath, const char* szKeyword) noexcept	// #RET_HEAP_MEM
 {
 	const long KEYWORD_LENGTH = static_cast<long>(std::strlen(szKeyword));
-	BYTE* pszBuf = new BYTE[KEYWORD_LENGTH];	// #MEM_ALLOC
+	std::byte *pszBuf = new std::byte[KEYWORD_LENGTH];	// #MEM_ALLOC
 
-	FILE* pf = nullptr;
-	fopen_s(&pf, szFilePath, "rb");
+	FILE* pf = fopen(szFilePath, "rb");
 	assert(pf != nullptr);
 
 	std::fseek(pf, 0, SEEK_END);
@@ -283,8 +429,8 @@ UTIL_GetBinaryStreamExceptKeyword(const char* szFilePath, const char* szKeyword)
 	{
 		.m_iSizeBefore = static_cast<size_t>(iKeywordPos),
 		.m_iSizeAfter = static_cast<size_t>(FILE_SIZE - iKeywordPos - KEYWORD_LENGTH),
-		.m_pBinBefore = (BYTE*)std::malloc(ret.m_iSizeBefore),
-		.m_pBinAfter = (BYTE*)std::malloc(ret.m_iSizeAfter)
+		.m_pBinBefore = (std::byte *)std::malloc(ret.m_iSizeBefore),
+		.m_pBinAfter = (std::byte *)std::malloc(ret.m_iSizeAfter)
 	};
 
 	std::fseek(pf, 0, SEEK_SET);
@@ -532,10 +678,18 @@ consteval size_t strlen_c(const CharacterType auto* str) noexcept
 export template<Arithmetic T>
 auto UTIL_StrToNum(const std::string_view& sz) noexcept
 {
-	if (T ret = 0; std::from_chars(sz.data(), sz.data() + sz.size(), ret).ec == std::errc{})
-		return ret;
+	if constexpr (std::is_enum_v<T>)
+	{
+		if (std::underlying_type_t<T> ret{}; std::from_chars(sz.data(), sz.data() + sz.size(), ret).ec == std::errc{})
+			return static_cast<T>(ret);
+	}
+	else
+	{
+		if (T ret{}; std::from_chars(sz.data(), sz.data() + sz.size(), ret).ec == std::errc{})
+			return ret;
+	}
 
-	return static_cast<T>(0);
+	return T{};
 }
 
 export template<size_t N>

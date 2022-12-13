@@ -14,8 +14,8 @@ module;
 // C
 #include <cassert>
 
-#include <range/v3/range.hpp>	// #UPDATE_AT_CPP23 swap to std::ranges::zip
-#include <range/v3/view.hpp>
+//#include <range/v3/range.hpp>	// #UPDATE_AT_CPP23 swap to std::ranges::zip
+//#include <range/v3/view.hpp>
 
 export module UtlLinearAlgebra;
 
@@ -23,8 +23,8 @@ export module UtlLinearAlgebra;
 import <array>;
 import <concepts>;
 import <format>;
-import <iomanip>;
-import <iostream>;
+//import <iomanip>;
+//import <iostream>;
 import <limits>;
 import <numbers>;
 import <ranges>;
@@ -37,7 +37,7 @@ import UtlArithmetic;
 import UtlConcepts;
 
 // Concepts for this module.
-template<typename A, size_t X> concept ProperArray = requires(A array) { requires array.max_size() >= X; };
+template <typename A, size_t X> concept ProperArray = requires(A array) { requires array.max_size() >= X; };
 
 export using vec_t = float;
 export using real_t = std::conditional_t<sizeof(vec_t) <= 4, double, vec_t>;
@@ -49,18 +49,18 @@ export inline constexpr auto VEC_INFINITY = std::numeric_limits<vec_t>::infinity
 export struct Vector2D
 {
 	// Construction
-	constexpr Vector2D() noexcept : x(0), y(0) {}
-	constexpr Vector2D(Arithmetic auto X, Arithmetic auto Y) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)) {}
-	explicit constexpr Vector2D(Arithmetic auto sideLength) noexcept : width(static_cast<vec_t>(sideLength)), height(static_cast<vec_t>(sideLength)) {}
-	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const T (&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}	// #UPDATE_AT_CPP23 could be fix in cpp23. Problem of comment: non-constexpr involved.
-	template<Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
-	explicit constexpr Vector2D(std::ranges::range auto&& RangeObj) noexcept : x(), y() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<vec_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
+	constexpr Vector2D() noexcept : x{}, y{} {}
+	constexpr Vector2D(real_t X, real_t Y) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)) {}
+	explicit constexpr Vector2D(real_t sideLength) noexcept : width(static_cast<vec_t>(sideLength)), height(static_cast<vec_t>(sideLength)) {}
+	template <Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const T (&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}	// #UPDATE_AT_CPP23 could be fix in cpp23. Problem of comment: non-constexpr involved.
+	template <Arithmetic T, std::size_t _Size> requires(_Size >= 2U) explicit constexpr Vector2D(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])) {}
+	explicit constexpr Vector2D(std::ranges::range auto&& RangeObj) noexcept : x{}, y{} { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<vec_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector2D(-x, -y); }
 	constexpr bool operator==(const Vector2D& v) const noexcept { return Approx(v); }
 	constexpr decltype(auto) operator<=> (const Vector2D& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
-	constexpr decltype(auto) operator<=> (Arithmetic auto fl) const noexcept { return LengthSquared() <=> (fl * fl); }
+	constexpr decltype(auto) operator<=> (real_t fl) const noexcept { return LengthSquared() <=> (fl * fl); }
 
 	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return (*this = Zero()); }
 
@@ -69,10 +69,10 @@ export struct Vector2D
 	constexpr decltype(auto) operator+=(const Vector2D& v) noexcept { return (*this = *this + v); }
 	constexpr decltype(auto) operator-=(const Vector2D& v) noexcept { return (*this = *this - v); }
 
-	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept { return Vector2D(x * fl, y * fl); }
-	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept { return Vector2D(x / fl, y / fl); }
-	constexpr decltype(auto) operator*=(Arithmetic auto fl) noexcept { return (*this = *this * fl); }
-	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
+	constexpr decltype(auto) operator*(real_t fl) const noexcept { return Vector2D(x * fl, y * fl); }
+	constexpr decltype(auto) operator/(real_t fl) const noexcept { return Vector2D(x / fl, y / fl); }
+	constexpr decltype(auto) operator*=(real_t fl) noexcept { return (*this = *this * fl); }
+	constexpr decltype(auto) operator/=(real_t fl) noexcept { return (*this = *this / fl); }
 
 	// Static methods
 	static consteval Vector2D Zero() noexcept { return Vector2D(0, 0); }
@@ -105,23 +105,23 @@ export struct Vector2D
 
 		return len;
 	}
-	constexpr Vector2D SetLength(Arithmetic auto newlen) const noexcept
+	constexpr Vector2D SetLength(real_t flNewLength) const noexcept
 	{
 		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
 
-		const auto fl = static_cast<real_t>(newlen) / Length();
+		const auto fl = flNewLength / Length();
 		return Vector2D(x * fl, y * fl);
 	}
-	constexpr void SetLengthInPlace(Arithmetic auto newlen) noexcept
+	constexpr void SetLengthInPlace(real_t flNewLength) noexcept
 	{
 		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return;
 
-		const auto fl = static_cast<real_t>(newlen) / Length();
+		const auto fl = flNewLength / Length();
 
-		x *= fl;
-		y *= fl;
+		x = static_cast<vec_t>(x * fl);
+		y = static_cast<vec_t>(y * fl);
 	}
 	constexpr bool IsZero(vec_t tolerance = VEC_EPSILON) const noexcept
 	{
@@ -148,9 +148,9 @@ export struct Vector2D
 
 	// Linear Algebra
 	// Rotate in counter-clockwise. Angle is in degree.
-	constexpr Vector2D Rotate(Arithmetic auto angle) const noexcept
+	constexpr Vector2D Rotate(real_t angle) const noexcept
 	{
-		const auto a = (static_cast<real_t>(angle) * std::numbers::pi / 180.0);
+		const auto a = (angle * std::numbers::pi / 180.0);
 		const auto c = gcem::cos(a);
 		const auto s = gcem::sin(a);
 
@@ -245,7 +245,7 @@ export constexpr real_t DotProduct(const Vector2D& a, const Vector2D& b) noexcep
 	return (a.x * b.x + a.y * b.y);
 }
 
-export constexpr Vector2D operator*(Arithmetic auto fl, const Vector2D& v) noexcept
+export constexpr Vector2D operator*(real_t fl, const Vector2D& v) noexcept
 {
 	return v * fl;
 }
@@ -274,18 +274,18 @@ export std::ostream& operator<<(std::ostream& o, const Vector2D& v) noexcept
 export struct Vector
 {
 	// Construction
-	constexpr Vector() noexcept : x(0), y(0), z(0) {}
-	constexpr Vector(Arithmetic auto X, Arithmetic auto Y, Arithmetic auto Z) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)), z(static_cast<vec_t>(Z)) {}
-	constexpr Vector(const Vector2D& v2d, Arithmetic auto Z) noexcept : x(v2d.x), y(v2d.y), z(static_cast<vec_t>(Z)) {}
-	template<Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const T(&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
-	template<Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
-	explicit constexpr Vector(std::ranges::range auto&& RangeObj) noexcept : x(), y(), z() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<vec_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
+	constexpr Vector() noexcept : x{}, y{}, z{} {}
+	constexpr Vector(real_t X, real_t Y, real_t Z) noexcept : x(static_cast<vec_t>(X)), y(static_cast<vec_t>(Y)), z(static_cast<vec_t>(Z)) {}
+	constexpr Vector(const Vector2D& v2d, real_t Z) noexcept : x(v2d.x), y(v2d.y), z(static_cast<vec_t>(Z)) {}
+	template <Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const T(&rgfl)[_Size]) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
+	template <Arithmetic T, std::size_t _Size> requires(_Size >= 3U) explicit constexpr Vector(const std::array<T, _Size>& rgfl) noexcept : x(static_cast<vec_t>(rgfl[0])), y(static_cast<vec_t>(rgfl[1])), z(static_cast<vec_t>(rgfl[2])) {}
+	explicit constexpr Vector(std::ranges::range auto&& RangeObj) noexcept : x{}, y{}, z{} { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<vec_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// Operators
 	constexpr decltype(auto) operator-() const noexcept { return Vector(-x, -y, -z); }
 	constexpr bool operator==(const Vector& v) const noexcept { return Approx(v); }
 	constexpr decltype(auto) operator<=> (const Vector& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
-	constexpr decltype(auto) operator<=> (Arithmetic auto fl) const noexcept { return LengthSquared() <=> (fl * fl); }
+	constexpr decltype(auto) operator<=> (real_t fl) const noexcept { return LengthSquared() <=> (fl * fl); }
 
 	consteval decltype(auto) operator=(std::nullptr_t) noexcept { return (*this = Zero()); }
 
@@ -294,10 +294,10 @@ export struct Vector
 	constexpr decltype(auto) operator+=(const Vector& v) noexcept { return (*this = *this + v); }
 	constexpr decltype(auto) operator-=(const Vector& v) noexcept { return (*this = *this - v); }
 
-	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept { return Vector(x * fl, y * fl, z * fl); }
-	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept { return Vector(x / fl, y / fl, z / fl); }
-	constexpr decltype(auto) operator*=(Arithmetic auto fl) noexcept { return (*this = *this * fl); }
-	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
+	constexpr decltype(auto) operator*(real_t fl) const noexcept { return Vector(x * fl, y * fl, z * fl); }
+	constexpr decltype(auto) operator/(real_t fl) const noexcept { return Vector(x / fl, y / fl, z / fl); }
+	constexpr decltype(auto) operator*=(real_t fl) noexcept { return (*this = *this * fl); }
+	constexpr decltype(auto) operator/=(real_t fl) noexcept { return (*this = *this / fl); }
 
 	// Static methods
 	static consteval Vector Zero() noexcept { return Vector(0, 0, 0); }
@@ -334,24 +334,24 @@ export struct Vector
 
 		return len;
 	}
-	constexpr Vector SetLength(Arithmetic auto newlen) const noexcept
+	constexpr Vector SetLength(real_t flNewLength) const noexcept
 	{
 		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
 
-		const auto fl = static_cast<real_t>(newlen) / Length();
+		const auto fl = flNewLength / Length();
 		return Vector(x * fl, y * fl, z * fl);
 	}
-	constexpr void SetLengthInPlace(Arithmetic auto newlen) noexcept
+	constexpr void SetLengthInPlace(real_t flNewLength) noexcept
 	{
 		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return;
 
-		const auto fl = static_cast<real_t>(newlen) / Length();
+		const auto fl = flNewLength / Length();
 
-		x *= fl;
-		y *= fl;
-		z *= fl;
+		x = static_cast<vec_t>(x * fl);
+		y = static_cast<vec_t>(y * fl);
+		z = static_cast<vec_t>(z * fl);
 	}
 	constexpr bool IsZero(vec_t tolerance = VEC_EPSILON) const noexcept
 	{
@@ -634,7 +634,7 @@ export struct Vector
 	__declspec(property(get = _impl_rad_roll_get, put = _impl_rad_roll_put)) real_t rad_roll;
 };
 
-export constexpr Vector operator*(Arithmetic auto fl, const Vector& v) noexcept
+export constexpr Vector operator*(real_t fl, const Vector& v) noexcept
 {
 	return v * fl;
 }
@@ -693,7 +693,7 @@ export inline constexpr auto MXS_EPSILON = std::numeric_limits<mxs_t>::epsilon()
 export inline constexpr auto MXS_NAN = std::numeric_limits<mxs_t>::quiet_NaN();
 export inline constexpr auto MXS_INFINITY = std::numeric_limits<mxs_t>::infinity();
 
-export template<size_t _rows, size_t _cols>
+export template <size_t _rows, size_t _cols>
 requires(_rows > 0U && _cols > 0U)
 struct Matrix
 {
@@ -709,8 +709,8 @@ struct Matrix
 	using This_t = Matrix<ROWS, COLUMNS>;
 
 	// Constructors
-	constexpr Matrix() noexcept : _data() {}
-	template<Arithmetic T> constexpr Matrix(const T(&array)[ROWS][COLUMNS]) noexcept	// Why can't I use the keyword 'auto' as auto-template here?
+	constexpr Matrix() noexcept : _data{} {}
+	template <Arithmetic T> constexpr Matrix(const T(&array)[ROWS][COLUMNS]) noexcept	// Why can't I use the keyword 'auto' as auto-template here?
 	{
 		[&] <size_t... I>(std::index_sequence<I...>&&) constexpr
 		{
@@ -773,7 +773,7 @@ struct Matrix
 			}
 		}
 	}
-	template<size_t BRows, size_t BCols> explicit constexpr Matrix(const Matrix<BRows, BCols>& B) noexcept : _data()	// Enforce conversion.
+	template <size_t BRows, size_t BCols> explicit constexpr Matrix(const Matrix<BRows, BCols>& B) noexcept : _data{}	// Enforce conversion.
 	{
 		if constexpr (SQUARE_MX)
 		{
@@ -789,7 +789,7 @@ struct Matrix
 		}
 		(std::make_index_sequence<R * C>{});
 	}
-	explicit constexpr Matrix(const Vector2D& v) noexcept requires(ROWS >= 2U && COLUMNS == 1U) : _data()
+	explicit constexpr Matrix(const Vector2D &v) noexcept requires(ROWS >= 2U && COLUMNS == 1U) : _data{}
 	{
 		_data[0][0] = v.x;
 		_data[1][0] = v.y;
@@ -799,7 +799,7 @@ struct Matrix
 			_data[ROWS - 1U][0] = 1;	// For example, if you wish Vector2(x, y) transcript to matrix<4, 1>, it must be [x, y, 0, 1].
 		}
 	}
-	explicit constexpr Matrix(const Vector& v) noexcept requires(ROWS >= 3U && COLUMNS == 1U) : _data()
+	explicit constexpr Matrix(const Vector &v) noexcept requires(ROWS >= 3U && COLUMNS == 1U) : _data{}
 	{
 		_data[0][0] = v.x;
 		_data[1][0] = v.y;
@@ -823,7 +823,7 @@ struct Matrix
 		(std::make_index_sequence<RxC>{});
 	}
 	static consteval decltype(auto) Zero() noexcept { return This_t(); }
-	static constexpr decltype(auto) Rotation(Arithmetic auto degree) noexcept	// 2D rotation. Ideally generates a 2x2 matrix.
+	static constexpr decltype(auto) Rotation(mxs_t degree) noexcept	// 2D rotation. Ideally generates a 2x2 matrix.
 	{
 		const auto rad = degree / 180.0 * std::numbers::pi;
 		const auto c = gcem::cos(rad);
@@ -846,7 +846,7 @@ struct Matrix
 			);
 		}
 	}
-	static constexpr decltype(auto) Rotation(Arithmetic auto yaw, Arithmetic auto pitch, Arithmetic auto roll) noexcept // 3D rotation. yaw (Z), pitch (Y), roll (X)
+	static constexpr decltype(auto) Rotation(mxs_t yaw, mxs_t pitch, mxs_t roll) noexcept // 3D rotation. yaw (Z), pitch (Y), roll (X)
 	{
 		const auto y = yaw / 180.0 * std::numbers::pi, p = pitch / 180.0 * std::numbers::pi, r = roll / 180.0 * std::numbers::pi;
 		const auto cy = gcem::cos(y), sy = gcem::sin(y);
@@ -1178,7 +1178,7 @@ struct Matrix
 	}
 	//
 	// Between matrix and scalar.
-	constexpr decltype(auto) operator*(Arithmetic auto fl) const noexcept
+	constexpr decltype(auto) operator*(mxs_t fl) const noexcept
 	{
 		This_t res;
 
@@ -1192,7 +1192,7 @@ struct Matrix
 
 		return res;
 	}
-	constexpr decltype(auto) operator/(Arithmetic auto fl) const noexcept
+	constexpr decltype(auto) operator/(mxs_t fl) const noexcept
 	{
 		This_t res;
 
@@ -1206,8 +1206,8 @@ struct Matrix
 
 		return res;
 	}
-	constexpr decltype(auto) operator*=(Arithmetic auto fl) noexcept { return (*this = *this * fl); }
-	constexpr decltype(auto) operator/=(Arithmetic auto fl) noexcept { return (*this = *this / fl); }
+	constexpr decltype(auto) operator*=(mxs_t fl) noexcept { return (*this = *this * fl); }
+	constexpr decltype(auto) operator/=(mxs_t fl) noexcept { return (*this = *this / fl); }
 	//
 	// Between matrix and vector.
 	constexpr Vector2D operator*(const Vector2D& v) const noexcept requires(COLUMNS >= 2U)
@@ -1367,13 +1367,13 @@ private:
 	mxs_t _data[ROWS][COLUMNS];
 };
 
-export template<size_t _rows, size_t _cols> constexpr auto operator*(Arithmetic auto fl, const Matrix<_rows, _cols>& m) noexcept
+export template <size_t _rows, size_t _cols> constexpr auto operator*(mxs_t fl, const Matrix<_rows, _cols>& m) noexcept
 {
 	return m * fl;
 }
 
 #ifdef _IOSTREAM_
-export template<size_t _rows, size_t _cols> std::ostream& operator<<(std::ostream& o, const Matrix<_rows, _cols>& m) noexcept
+export template <size_t _rows, size_t _cols> std::ostream& operator<<(std::ostream& o, const Matrix<_rows, _cols>& m) noexcept
 {
 	for (size_t i = 0; i < _rows; i++)
 	{
@@ -1398,8 +1398,8 @@ export inline constexpr auto QTN_INFINITY = std::numeric_limits<qtn_t>::infinity
 export struct Quaternion
 {
 	// Constructors
-	constexpr Quaternion() noexcept : a(1), b(0), c(0), d(0) {}	// Identity.
-	constexpr Quaternion(Arithmetic auto W, Arithmetic auto X, Arithmetic auto Y, Arithmetic auto Z) noexcept : a(static_cast<qtn_t>(W)), b(static_cast<qtn_t>(X)), c(static_cast<qtn_t>(Y)), d(static_cast<qtn_t>(Z)) {}
+	constexpr Quaternion() noexcept : a{ 1 }, b{}, c{}, d{} {}	// Identity.
+	constexpr Quaternion(qtn_t W, qtn_t X, qtn_t Y, qtn_t Z) noexcept : a(W), b(X), c(Y), d(Z) {}
 	constexpr Quaternion(qtn_t yaw, qtn_t pitch, qtn_t roll) noexcept // yaw (Z), pitch (Y), roll (X)
 	{
 		yaw *= std::numbers::pi / 180.0;
@@ -1418,7 +1418,6 @@ export struct Quaternion
 		c = cr * sp * cy + sr * cp * sy;
 		d = cr * cp * sy - sr * sp * cy;
 	}
-	explicit constexpr Quaternion(const Vector& vecEulerAngles) : Quaternion(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll) {}
 	constexpr Quaternion(const Vector& vecAxis, qtn_t degree) noexcept	// Axis must be a unit vector. In clockwise if works in right-handed coordinate system.
 	{
 		degree *= std::numbers::pi / 180.0;
@@ -1430,6 +1429,19 @@ export struct Quaternion
 		c = vecAxis.y * sine;
 		d = vecAxis.z * sine;
 	}
+	constexpr Quaternion(const Vector &vecFrom, const Vector &vecTo) noexcept
+	{
+		auto const vecCross = CrossProduct(vecFrom, vecTo);
+		auto const flMagnitude = Hydrogenium::sqrt(a * a + b * b + c * c + d * d);
+
+		*this = Quaternion(
+			(Hydrogenium::sqrt(vecFrom.LengthSquared() * vecTo.LengthSquared()) + DotProduct(vecFrom, vecTo)) / flMagnitude,
+			vecCross.x / flMagnitude,
+			vecCross.y / flMagnitude,
+			vecCross.z / flMagnitude
+		);
+	}
+	explicit constexpr Quaternion(const Vector& vecEulerAngles) : Quaternion(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll) {}
 	explicit constexpr Quaternion(const Matrix<3, 3>& m) noexcept	// 'm' must be a pure rotation matrix! 
 	{
 		a = gcem::sqrt(1.0 + m[0][0] + m[1][1] + m[2][2]) / 2.0;
@@ -1437,7 +1449,7 @@ export struct Quaternion
 		c = (m[0][2] - m[2][0]) / (4 * a);
 		d = (m[1][0] - m[0][1]) / (4 * a);
 	}
-	explicit constexpr Quaternion(std::ranges::range auto&& RangeObj) noexcept requires(std::convertible_to<decltype(*std::begin(RangeObj)), qtn_t>) : a(), b(), c(), d() { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<qtn_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
+	explicit constexpr Quaternion(std::ranges::range auto&& RangeObj) noexcept requires(std::convertible_to<decltype(*std::begin(RangeObj)), qtn_t>) : a{}, b{}, c{}, d{} { for (auto&& [Ref, Val] : ::ranges::views::zip(*this, RangeObj)) Ref = static_cast<qtn_t>(Val); }	// #UPDATE_AT_CPP26 ranges::enumerator
 
 	// Static Methods
 	static consteval decltype(auto) Zero() noexcept { return Quaternion(0, 0, 0, 0); }
@@ -1445,6 +1457,12 @@ export struct Quaternion
 	static consteval decltype(auto) I() noexcept { return Quaternion(0, 1, 0, 0); }
 	static consteval decltype(auto) J() noexcept { return Quaternion(0, 0, 1, 0); }
 	static consteval decltype(auto) K() noexcept { return Quaternion(0, 0, 0, 1); }
+
+	// Scalar Operations
+	constexpr decltype(auto) operator*(qtn_t x) const noexcept { return Quaternion(a * x, b * x, c * x, d * x); }
+	constexpr decltype(auto) operator*=(qtn_t x) noexcept { return (*this = *this * x); }
+	constexpr decltype(auto) operator/(qtn_t x) const noexcept { return Quaternion(a / x, b / x, c / x, d / x); }
+	constexpr decltype(auto) operator/=(qtn_t x) noexcept { return (*this = *this / x); }
 
 	// Properties
 	inline constexpr decltype(auto) Norm() const noexcept { return Hydrogenium::sqrt(a * a + b * b + c * c + d * d); }	// a.k.a. magnitude
@@ -1470,8 +1488,9 @@ export struct Quaternion
 	constexpr decltype(auto) operator-() const noexcept { return Quaternion{ -a, -b, -c, -d }; }
 	constexpr decltype(auto) operator~() const noexcept { return Reciprocal(); }
 	constexpr decltype(auto) operator==(const Quaternion& q) const noexcept { return Approx(q, QTN_EPSILON); }
-	constexpr decltype(auto) operator==(Arithmetic auto const& n) const noexcept { return *this == Quaternion(n, 0, 0, 0); }
+	constexpr decltype(auto) operator==(qtn_t n) const noexcept { return *this == Quaternion(n, 0, 0, 0); }
 
+	// Transformation
 	constexpr decltype(auto) operator*(const Quaternion& q) const noexcept
 	{
 		return Quaternion{
@@ -1482,16 +1501,11 @@ export struct Quaternion
 		};
 	}
 	constexpr decltype(auto) operator*=(const Quaternion& q) noexcept { return (*this = *this * q); }
-
-	constexpr decltype(auto) operator*(Arithmetic auto x) const noexcept { return Quaternion(a * x, b * x, c * x, d * x); }
-	constexpr decltype(auto) operator*=(Arithmetic auto x) noexcept { return (*this = *this * x); }
-	constexpr decltype(auto) operator/(Arithmetic auto x) const noexcept { return Quaternion(a / x, b / x, c / x, d / x); }
-	constexpr decltype(auto) operator/=(Arithmetic auto x) noexcept { return (*this = *this / x); }
-
 	constexpr decltype(auto) operator*(const Vector& v) const noexcept { return 2.0 * DotProduct(Pure(), v) * Pure() + (a * a - Pure().LengthSquared()) * v + 2.0 * a * CrossProduct(Pure(), v); }	// Rotate a vector by this quaternion.
 
-	constexpr qtn_t& operator[](std::integral auto index) noexcept { assert(index < 4); return ((qtn_t*)(&a))[index]; }
-	constexpr const qtn_t operator[](std::integral auto index) const noexcept { assert(index < 4); return ((const qtn_t*)(&a))[index]; }
+	// Access
+	constexpr qtn_t& operator[](size_t index) noexcept { assert(index < 4); return ((qtn_t*)(&a))[index]; }
+	constexpr const qtn_t operator[](size_t index) const noexcept { assert(index < 4); return ((const qtn_t*)(&a))[index]; }
 
 	// Conversion
 	constexpr Vector Euler() const noexcept
@@ -1610,8 +1624,8 @@ export struct Quaternion
 	qtn_t a, b, c, d;	// w, x, y, z
 };
 
-export constexpr auto operator*(Arithmetic auto fl, const Quaternion& q) noexcept { return q * fl; }	// Scalar multiplication is commutative, but nothing else.
-export constexpr auto operator==(Arithmetic auto const& n, const Quaternion& q) noexcept { return q == n; }
+export constexpr auto operator*(qtn_t fl, const Quaternion& q) noexcept { return q * fl; }	// Scalar multiplication is commutative, but nothing else.
+export constexpr auto operator==(qtn_t n, const Quaternion& q) noexcept { return q == n; }
 
 #ifdef _IOSTREAM_
 export std::ostream& operator<<(std::ostream& o, const Quaternion& q) noexcept
