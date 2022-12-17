@@ -2,8 +2,7 @@ module;
 
 // C++ external libs
 #include <range/v3/all.hpp>	// #UPDATE_AT_CPP23
-#include <experimental/generator>	// #UPDATE_AT_CPP23
-#include <fmt/color.h>
+#include <fmt/color.h>	// #UPDATE_AT_CPP23 std::print and STL range formatter.
 #include <fmt/ranges.h>
 
 // C
@@ -16,11 +15,12 @@ import <cmath>;		// roundf
 import <cstdio>;	// fopen fclose fread fwrite
 
 // C++
-import <concepts>;	// std::integral, etc...
+import <concepts>;		// std::integral, etc...
+import <experimental/generator>;	// std::generator #UPDATE_AT_CPP23
 import <filesystem>;	// std::filesystem::path
-import <limits>;	// std::numeric_limit<double>
-import <ranges>;	// std::ranges::range<T> #UNTESTED #POTENTIAL_BUG should cause namespace conflict.
-import <string>;	// std::string
+import <limits>;		// std::numeric_limit<double>
+import <ranges>;		// std::ranges::range<T> #UNTESTED #POTENTIAL_BUG should cause namespace conflict.
+import <string>;		// std::string
 
 // Friendly modules
 import UtlConcepts;
@@ -453,9 +453,9 @@ export struct ValveKeyValues
 			using ElemTy = std::ranges::range_value_t<T>;
 
 			if constexpr (Arithmetic<ElemTy>)
-				return UTIL_SplitIntoNums<ElemTy>(dat->m_szValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
+				return UTIL_SplitIntoNums<ElemTy>(dat->m_szValue, " \f\n\r\t\v\0") | std::ranges::to<T>();
 			else
-				return UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0") | ::ranges::to<T>;	// #UPDATE_AT_CPP23 ranges::to
+				return UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0") | std::ranges::to<T>();
 		}
 		else if constexpr (std::ranges::range<T>)
 		{

@@ -1,6 +1,6 @@
 export module UtlRandom;
 
-import std;
+export import <random>;
 
 import UtlConcepts;
 

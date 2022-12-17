@@ -20,21 +20,21 @@ module;
 export module UtlLinearAlgebra;
 
 // C++
-import <array>;
-import <concepts>;
-import <format>;
-//import <iomanip>;
-//import <iostream>;
-import <limits>;
-import <numbers>;
-import <ranges>;
+export import <array>;
+export import <concepts>;
+export import <format>;
+export import <iomanip>;
+export import <iostream>;
+export import <limits>;
+export import <numbers>;
+export import <ranges>;
 
 // Static math lib
-import "gcem/include/gcem.hpp";
+export import "gcem/include/gcem.hpp";
 
 // Friendly modules.
-import UtlArithmetic;
-import UtlConcepts;
+export import UtlArithmetic;
+export import UtlConcepts;
 
 // Concepts for this module.
 template <typename A, size_t X> concept ProperArray = requires(A array) { requires array.max_size() >= X; };

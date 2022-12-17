@@ -1,6 +1,19 @@
 export module UtlConcepts;
 
-export import std;
+export import <any>;
+export import <deque>;
+export import <expected>;
+export import <forward_list>;
+export import <list>;
+export import <map>;
+export import <memory>;
+export import <optional>;
+export import <set>;
+export import <unordered_map>;
+export import <unordered_set>;
+export import <variant>;
+export import <vector>;
+export import <iostream>;
 
 using std::any;
 using std::expected;
@@ -204,6 +217,12 @@ constexpr bool _impl_IncludedInTuple<T, std::tuple<Tys...>> = _impl_AnySame<T, T
 export template <typename T, typename Tuple_t>
 concept IncludedInTuple = _impl_IncludedInTuple<T, Tuple_t>;
 
+export template<typename... Tys>
+using tuple_cat_t = std::invoke_result_t<decltype(std::tuple_cat<Tys...>), Tys...>;
+
+export template<typename T, typename... Tys>
+using Remove_t = tuple_cat_t<std::conditional_t<std::is_same_v<T, Tys>, std::tuple<>, std::tuple<Tys>>...>;
+
 template <typename... Tys>
 struct _impl_AnyOrder;	// Undefined.
 
@@ -361,12 +380,6 @@ namespace Hydrogenium
 
 #pragma region move to sperate file: type utility
 // #TODO
-
-export template<typename... Tys>
-using tuple_cat_t = std::invoke_result_t<decltype(std::tuple_cat<Tys...>), Tys...>;
-
-export template<typename T, typename... Tys>
-using Remove_t = tuple_cat_t<std::conditional_t<std::is_same_v<T, Tys>, std::tuple<>, std::tuple<Tys>>...>;
 
 /*
 Unit Test

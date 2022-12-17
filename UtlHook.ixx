@@ -12,14 +12,16 @@ module;
 
 export module UtlHook;
 
-import std.compat;
+export import <array>;
+export import <bit>;
+export import <vector>;
 
 using std::array;
 using std::bit_cast;
 using std::vector;
 
 export [[nodiscard]]
-inline auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme) noexcept
+auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme) noexcept	// #REPORT_TO_MSVC_inline
 {
 	FlushInstructionCache(GetCurrentProcess(), iAddress, iSize);
 
@@ -28,7 +30,7 @@ inline auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWOR
 }
 
 export [[nodiscard]]
-inline auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme, PDWORD piOriginalProtectionScheme) noexcept
+auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme, PDWORD piOriginalProtectionScheme) noexcept	// #REPORT_TO_MSVC_inline
 {
 	FlushInstructionCache(GetCurrentProcess(), iAddress, iSize);
 
@@ -36,13 +38,13 @@ inline auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWOR
 }
 
 export [[nodiscard]]
-inline void **UTIL_RetrieveVirtualFunctionTable(void *pObject) noexcept
+void **UTIL_RetrieveVirtualFunctionTable(void *pObject) noexcept	// #REPORT_TO_MSVC_inline
 {
 	return *((void ***)(((char *)pObject)));
 }
 
 export [[nodiscard]]
-inline void *UTIL_RetrieveVirtualFunction(void *const pObject, std::size_t const iIndex) noexcept
+void *UTIL_RetrieveVirtualFunction(void *const pObject, std::size_t const iIndex) noexcept	// #REPORT_TO_MSVC_inline
 {
 	const std::uintptr_t *const pvft = bit_cast<std::uintptr_t *>(pObject);
 	const std::uintptr_t *const vft = bit_cast<std::uintptr_t *>(*pvft);
@@ -51,7 +53,7 @@ inline void *UTIL_RetrieveVirtualFunction(void *const pObject, std::size_t const
 }
 
 export [[nodiscard]]
-inline void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnReplacement) noexcept
+void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnReplacement) noexcept	// #REPORT_TO_MSVC_inline
 {
 	vector<unsigned char> rgSequence
 	{
@@ -117,7 +119,7 @@ inline void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnRep
 };
 
 export
-inline void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned char(&rgPatch)[5], unsigned char(&rgOriginalBytes)[5], void **ppfnOriginal = nullptr) noexcept
+void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned char(&rgPatch)[5], unsigned char(&rgOriginalBytes)[5], void **ppfnOriginal = nullptr) noexcept	// #REPORT_TO_MSVC_inline
 {
 	rgPatch[0] = 0xE9;	// jmp ; relative jump
 	*((uint32_t *)(&rgPatch[1])) = (char *)pfnReplacement - (char *)pTargetAddr - 5;
@@ -129,7 +131,7 @@ inline void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned 
 }
 
 export
-inline void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplacement, void **ppfnOriginal) noexcept
+void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplacement, void **ppfnOriginal) noexcept	// #REPORT_TO_MSVC_inline
 {
 	if (UTIL_ChangeMemoryProtection(&vft[index], sizeof(pfnReplacement), PAGE_EXECUTE_READWRITE)) [[likely]]
 	{
@@ -143,7 +145,7 @@ inline void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplac
 }
 
 export
-inline void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
+void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept	// #REPORT_TO_MSVC_inline keyword here will cause Weapon.cpp fn 'OrpheuF_FireBullets' C1001
 {
 	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgPatch), PAGE_EXECUTE_READWRITE))	[[likely]]
 	{
@@ -156,7 +158,7 @@ inline void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
 }
 
 export
-inline void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]) noexcept
+void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]) noexcept	// #REPORT_TO_MSVC_inline keyword here will cause Weapon.cpp fn 'OrpheuF_FireBullets' C1001
 {
 	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgOriginalBytes), PAGE_EXECUTE_READWRITE))	[[likely]]
 	{
@@ -169,7 +171,7 @@ inline void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]
 }
 
 export
-inline void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
+void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept	// #REPORT_TO_MSVC_inline
 {
 	auto const pTramp = *((uint32_t *)(&rgPatch[1])) + (uint32_t)pTargetAddr + 5;
 
@@ -210,7 +212,7 @@ void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, 
 }
 
 export
-inline DWORD MH_GetModuleBase(HMODULE hModule) noexcept
+DWORD MH_GetModuleBase(HMODULE hModule) noexcept	// #REPORT_TO_MSVC_inline
 {
 	MEMORY_BASIC_INFORMATION mem{};
 
@@ -221,13 +223,13 @@ inline DWORD MH_GetModuleBase(HMODULE hModule) noexcept
 }
 
 export
-inline DWORD MH_GetModuleSize(HMODULE hModule) noexcept
+DWORD MH_GetModuleSize(HMODULE hModule) noexcept	// #REPORT_TO_MSVC_inline
 {
 	return ((IMAGE_NT_HEADERS *)((DWORD)hModule + ((IMAGE_DOS_HEADER *)hModule)->e_lfanew))->OptionalHeader.SizeOfImage;
 }
 
 export template <size_t dwPatternSize>
-inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept
+void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept	// #REPORT_TO_MSVC_inline
 {
 	auto const hModule = LoadLibraryA(pszModule);
 
@@ -235,7 +237,7 @@ inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char
 }
 
 export
-inline void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept
+void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept	// #REPORT_TO_MSVC_inline
 {
 	static DWORD dwProtect{};
 
