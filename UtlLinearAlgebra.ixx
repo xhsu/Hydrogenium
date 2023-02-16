@@ -14,9 +14,6 @@ module;
 // C
 #include <cassert>
 
-//#include <range/v3/range.hpp>	// #UPDATE_AT_CPP23 swap to std::ranges::zip
-//#include <range/v3/view.hpp>
-
 export module UtlLinearAlgebra;
 
 // C++
@@ -43,7 +40,7 @@ export inline constexpr auto VEC_EPSILON = std::numeric_limits<vec_t>::epsilon()
 export inline constexpr auto VEC_NAN = std::numeric_limits<vec_t>::quiet_NaN();
 export inline constexpr auto VEC_INFINITY = std::numeric_limits<vec_t>::infinity();
 
-template <size_t iDimension>
+export template <size_t iDimension>
 struct Vector : std::array<vec_t, iDimension>
 {
 	using super = std::array<vec_t, iDimension>;
@@ -199,9 +196,9 @@ constexpr Vector<DIMENSION> operator*(real_t fl, const Vector<DIMENSION>& v) noe
 }
 
 export template <size_t DIMENSION>
-inline decltype(auto) operator^(const Vector<DIMENSION>& lhs, const Vector<DIMENSION>& rhs) noexcept	// Get the angle between two vectors. Returns an angle in degree.
+constexpr decltype(auto) operator^(const Vector<DIMENSION>& lhs, const Vector<DIMENSION>& rhs) noexcept	// Get the angle between two vectors. Returns an angle in degree.
 {
-	const real_t length_ab = c_sqrt(lhs.LengthSquared() * rhs.LengthSquared());	// sqrt(a) * sqrt(b) == sqrt(a*b)
+	const real_t length_ab = Hydrogenium::sqrt(lhs.LengthSquared() * rhs.LengthSquared());	// sqrt(a) * sqrt(b) == sqrt(a*b)
 
 	if (length_ab < std::numeric_limits<real_t>::epsilon())
 		return (real_t)0;
@@ -224,6 +221,219 @@ std::ostream& operator<<(std::ostream& o, const Vector<DIMENSION>& v) noexcept
 	return o;
 }
 #endif // _IOSTREAM_
+
+export
+struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
+{
+	using super = std::array<vec_t, 3>;
+
+	// Construction/destruction
+	constexpr Angles(void) noexcept = default;	// == Foward()
+	constexpr Angles(real_t P, real_t Y, real_t R) noexcept : super{ (vec_t)P, (vec_t)Y, (vec_t)R } {}
+	constexpr Angles(const Angles& rhs) noexcept = default;
+
+	// Special status
+	static inline consteval Angles Upwards(void) noexcept { return Angles(90, 0, 0); }
+	static inline consteval Angles Downwards(void) noexcept { return Angles(-90, 0, 0); }
+	static inline consteval Angles Rightward(void) noexcept { return Angles(0, 270, 0); }
+	static inline consteval Angles Leftward(void) noexcept { return Angles(0, 90, 0); }
+	static inline consteval Angles Forward(void) noexcept { return Angles(0, 0, 0); }
+	static inline consteval Angles Rearward(void) noexcept { return Angles(0, 180, 0); }
+
+	// Operators
+	inline constexpr Angles operator-(void) const noexcept { return Angles(-pitch, -yaw, -roll); }
+	inline constexpr Angles operator+(const Angles& a) const noexcept { return Angles(pitch + a.pitch, yaw + a.yaw, roll + a.roll); }
+	inline constexpr Angles operator-(const Angles& a) const noexcept { return Angles(pitch - a.pitch, yaw - a.yaw, roll - a.roll); }
+	inline constexpr Angles operator*(real_t fl) const noexcept { return Angles(pitch * fl, yaw * fl, roll * fl); }
+	inline constexpr Angles operator/(real_t fl) const noexcept { fl = 1 / fl; return Angles(pitch * fl, yaw * fl, roll * fl); }
+	inline constexpr Angles& operator+=(const Angles& a) noexcept { pitch += a.pitch; yaw += a.yaw; roll += a.roll; return *this; }
+	inline constexpr Angles& operator-=(const Angles& a) noexcept { pitch -= a.pitch; yaw -= a.yaw; roll -= a.roll; return *this; }
+	inline constexpr Angles& operator*=(real_t fl) noexcept { pitch *= fl; yaw *= fl; roll *= fl; return *this; }
+	inline constexpr Angles& operator/=(real_t fl) noexcept { pitch /= fl; yaw /= fl; roll /= fl; return *this; }
+
+	// Conversion
+	inline constexpr operator float* () noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
+	inline constexpr operator const float* () const noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
+
+	// Radian and Degree
+	inline constexpr Angles ToRadian() const noexcept { return Angles(pitch * deg_to_rad, yaw * deg_to_rad, roll * deg_to_rad); }
+	inline constexpr Angles ToDegree() const noexcept { return Angles(pitch * rad_to_deg, yaw * rad_to_deg, roll * rad_to_deg); }
+
+	// Methods
+	inline constexpr Angles Rationalize(void) const noexcept	// One must call this function before conver to quaternion.
+	{
+		Angles ret{ *this };
+
+		for (int i = 0; i < 3; ++i)
+		{
+			while (ret[i] > 360)
+				ret[i] -= 360;
+			while (ret[i] < -360)
+				ret[i] += 360;
+
+			while (ret[i] > 180)
+				ret[i] -= 360;
+			while (ret[i] < -180)
+				ret[i] += 360;
+		}
+
+		if (ret.pitch > 90)
+		{
+			ret.pitch = -(180.f - ret.pitch);
+			ret.roll += 180.f;
+		}
+		else if (ret.pitch < -90)
+		{
+			ret.pitch = ret.pitch + 180.f;
+			ret.roll += 180.f;
+		}
+
+		ret.pitch = std::clamp(ret.pitch, -89.99f, 89.99f);	// LUNA: due to the nature of Quaternion, the pitch must fall in the range of (-90, 90)
+		//ret.yaw = std::clamp(ret.yaw, -179.99f, 179.99f);	// whereas roll and yaw could be [-180, 180]
+		//ret.roll = std::clamp(ret.roll, -179.99f, 179.99f);
+
+		return ret;
+	}
+	inline constexpr std::tuple<Vector3, Vector3, Vector3> AngleVectors() const noexcept
+	{
+		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad), sr = std::sin(roll * deg_to_rad);
+		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad), cr = std::cos(roll * deg_to_rad);
+
+		return std::make_tuple(
+
+			// Forward
+			Vector3(
+				cp * cy,	// x
+				cp * sy,	// y
+				-sp		// z
+			),
+
+			// Right
+			Vector3(
+				-(sr * sp * cy) + cr * sy,	// x
+				-(sr * sp * sy) - cr * cy,	// y
+				-(sr * cp)		// z
+			),
+
+			// Up
+			Vector3(
+				cr * sp * cy + sr * sy,	// x
+				cr * sp * sy - sr * cy,	// y
+				cr * cp		// z
+			)
+		);
+	}
+	inline constexpr Vector3 Up(void) const noexcept
+	{
+		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad), sr = std::sin(roll * deg_to_rad);
+		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad), cr = std::cos(roll * deg_to_rad);
+
+		return Vector3(
+			cr * sp * cy + sr * sy,	// x
+			cr * sp * sy - sr * cy,	// y
+			cr * cp		// z
+		);
+	}
+	inline constexpr Vector3 Down(void) const noexcept
+	{
+		return -Up();
+	}
+	inline constexpr Vector3 Right(void) const noexcept
+	{
+		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad), sr = std::sin(roll * deg_to_rad);
+		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad), cr = std::cos(roll * deg_to_rad);
+
+		return Vector3(
+			-(sr * sp * cy) + cr * sy,	// x
+			-(sr * sp * sy) - cr * cy,	// y
+			-(sr * cp)		// z
+		);
+	}
+	inline constexpr Vector3 Left(void) const noexcept
+	{
+		return -Right();
+	}
+	inline constexpr Vector3 Front(void) const noexcept
+	{
+		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad);
+		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad);
+
+		return Vector3(
+			cp * cy,	// x
+			cp * sy,	// y
+			-sp		// z
+		);
+	}
+	inline constexpr Vector3 Back(void) const noexcept
+	{
+		return -Front();
+	}
+
+	// Members
+	static inline constexpr auto deg_to_rad = std::numbers::pi / 180.0;
+	static inline constexpr auto rad_to_deg = 180.0 / std::numbers::pi;
+
+	inline constexpr vec_t _Impl_GetP(void) const noexcept { return (*this)[0]; }
+	inline constexpr vec_t _Impl_SetP(const real_t fl) noexcept { return (*this)[0] = static_cast<vec_t>(fl); }
+	inline constexpr vec_t _Impl_GetY(void) const noexcept { return (*this)[1]; }
+	inline constexpr vec_t _Impl_SetY(const real_t fl) noexcept { return (*this)[1] = static_cast<vec_t>(fl); }
+	inline constexpr vec_t _Impl_GetR(void) const noexcept { return (*this)[2]; }
+	inline constexpr vec_t _Impl_SetR(const real_t fl) noexcept { return (*this)[2] = static_cast<vec_t>(fl); }
+
+	__declspec(property(get = _Impl_GetP, put = _Impl_SetP)) vec_t pitch;
+	__declspec(property(get = _Impl_GetY, put = _Impl_SetY)) vec_t yaw;
+	__declspec(property(get = _Impl_GetR, put = _Impl_SetR)) vec_t roll;
+};
+
+inline Angles Vector::VectorAngles(void) const noexcept
+{
+	Angles angles{};
+
+	if (y == 0 && x == 0)
+	{
+		angles.yaw = 0;
+		if (z > 0)
+			angles.pitch = 90;
+		else
+			angles.pitch = -90;
+	}
+	else
+	{
+		angles.yaw = static_cast<float>(std::atan2(y, x) * Angles::rad_to_deg);
+		if (angles.yaw < 0)
+			angles.yaw += 360;
+
+		angles.pitch = static_cast<float>(std::atan2(z, Length2D()) * Angles::rad_to_deg);
+		if (angles.pitch < 0)
+			angles.pitch += 360;
+	}
+
+	return angles;
+}
+
+inline double Vector::Pitch(void) const noexcept
+{
+	if (y == 0 && x == 0)
+	{
+		return (z > 0) ? 90 : -90;
+	}
+	else
+	{
+		return std::atan2(z, Length2D()) * Angles::rad_to_deg;
+	}
+}
+
+inline double Vector::Yaw(void) const noexcept
+{
+	if (y == 0 && x == 0)
+	{
+		return 0;
+	}
+	else
+	{
+		return std::atan2(y, x) * Angles::rad_to_deg;
+	}
+}
 
 export using mxs_t = double;
 export inline constexpr auto MXS_EPSILON = std::numeric_limits<mxs_t>::epsilon();
