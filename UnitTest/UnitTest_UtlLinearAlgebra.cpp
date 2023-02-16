@@ -29,10 +29,10 @@ void UnitTest_Vector2D(void) noexcept
 	static constexpr Vector2D vecZero(0, 0);
 	static_assert(vecZero == Vector2D::Zero());
 
-	static constexpr Vector2D vecQuad(7);
-	static_assert(vecQuad.width == 7 && vecQuad.height == 7);
+	//static constexpr Vector2D vecQuad(7);
+	//static_assert(vecQuad.width == 7 && vecQuad.height == 7);
 
-	static constexpr Vector2D vec1({ 1, 2 }), vec2({ 1, 2, 3 });
+	static constexpr Vector2D vec1(array{ 1, 2 }), vec2(array{ 1, 2, 3 });
 	static_assert(vec1 == vec2 && vec1.x == 1 && vec2.y == 2);
 
 	static constexpr double rgdb1[] = { 1, 2 };
@@ -125,7 +125,7 @@ void UnitTest_Vector2D(void) noexcept
 	static_assert(!vec2.IsNaN() && Vector2D(std::numeric_limits<float>::quiet_NaN(), 0).IsNaN());
 
 	// Conversion
-	//static_assert(!(bool)Vector2D::Zero() && (bool)vec1); #FIXME_UNKNOWN_BUG
+	static_assert(!(bool)Vector2D::Zero() && (bool)vec1); // #FIXME_UNKNOWN_BUG
 	static_assert(Vector2D::I().Rotate(90) == Vector2D::J());
 	assert((float)Vector2D::I() == (float)Vector2D::J() && gcem::round((real_t)vec3) == 2);
 
@@ -146,7 +146,7 @@ void UnitTest_Vector2D(void) noexcept
 	);
 
 	static_assert(vec1.at(0) == 1 && vec2.at(1) == 2);
-	//static_assert(vec1[1] == 2 && vec2[0] == 1);	#FIXME Cannot cast pointer type in compile-time.
+	static_assert(vec1[1] == 2 && vec2[0] == 1);	// #FIXME Cannot cast pointer type in compile-time.
 	static_assert(*vec1.data() == 1);
 	static_assert(vec2.front() == 1 && vec2.back() == 2);
 	static_assert(!vec3.empty() && vec3.size() == vec3.max_size());
