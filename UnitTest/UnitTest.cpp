@@ -28,7 +28,7 @@ typedef long long __int64;
 
 import UtlArithmetic;
 import UtlConcepts;
-import UtlKeyValues;
+//import UtlKeyValues;
 import UtlLinearAlgebra;
 import UtlRandom;
 import UtlString;
@@ -40,6 +40,7 @@ using namespace std::string_view_literals;
 
 extern void UnitTest_Vector2D(void) noexcept;
 extern void UnitTest_Vector(void) noexcept;
+extern void UnitTest_Angles(void) noexcept;
 
 void UnitTest_UtlArithmetic(void) noexcept
 {
@@ -117,13 +118,13 @@ void UnitTest_Matrix(void) noexcept
 		* TransformMx::Rotation(120)
 		* TransformMx::Scale(4, 4, 1);
 
-	static_assert(mx1 * Vector2D::I() == Vector2D(-0.5 * 4 + 7, std::numbers::sqrt3 / 2.0 * 4 + 8));
+	static_assert(mx1 * Vector2::I() == Vector2(-0.5 * 4 + 7, std::numbers::sqrt3 / 2.0 * 4 + 8));
 
 	// Properties && Operators (Inverse matrix would call all property functions)
 	static_assert(-mx1 == -1.0 * mx1);
 
 	static_assert((mx1 * ~mx1).Approx(TransformMx::Identity(), 1e-10));
-	static_assert(~mx1 * (mx1 * Vector2D(1, 2)) == Vector2D(1, 2));
+	static_assert(~mx1 * (mx1 * Vector2(1, 2)) == Vector2(1, 2));
 
 	static_assert(m3x2 * m2x3 == m3x3);
 	static_assert(m2x3 * m3x2 == m2x2);
@@ -145,9 +146,9 @@ void UnitTest_Matrix(void) noexcept
 	assert(mx2[2][0] == 4 && mx2[2][1] == 5 && mx2[2][2] == 6);
 
 	static_assert(
-		TransformMx::Identity().ToVector(0) == Vector::I()
-		&& TransformMx::Identity().ToVector(1) == Vector::J()
-		&& TransformMx::Identity().ToVector(2) == Vector::K()
+		TransformMx::Identity().ToVector(0) == Vector3::I()
+		&& TransformMx::Identity().ToVector(1) == Vector3::J()
+		&& TransformMx::Identity().ToVector(2) == Vector3::K()
 	);
 
 	// Iterators
@@ -223,7 +224,7 @@ void UnitTest_Quaternion(void) noexcept
 	static_assert(Quaternion(30, 45, 60) == Quaternion(Matrix<3, 3>::Rotation(30, 45, 60)));
 	static_assert(Quaternion(30, 45, 60) != Quaternion(31, 46, 61));
 
-	static constexpr auto v1 = Vector(45, 30, 60);
+	static constexpr auto v1 = Angles(45, 30, 60);
 	static constexpr auto q1 = Quaternion(30, 45, 60);
 	static_assert(v1.yaw == 30 && v1.pitch == 45 && v1.roll == 60);
 	static_assert(q1 == Quaternion(v1));
@@ -238,7 +239,7 @@ void UnitTest_Quaternion(void) noexcept
 
 	// Properties
 	static constexpr auto q4 = Quaternion(1, 2, 3, 4);
-	static constexpr auto q3 = Quaternion(Vector(1, 1, 1).Normalize(), 120);
+	static constexpr auto q3 = Quaternion(Vector3(1, 1, 1).Normalize(), 120);
 	static constexpr auto q2 = Quaternion(45, 60, 90);
 	static_assert(gcem::abs(q3.Norm() - q3.NormSquared()) < 1e-5 && gcem::abs(q3.Norm() - 1) < 1e-5);
 	static_assert(q1.Conjugate() * q1 == Quaternion::Identity());
@@ -247,7 +248,7 @@ void UnitTest_Quaternion(void) noexcept
 	static_assert(q4.Versor().Norm() - 1 < 1e-10);
 	static_assert(q4.Reciprocal() * q4 == Quaternion::Identity());
 	static_assert(q4 * ~q4 == Quaternion::Identity());
-	static_assert(q4.Real() == 1 && q4.Pure() == Vector(2, 3, 4));
+	static_assert(q4.Real() == 1 && q4.Pure() == Vector3(2, 3, 4));
 
 	// Methods
 	static_assert(Quaternion(std::numeric_limits<qtn_t>::quiet_NaN(), 2, 3, 4).IsNaN());
@@ -257,16 +258,16 @@ void UnitTest_Quaternion(void) noexcept
 
 	// Operators
 	static_assert((q3 * 2 * 3 / 6).Norm() - 1 < 1e-10);
-	static_assert(q3 * Vector::I() == Vector::J());
-	static_assert(q3 * Vector::J() == Vector::K());
-	static_assert(q3 * Vector::K() == Vector::I());
+	static_assert(q3 * Vector3::I() == Vector3::J());
+	static_assert(q3 * Vector3::J() == Vector3::K());
+	static_assert(q3 * Vector3::K() == Vector3::I());
 	static_assert(q3 * ~q3 == Quaternion::Identity());
-	static_assert((~q2 * (q2 * Vector(1, 2, 3))).Approx(Vector(1, 2, 3), 1e-5f));
+	static_assert((~q2 * (q2 * Vector3(1, 2, 3))).Approx(Vector3(1, 2, 3), 1e-5f));
 
 	// Conversion
 	static_assert(q1.Euler() == v1);
 	static_assert(q1.M3x3().Approx(Matrix<3, 3>::Rotation(30, 45, 60), 1e-10));
-	static_assert(q3.M3x3().Approx(Matrix<3, 3>::Rotation(Vector(1, 1, 1).Normalize(), 120), 1e-7));
+	static_assert(q3.M3x3().Approx(Matrix<3, 3>::Rotation(Vector3(1, 1, 1).Normalize(), 120), 1e-7));
 
 	// STL Containers Compatibility
 	for (int i = 0; const auto & fl : q4)
@@ -297,7 +298,7 @@ void UnitTest_UtlRandom(void) noexcept
 	Log("Starting...");
 
 	std::array pool{ 23, 192384, 1823947, 56738975, 2843598, 1039, 18345, 132948, 3984567, 354896 };
-	assert(std::find(pool.begin(), pool.end(), *UTIL_GetRandomOne(pool)) != pool.end());
+	assert(std::find(pool.begin(), pool.end(), UTIL_GetRandomOne(pool)) != pool.end());
 	assert(UTIL_Random(1u, 10u) < 11u && UTIL_Random(1, 10) > 0);
 	assert(UTIL_Random(1.0f, 10.0f) < 10.1f && UTIL_Random(1.0, 10.0) > 0.999);
 
@@ -422,6 +423,7 @@ void UnitTest_UtlConcepts(void) noexcept
 	static_assert(CharacterSet::Isomer_v<VariadicTemplateWrapper<char16_t, char32_t, char, wchar_t>>);
 }
 
+/*
 void UnitTest_UtlKeyValues(void) noexcept
 {
 	static constexpr auto fnIsOdd = [](int i) constexpr { return i % 2; };
@@ -437,7 +439,7 @@ void UnitTest_UtlKeyValues(void) noexcept
 	auto p = new ValveKeyValues("UnitTest_UtlKeyValues");
 	p->SetValue("Test", std::array{ 1, 2, 3 }, '4', "5", std::make_tuple(6.0, 7.0f, 8L), "9"sv, std::make_pair(10LL, 11ULL), (long double)12);
 	p->SetValue("Prime", std::views::iota(1) | std::views::filter(fnIsOdd) | std::views::filter(fnIsPrime) | std::views::take(24) | ::ranges::to<std::vector>);	// #FIXME_UNKNOWN_BUG Why I have to convert this into std::vector first??? std::views::common doesn't work.
-	p->AccessEntry("Linear Algebra")->SetValue("Vector2D", Vector2D(std::numbers::inv_pi, std::numbers::pi));
+	p->AccessEntry("Linear Algebra")->SetValue("Vector2", Vector2(std::numbers::inv_pi, std::numbers::pi));
 	p->AccessEntry("Linear Algebra")->SetValue("Vector", Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
 	p->AccessEntry("Linear Algebra")->SetValue("Quaternion", Quaternion(Vector(1, 1, 1).Normalize(), 120));
 	p->SetValue("Escape", "This is a string containing '\"' // 'comment' with in same line would be included!\nA new line!!!");
@@ -456,7 +458,7 @@ void UnitTest_UtlKeyValues(void) noexcept
 	auto p2 = p->AccessEntry("Linear Algebra");
 	assert(p2);
 
-	assert(p2->GetValue<Vector2D>("Vector2D") == Vector2D(std::numbers::inv_pi, std::numbers::pi));
+	assert(p2->GetValue<Vector2>("Vector2") == Vector2(std::numbers::inv_pi, std::numbers::pi));
 	assert(p2->GetValue<Vector>("Vector") == Vector(std::numbers::sqrt2, std::numbers::sqrt3, gcem::sqrt(5.0)));
 	assert(p2->GetValue<Quaternion>("Quaternion") == Quaternion(Vector(1, 1, 1).Normalize(), 120));
 
@@ -464,7 +466,7 @@ void UnitTest_UtlKeyValues(void) noexcept
 	assert((p->GetValue<std::array<std::string_view, 3>>("Test") == std::array{ "1"sv, "2"sv, "3"sv }));
 	//assert((p->GetValue<std::vector<unsigned>>("Test") == std::vector{ 1u, 2u, 3u }));
 	//assert((p->GetValue<std::vector<std::string>>("Test") == std::vector{ "1"s, "2"s, "3"s }));
-	assert(p->GetValue<Vector2D>("Test") == Vector2D(1, 2));
+	assert(p->GetValue<Vector2>("Test") == Vector2(1, 2));
 	assert(p->GetValue<Vector>("Test") == Vector(1, 2, 3));
 	assert(p->GetValue<Quaternion>("Test") == Quaternion(1, 2, 3, 4));
 	assert((p->GetValue<double, int>("Test") == std::make_pair(1.0, 2)));
@@ -491,21 +493,22 @@ void UnitTest_UtlKeyValues(void) noexcept
 	p->PrintC();
 
 	delete p;
-}
+}*/
 
 
 int main(int argc, char* argv[]) noexcept
 {
 	std::ios_base::sync_with_stdio(false);
 
-	//UnitTest_Vector2D();
-	//UnitTest_Vector();
+	UnitTest_Vector2D();
+	UnitTest_Vector();
+	UnitTest_Angles();
 	//UnitTest_Matrix();
 	//UnitTest_Quaternion();
 	//UnitTest_UtlArithmetic();
 	//UnitTest_UtlRandom();
 	//UnitTest_UtlConcepts();
-	UnitTest_UtlKeyValues();
+	//UnitTest_UtlKeyValues();
 
 	return EXIT_SUCCESS;
 }

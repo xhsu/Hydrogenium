@@ -17,6 +17,7 @@ module;
 export module UtlLinearAlgebra;
 
 // C++
+export import <algorithm>;
 export import <array>;
 export import <concepts>;
 export import <format>;
@@ -34,6 +35,10 @@ export import "gcem/include/gcem.hpp";
 export import UtlArithmetic;
 export import UtlConcepts;
 
+// Contains preview
+template <size_t D> struct Vector;
+struct Angles;
+
 export using vec_t = float;
 export using real_t = std::conditional_t<sizeof(vec_t) <= 4, double, vec_t>;
 export inline constexpr auto VEC_EPSILON = std::numeric_limits<vec_t>::epsilon();
@@ -49,13 +54,14 @@ struct Vector : std::array<vec_t, iDimension>
 
 	// Construction
 	constexpr Vector() noexcept = default;
-	constexpr Vector(auto&&... args) noexcept requires(sizeof...(args) <= DIMENSION) : super{ static_cast<vec_t>(args)... } {}
-	constexpr explicit Vector(std::ranges::input_range auto&& rgObj) noexcept { for (auto&& [Ref, Val] : std::views::zip(*this, rgObj)) Ref = static_cast<vec_t>(Val); }
+	constexpr Vector(Arithmetic auto... args) noexcept requires(sizeof...(args) <= DIMENSION) : super{ static_cast<vec_t>(args)... } {}
+	template <size_t dim_other> constexpr Vector(Vector<dim_other> const& v, Arithmetic auto... args) noexcept requires(dim_other + sizeof...(args) <= DIMENSION) : super() { for (auto&& [Ref, Val] : std::views::zip(*this, v)) Ref = static_cast<vec_t>(Val); [&] <size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[dim_other + I] = static_cast<vec_t>(args)), ...); }(std::make_index_sequence<sizeof...(args)>{}); } // #UPDATE_AT_CPP26 std::views::concat
+	explicit constexpr Vector(std::ranges::input_range auto&& rgObj) noexcept : super() { for (auto&& [Ref, Val] : std::views::zip(*this, rgObj)) Ref = static_cast<vec_t>(Val); }
 
 	//
-	[[nodiscard]] constexpr real_t Length() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Hydrogenium::sqrt((... + ((*this)[I] * (*this)[I]))); }(std::make_index_sequence<DIMENSION>{}); }	// Get the vector's magnitude
-	[[nodiscard]] constexpr real_t LengthSquared() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return (... + ((*this)[I] * (*this)[I])); }(std::make_index_sequence<DIMENSION>{}); }	// Get the vector's magnitude squared
-	[[nodiscard]] constexpr Vector Normalize() const noexcept
+	template <size_t COMPONENTS = DIMENSION> requires(COMPONENTS <= iDimension) [[nodiscard]] inline constexpr real_t Length() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Hydrogenium::sqrt((... + ((*this)[I] * (*this)[I]))); }(std::make_index_sequence<COMPONENTS>{}); }	// Get the vector's magnitude
+	template <size_t COMPONENTS = DIMENSION> requires(COMPONENTS <= iDimension) [[nodiscard]] inline constexpr real_t LengthSquared() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return (... + ((*this)[I] * (*this)[I])); }(std::make_index_sequence<COMPONENTS>{}); }	// Get the vector's magnitude squared
+	[[nodiscard]] inline constexpr Vector Normalize() const noexcept
 	{
 		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
@@ -63,7 +69,7 @@ struct Vector : std::array<vec_t, iDimension>
 		const auto len = Length();
 		return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] / len)...); }(std::make_index_sequence<DIMENSION>{});
 	}
-	[[nodiscard]] constexpr Vector SetLength(const real_t flNewLength) const noexcept
+	[[nodiscard]] inline constexpr Vector SetLength(const real_t flNewLength) const noexcept
 	{
 		if (LengthSquared() <= std::numeric_limits<real_t>::epsilon())
 			return Zero();
@@ -71,7 +77,7 @@ struct Vector : std::array<vec_t, iDimension>
 		const auto fl = flNewLength / Length();
 		return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] * fl)...); }(std::make_index_sequence<DIMENSION>{});
 	}
-	[[nodiscard]] constexpr bool IsZero(const vec_t tolerance = VEC_EPSILON) const noexcept
+	[[nodiscard]] inline constexpr bool IsZero(const vec_t tolerance = VEC_EPSILON) const noexcept
 	{
 		return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept
 		{
@@ -81,8 +87,8 @@ struct Vector : std::array<vec_t, iDimension>
 		}
 		(std::make_index_sequence<DIMENSION>{});
 	}
-	[[nodiscard]] constexpr bool IsNaN() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return is_nan((*this)[I]...); }(std::make_index_sequence<DIMENSION>{}); }
-	[[nodiscard]] constexpr bool Approx(const Vector& rhs, vec_t tolerance = VEC_EPSILON) const noexcept
+	[[nodiscard]] inline constexpr bool IsNaN() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Hydrogenium::is_nan((*this)[I]...); }(std::make_index_sequence<DIMENSION>{}); }
+	[[nodiscard]] inline constexpr bool Approx(const Vector& rhs, vec_t tolerance = VEC_EPSILON) const noexcept
 	{
 		return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept
 		{
@@ -93,43 +99,50 @@ struct Vector : std::array<vec_t, iDimension>
 		(std::make_index_sequence<DIMENSION>{});
 	}
 
-	// Mathematical Operations
-	[[nodiscard]] constexpr decltype(auto) operator-() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(-(*this)[I]...); }(std::make_index_sequence<DIMENSION>{}); }
-	[[nodiscard]] constexpr decltype(auto) operator== (const Vector& v) const noexcept { return Approx(v); }
-	[[nodiscard]] constexpr decltype(auto) operator<=> (const Vector& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
-	[[nodiscard]] constexpr decltype(auto) operator<=> (const real_t fl) const noexcept { return LengthSquared() <=> (fl * fl); }
+	// Mathmetical Operations
+	[[nodiscard]] inline constexpr decltype(auto) operator-() const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(-(*this)[I]...); }(std::make_index_sequence<DIMENSION>{}); }
+	[[nodiscard]] inline constexpr decltype(auto) operator== (const Vector& v) const noexcept { return Approx(v); }
+	[[nodiscard]] inline constexpr decltype(auto) operator<=> (const Vector& v) const noexcept { return LengthSquared() <=> v.LengthSquared(); }
+	[[nodiscard]] inline constexpr decltype(auto) operator<=> (const real_t fl) const noexcept { return LengthSquared() <=> (fl * fl); }
 
-	[[nodiscard]] constexpr decltype(auto) operator+(const Vector& v) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] + v[I])...); }(std::make_index_sequence<DIMENSION>{}); }
-	[[nodiscard]] constexpr decltype(auto) operator-(const Vector& v) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] - v[I])...); }(std::make_index_sequence<DIMENSION>{}); }
-	constexpr decltype(auto) operator+=(const Vector& v) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] += v[I]), ...); }(std::make_index_sequence<DIMENSION>{}); }
-	constexpr decltype(auto) operator-=(const Vector& v) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] -= v[I]), ...); }(std::make_index_sequence<DIMENSION>{}); }
+	[[nodiscard]] inline constexpr decltype(auto) operator+(const Vector& v) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] + v[I])...); }(std::make_index_sequence<DIMENSION>{}); }
+	[[nodiscard]] inline constexpr decltype(auto) operator-(const Vector& v) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] - v[I])...); }(std::make_index_sequence<DIMENSION>{}); }
+	inline constexpr decltype(auto) operator+=(const Vector& v) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] += v[I]), ...); }(std::make_index_sequence<DIMENSION>{}); }
+	inline constexpr decltype(auto) operator-=(const Vector& v) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] -= v[I]), ...); }(std::make_index_sequence<DIMENSION>{}); }
 
-	[[nodiscard]] constexpr decltype(auto) operator*(real_t fl) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] * fl)...); }(std::make_index_sequence<DIMENSION>{}); }
-	[[nodiscard]] constexpr decltype(auto) operator/(real_t fl) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] / fl)...); }(std::make_index_sequence<DIMENSION>{}); }
-	constexpr decltype(auto) operator*=(real_t fl) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] *= fl), ...); }(std::make_index_sequence<DIMENSION>{}); }
-	constexpr decltype(auto) operator/=(real_t fl) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] /= fl), ...); }(std::make_index_sequence<DIMENSION>{}); }
+	[[nodiscard]] inline constexpr decltype(auto) operator*(real_t fl) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] * fl)...); }(std::make_index_sequence<DIMENSION>{}); }
+	[[nodiscard]] inline constexpr decltype(auto) operator/(real_t fl) const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(((*this)[I] / fl)...); }(std::make_index_sequence<DIMENSION>{}); }
+	inline constexpr decltype(auto) operator*=(real_t fl) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] *= fl), ...); }(std::make_index_sequence<DIMENSION>{}); }
+	inline constexpr decltype(auto) operator/=(real_t fl) noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { (((*this)[I] /= fl), ...); }(std::make_index_sequence<DIMENSION>{}); }
 
-	// 
+	// Special status
 	[[nodiscard]] static consteval Vector Zero() noexcept { return Vector(); }
 	[[nodiscard]] static consteval Vector I() noexcept requires(DIMENSION >= 1) { return Vector(1); }
 	[[nodiscard]] static consteval Vector J() noexcept requires(DIMENSION >= 2) { return Vector(0, 1); }
 	[[nodiscard]] static consteval Vector K() noexcept requires(DIMENSION >= 3) { return Vector(0, 0, 1); }
+	[[nodiscard]] static consteval Vector Up(void) noexcept requires(DIMENSION >= 3) { return Vector(0, 0, 1); }
+	[[nodiscard]] static consteval Vector Down(void) noexcept requires(DIMENSION >= 3) { return Vector(0, 0, -1); }
+	[[nodiscard]] static consteval Vector Right(void) noexcept requires(DIMENSION >= 2) { return Vector(0, -1); }
+	[[nodiscard]] static consteval Vector Left(void) noexcept requires(DIMENSION >= 2) { return Vector(0, 1); }
+	[[nodiscard]] static consteval Vector Front(void) noexcept requires(DIMENSION >= 1) { return Vector(1); }
+	[[nodiscard]] static consteval Vector Back(void) noexcept requires(DIMENSION >= 1) { return Vector(-1); }
 
 	//
-	constexpr void Clear() noexcept { this->fill(0); }
-	constexpr void CopyToRange(std::ranges::output_range<vec_t> auto&& rgObj) const noexcept { for (auto&& [Out, Comp] : std::views::zip(rgObj, *this)) Out = static_cast<std::remove_cvref_t<decltype(Out)>>(Comp); }
+	inline constexpr void Clear() noexcept { this->fill(0); }
+	inline constexpr void CopyToRange(std::ranges::output_range<vec_t> auto&& rgObj) const noexcept { for (auto&& [Out, Comp] : std::views::zip(rgObj, *this)) Out = static_cast<std::remove_cvref_t<decltype(Out)>>(Comp); }
+	template <size_t NEW_DIM> [[nodiscard]] inline constexpr Vector<NEW_DIM> Cast() const noexcept { return Vector<NEW_DIM>(*this | std::views::all); }
 
 	// Conversion
-	explicit constexpr operator vec_t* () noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
-	explicit constexpr operator const vec_t* () const noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
+	explicit inline constexpr operator vec_t* () noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
+	explicit inline constexpr operator const vec_t* () const noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
 
-	explicit constexpr operator bool() const noexcept { return !IsZero(); }	// Can be placed in if() now.
-	explicit constexpr operator vec_t() const noexcept { return (vec_t)Length(); }
-	explicit constexpr operator real_t() const noexcept { return Length(); }
+	explicit inline constexpr operator bool() const noexcept { return !IsZero(); }	// Can be placed in if() now.
+	explicit inline constexpr operator vec_t() const noexcept { return (vec_t)Length(); }
+	explicit inline constexpr operator real_t() const noexcept { return Length(); }
 
-	// Linear Algebra
+	// Linear Algebra (For 2D Vectors)
 	// Rotate in counter-clockwise. Angle is in degree.
-	constexpr Vector<2> Rotate(const real_t angle) const noexcept requires(DIMENSION == 2)
+	inline constexpr Vector<2> Rotate(const real_t angle) const noexcept requires(DIMENSION == 2)
 	{
 		const auto a = (angle * std::numbers::pi / 180.0);
 		const auto c = gcem::cos(a);
@@ -141,19 +154,28 @@ struct Vector : std::array<vec_t, iDimension>
 		);
 	}
 
-	// Angle with Vector2D::I. Return in degree.
-	constexpr auto Angle(void) const noexcept requires(DIMENSION == 2)
+	// Angle with Vector2::I. Return in degree.
+	inline constexpr auto Angle(void) const noexcept requires(DIMENSION == 2)
 	{
-		return gcem::atan2<real_t, real_t>(y, x) * 180.0 / std::numbers::pi;
+		return gcem::atan2(y, x) * 180.0 / std::numbers::pi;
 	}
 
+	// Linear Algebra (Euler-3D Vector)
+	inline constexpr Angles VectorAngles(void) const noexcept requires(DIMENSION == 3);
+	inline constexpr real_t Pitch(void) const noexcept requires(DIMENSION == 3);
+	inline constexpr real_t Yaw(void) const noexcept requires(DIMENSION == 3);
+	static consteval real_t Roll(void) noexcept requires(DIMENSION == 3) { return 0; }	// It doesn't make any sense to ask the roll angle from a directional vector.
+	inline constexpr Vector<3> RotateX(const real_t angle) const noexcept requires(DIMENSION == 3);
+	inline constexpr Vector<3> RotateY(const real_t angle) const noexcept requires(DIMENSION == 3);
+	inline constexpr Vector<3> RotateZ(const real_t angle) const noexcept requires(DIMENSION == 3);
+
 	// 
-	constexpr vec_t _Impl_GetX() const noexcept requires(DIMENSION >= 1) { return (*this)[0]; }
-	constexpr void _Impl_SetX(const real_t val) noexcept requires(DIMENSION >= 1) { (*this)[0] = static_cast<vec_t>(val); }
-	constexpr vec_t _Impl_GetY() const noexcept requires(DIMENSION >= 2) { return (*this)[1]; }
-	constexpr void _Impl_SetY(const real_t val) noexcept requires(DIMENSION >= 2) { (*this)[1] = static_cast<vec_t>(val); }
-	constexpr vec_t _Impl_GetZ() const noexcept requires(DIMENSION >= 3) { return (*this)[2]; }
-	constexpr void _Impl_SetZ(const real_t val) noexcept requires(DIMENSION >= 3) { (*this)[2] = static_cast<vec_t>(val); }
+	inline constexpr vec_t _Impl_GetX() const noexcept requires(DIMENSION >= 1) { return (*this)[0]; }
+	inline constexpr void _Impl_SetX(const real_t val) noexcept requires(DIMENSION >= 1) { (*this)[0] = static_cast<vec_t>(val); }
+	inline constexpr vec_t _Impl_GetY() const noexcept requires(DIMENSION >= 2) { return (*this)[1]; }
+	inline constexpr void _Impl_SetY(const real_t val) noexcept requires(DIMENSION >= 2) { (*this)[1] = static_cast<vec_t>(val); }
+	inline constexpr vec_t _Impl_GetZ() const noexcept requires(DIMENSION >= 3) { return (*this)[2]; }
+	inline constexpr void _Impl_SetZ(const real_t val) noexcept requires(DIMENSION >= 3) { (*this)[2] = static_cast<vec_t>(val); }
 
 	__declspec(property(get = _Impl_GetX, put = _Impl_SetX)) vec_t x;
 	__declspec(property(get = _Impl_GetY, put = _Impl_SetY)) vec_t y;
@@ -255,11 +277,7 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 	inline constexpr operator float* () noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
 	inline constexpr operator const float* () const noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
 
-	// Radian and Degree
-	inline constexpr Angles ToRadian() const noexcept { return Angles(pitch * deg_to_rad, yaw * deg_to_rad, roll * deg_to_rad); }
-	inline constexpr Angles ToDegree() const noexcept { return Angles(pitch * rad_to_deg, yaw * rad_to_deg, roll * rad_to_deg); }
-
-	// Methods
+	// Linear Algebra
 	inline constexpr Angles Rationalize(void) const noexcept	// One must call this function before conver to quaternion.
 	{
 		Angles ret{ *this };
@@ -296,8 +314,8 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 	}
 	inline constexpr std::tuple<Vector3, Vector3, Vector3> AngleVectors() const noexcept
 	{
-		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad), sr = std::sin(roll * deg_to_rad);
-		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad), cr = std::cos(roll * deg_to_rad);
+		const auto sp = gcem::sin(pitch * deg_to_rad), sy = gcem::sin(yaw * deg_to_rad), sr = gcem::sin(roll * deg_to_rad);
+		const auto cp = gcem::cos(pitch * deg_to_rad), cy = gcem::cos(yaw * deg_to_rad), cr = gcem::cos(roll * deg_to_rad);
 
 		return std::make_tuple(
 
@@ -323,10 +341,30 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 			)
 		);
 	}
+	static inline constexpr Angles VectorsAngles(const Vector3& vecForward, const Vector3& vecRight, const Vector3& vecUp) noexcept // Unify three vectors into one Eular angles.
+	{
+		Angles ret;
+		const auto p = -gcem::asin<real_t>(vecForward.z);
+		auto cp = gcem::cos<real_t>(p);
+		if (gcem::abs(cp) > VEC_EPSILON)	// gimball lock?
+		{
+			cp = 1.0 / cp;
+			ret.rad_pitch = p;
+			ret.rad_yaw = gcem::atan2<real_t>(vecForward.y * cp, vecForward.x * cp);
+			ret.rad_roll = gcem::atan2<real_t>(-vecRight.z * cp, vecUp.z * cp);
+		}
+		else
+		{
+			ret.pitch = (vec_t)gcem::copysign(90, vecForward.z);
+			ret.rad_yaw = gcem::atan2<real_t>(vecRight.x, -vecRight.y);
+			ret.roll = 180.0f;
+		}
+		return ret;
+	}
 	inline constexpr Vector3 Up(void) const noexcept
 	{
-		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad), sr = std::sin(roll * deg_to_rad);
-		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad), cr = std::cos(roll * deg_to_rad);
+		const auto sp = gcem::sin(pitch * deg_to_rad), sy = gcem::sin(yaw * deg_to_rad), sr = gcem::sin(roll * deg_to_rad);
+		const auto cp = gcem::cos(pitch * deg_to_rad), cy = gcem::cos(yaw * deg_to_rad), cr = gcem::cos(roll * deg_to_rad);
 
 		return Vector3(
 			cr * sp * cy + sr * sy,	// x
@@ -340,8 +378,8 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 	}
 	inline constexpr Vector3 Right(void) const noexcept
 	{
-		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad), sr = std::sin(roll * deg_to_rad);
-		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad), cr = std::cos(roll * deg_to_rad);
+		const auto sp = gcem::sin(pitch * deg_to_rad), sy = gcem::sin(yaw * deg_to_rad), sr = gcem::sin(roll * deg_to_rad);
+		const auto cp = gcem::cos(pitch * deg_to_rad), cy = gcem::cos(yaw * deg_to_rad), cr = gcem::cos(roll * deg_to_rad);
 
 		return Vector3(
 			-(sr * sp * cy) + cr * sy,	// x
@@ -355,8 +393,8 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 	}
 	inline constexpr Vector3 Front(void) const noexcept
 	{
-		const auto sp = std::sin(pitch * deg_to_rad), sy = std::sin(yaw * deg_to_rad);
-		const auto cp = std::cos(pitch * deg_to_rad), cy = std::cos(yaw * deg_to_rad);
+		const auto sp = gcem::sin(pitch * deg_to_rad), sy = gcem::sin(yaw * deg_to_rad);
+		const auto cp = gcem::cos(pitch * deg_to_rad), cy = gcem::cos(yaw * deg_to_rad);
 
 		return Vector3(
 			cp * cy,	// x
@@ -369,23 +407,42 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 		return -Front();
 	}
 
+	// Methods
+	[[nodiscard]] inline constexpr bool Approx(const Angles& rhs, const vec_t tolerance = VEC_EPSILON) const noexcept
+	{
+		return
+			Hydrogenium::abs(pitch - rhs.pitch) < tolerance &&
+			Hydrogenium::abs(yaw - rhs.yaw) < tolerance &&
+			Hydrogenium::abs(roll - rhs.roll) < tolerance;
+	}
+
 	// Members
 	static inline constexpr auto deg_to_rad = std::numbers::pi / 180.0;
 	static inline constexpr auto rad_to_deg = 180.0 / std::numbers::pi;
 
 	inline constexpr vec_t _Impl_GetP(void) const noexcept { return (*this)[0]; }
-	inline constexpr vec_t _Impl_SetP(const real_t fl) noexcept { return (*this)[0] = static_cast<vec_t>(fl); }
+	inline constexpr void _Impl_SetP(const real_t fl) noexcept { (*this)[0] = static_cast<vec_t>(fl); }
 	inline constexpr vec_t _Impl_GetY(void) const noexcept { return (*this)[1]; }
-	inline constexpr vec_t _Impl_SetY(const real_t fl) noexcept { return (*this)[1] = static_cast<vec_t>(fl); }
+	inline constexpr void _Impl_SetY(const real_t fl) noexcept { (*this)[1] = static_cast<vec_t>(fl); }
 	inline constexpr vec_t _Impl_GetR(void) const noexcept { return (*this)[2]; }
-	inline constexpr vec_t _Impl_SetR(const real_t fl) noexcept { return (*this)[2] = static_cast<vec_t>(fl); }
+	inline constexpr void _Impl_SetR(const real_t fl) noexcept { (*this)[2] = static_cast<vec_t>(fl); }
+	inline constexpr vec_t _Impl_GetRP(void) const noexcept { return static_cast<vec_t>((*this)[0] * deg_to_rad); }
+	inline constexpr void _Impl_SetRP(const real_t fl) noexcept { (*this)[0] = static_cast<vec_t>(fl * rad_to_deg); }
+	inline constexpr vec_t _Impl_GetRY(void) const noexcept { return static_cast<vec_t>((*this)[1] * deg_to_rad); }
+	inline constexpr void _Impl_SetRY(const real_t fl) noexcept { (*this)[1] = static_cast<vec_t>(fl * rad_to_deg); }
+	inline constexpr vec_t _Impl_GetRR(void) const noexcept { return static_cast<vec_t>((*this)[2] * deg_to_rad); }
+	inline constexpr void _Impl_SetRR(const real_t fl) noexcept { (*this)[2] = static_cast<vec_t>(fl * rad_to_deg); }
 
 	__declspec(property(get = _Impl_GetP, put = _Impl_SetP)) vec_t pitch;
 	__declspec(property(get = _Impl_GetY, put = _Impl_SetY)) vec_t yaw;
 	__declspec(property(get = _Impl_GetR, put = _Impl_SetR)) vec_t roll;
+	__declspec(property(get = _Impl_GetRP, put = _Impl_SetRP)) vec_t rad_pitch;
+	__declspec(property(get = _Impl_GetRY, put = _Impl_SetRY)) vec_t rad_yaw;
+	__declspec(property(get = _Impl_GetRR, put = _Impl_SetRR)) vec_t rad_roll;
 };
 
-inline Angles Vector::VectorAngles(void) const noexcept
+template <size_t DIMENSION>
+inline constexpr Angles Vector<DIMENSION>::VectorAngles(void) const noexcept requires(DIMENSION == 3)
 {
 	Angles angles{};
 
@@ -399,11 +456,11 @@ inline Angles Vector::VectorAngles(void) const noexcept
 	}
 	else
 	{
-		angles.yaw = static_cast<float>(std::atan2(y, x) * Angles::rad_to_deg);
+		angles.yaw = static_cast<float>(gcem::atan2<real_t, real_t>(y, x) * Angles::rad_to_deg);
 		if (angles.yaw < 0)
 			angles.yaw += 360;
 
-		angles.pitch = static_cast<float>(std::atan2(z, Length2D()) * Angles::rad_to_deg);
+		angles.pitch = static_cast<float>(gcem::atan2<real_t, real_t>(z, Length<2>()) * Angles::rad_to_deg);
 		if (angles.pitch < 0)
 			angles.pitch += 360;
 	}
@@ -411,7 +468,8 @@ inline Angles Vector::VectorAngles(void) const noexcept
 	return angles;
 }
 
-inline double Vector::Pitch(void) const noexcept
+template <size_t DIMENSION>
+inline constexpr real_t Vector<DIMENSION>::Pitch(void) const noexcept requires(DIMENSION == 3)
 {
 	if (y == 0 && x == 0)
 	{
@@ -419,11 +477,12 @@ inline double Vector::Pitch(void) const noexcept
 	}
 	else
 	{
-		return std::atan2(z, Length2D()) * Angles::rad_to_deg;
+		return gcem::atan2<real_t, real_t>(z, Length<2>()) * Angles::rad_to_deg;
 	}
 }
 
-inline double Vector::Yaw(void) const noexcept
+template <size_t DIMENSION>
+inline constexpr real_t Vector<DIMENSION>::Yaw(void) const noexcept requires(DIMENSION == 3)
 {
 	if (y == 0 && x == 0)
 	{
@@ -431,8 +490,47 @@ inline double Vector::Yaw(void) const noexcept
 	}
 	else
 	{
-		return std::atan2(y, x) * Angles::rad_to_deg;
+		return gcem::atan2<real_t, real_t>(y, x) * Angles::rad_to_deg;
 	}
+}
+
+template <size_t DIMENSION>
+constexpr Vector<3> Vector<DIMENSION>::RotateX(const real_t angle) const noexcept requires(DIMENSION == 3)
+{
+	const auto a = (angle * Angles::deg_to_rad);
+	const auto c = gcem::cos(a);
+	const auto s = gcem::sin(a);
+	return Vector<3>(
+		x,
+		c * y - s * z,
+		s * y + c * z
+	);
+}
+
+template <size_t DIMENSION>
+constexpr Vector<3> Vector<DIMENSION>::RotateY(const real_t angle) const noexcept requires(DIMENSION == 3)
+{
+	const auto a = (angle * Angles::deg_to_rad);
+	const auto c = gcem::cos(a);
+	const auto s = gcem::sin(a);
+	return Vector<3>(
+		c * x + s * z,
+		y,
+		-s * x + c * z
+	);
+}
+
+template <size_t DIMENSION>
+constexpr Vector<3> Vector<DIMENSION>::RotateZ(const real_t angle) const noexcept requires(DIMENSION == 3)
+{
+	const auto a = (angle * Angles::deg_to_rad);
+	const auto c = gcem::cos(a);
+	const auto s = gcem::sin(a);
+	return Vector<3>(
+		c * x - s * y,
+		s * x + c * y,
+		z
+	);
 }
 
 export using mxs_t = double;
@@ -536,25 +634,23 @@ struct Matrix
 		}
 		(std::make_index_sequence<R * C>{});
 	}
-	explicit constexpr Matrix(const Vector2 &v) noexcept requires(ROWS >= 2U && COLUMNS == 1U) : _data{}
+	explicit constexpr Matrix(std::ranges::input_range auto&& rgObj) noexcept requires(std::is_convertible_v<std::ranges::range_value_t<decltype(rgObj)>, double>) : _data{}
 	{
-		_data[0][0] = v.x;
-		_data[1][0] = v.y;
-
-		if constexpr (ROWS > 2U)
+		for (auto&& [Input, Cell] : std::views::zip(rgObj, std::views::join(_data)))
 		{
-			_data[ROWS - 1U][0] = 1;	// For example, if you wish Vector2(x, y) transcript to matrix<4, 1>, it must be [x, y, 0, 1].
+			Cell = static_cast<mxs_t>(Input);
 		}
 	}
-	explicit constexpr Matrix(const Vector3 &v) noexcept requires(ROWS >= 3U && COLUMNS == 1U) : _data{}
+	template <size_t VECDIM> explicit constexpr Matrix(Vector<VECDIM> const& v) noexcept requires(ROWS >= VECDIM && COLUMNS == 1U) : _data{}
 	{
-		_data[0][0] = v.x;
-		_data[1][0] = v.y;
-		_data[2][0] = v.z;
-
-		if constexpr (ROWS > 3U)
+		for (size_t c = 0; c < VECDIM; ++c)
 		{
-			_data[ROWS - 1U][0] = 1;	// For example, if you wish Vector3(x, y, z) transcript to matrix<5, 1>, it must be [x, y, z, 0, 1].
+			_data[c][0] = v[c];
+		}
+
+		if constexpr (ROWS > VECDIM)
+		{
+			_data[ROWS - 1U][0] = 1;	// For example, if you wish Vector2(x, y) transcript to matrix<4, 1>, it must be [x, y, 0, 1].
 		}
 	}
 
@@ -617,7 +713,7 @@ struct Matrix
 			}));
 		}
 	}
-	static constexpr decltype(auto) Rotation(const Vector3& vecEulerAngles) noexcept { return Rotation(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll); }
+	static constexpr decltype(auto) Rotation(const Angles& vecEulerAngles) noexcept { return Rotation(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll); }
 	static constexpr decltype(auto) Rotation(const Vector3& vecAxis, double degree) noexcept	// Axis must be a unit vector. In counter-clockwise. Quaternion is recommended in this case.
 	{
 		const auto& x = vecAxis.x;
@@ -957,23 +1053,26 @@ struct Matrix
 	constexpr decltype(auto) operator/=(mxs_t fl) noexcept { return (*this = *this / fl); }
 	//
 	// Between matrix and vector.
-	constexpr Vector2 operator*(const Vector2& v) const noexcept requires(COLUMNS >= 2U)
+	template <size_t VECDIM> 
+	constexpr decltype(auto) operator*(const Vector<VECDIM>& v) const noexcept requires(COLUMNS >= VECDIM)
 	{
-		Matrix<COLUMNS, 1> matrixlise_v2;
-		matrixlise_v2[0][0] = v.x;
-		matrixlise_v2[1][0] = v.y;
+		Matrix<COLUMNS, 1> matrixlise_v(v);
 
-		if constexpr (COLUMNS > 2U)
+		if constexpr (COLUMNS > VECDIM)
 		{
-			for (size_t i = 2; i < COLUMNS; i++)
+			for (size_t i = VECDIM; i < COLUMNS; ++i)
 			{
-				matrixlise_v2[i][0] = 1;	// Fill the rest part with a dummy 1. NOT A ZERO!
+				matrixlise_v[i][0] = 1;	// Fill the rest part with a dummy 1. NOT A ZERO!
 			}
 		}
 
-		auto result = *this * matrixlise_v2;
+		auto const result = *this * matrixlise_v;
 
-		return Vector2D(result[0][0], result[1][0]);
+		return[&]<size_t... I>(std::index_sequence<I...>&&) constexpr noexcept
+		{
+			return Vector<VECDIM>(result[I][0]...);
+		}
+		(std::make_index_sequence<VECDIM>{});
 	}
 	constexpr Vector3 operator*(const Vector3& v) const noexcept requires(COLUMNS >= 3U)
 	{
@@ -992,7 +1091,7 @@ struct Matrix
 
 		auto result = *this * matrixlise_v3;
 
-		return Vector(result[0][0], result[1][0], result[2][0]);
+		return Vector3(result[0][0], result[1][0], result[2][0]);
 	}
 	constexpr Matrix<3, 3> operator|(const Vector2& v) const noexcept requires(ROWS == 2U && COLUMNS == 2U)
 	{
@@ -1034,20 +1133,12 @@ struct Matrix
 	{
 		assert(c < COLUMNS);
 
-		// Vectors are written vertically in matrices.
-		if constexpr (ROWS == 2U)
-			return Vector2D(_data[0][c], _data[1][c]);
-		else if constexpr (ROWS == 3U)
-			return Vector(_data[0][c], _data[1][c], _data[2][c]);
-		else
+		return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept
 		{
-			Matrix<ROWS, 1> m;
-
-			for (size_t i = 0U; i < ROWS; i++)
-				m[i][0] = _data[i][c];
-
-			return m;
+			// Vectors are written vertically in matrices.
+			return Vector<ROWS>(_data[I][c]...);
 		}
+		(std::make_index_sequence<ROWS>{});
 	}
 
 	// STL Containers Compatibility
@@ -1165,7 +1256,7 @@ export struct Quaternion
 		c = cr * sp * cy + sr * cp * sy;
 		d = cr * cp * sy - sr * sp * cy;
 	}
-	constexpr Quaternion(const Vector& vecAxis, qtn_t degree) noexcept	// Axis must be a unit vector. In clockwise if works in right-handed coordinate system.
+	constexpr Quaternion(const Vector3& vecAxis, qtn_t degree) noexcept	// Axis must be a unit vector. In clockwise if works in right-handed coordinate system.
 	{
 		degree *= std::numbers::pi / 180.0;
 		auto cosine = gcem::cos(0.5 * degree);
@@ -1176,7 +1267,7 @@ export struct Quaternion
 		c = vecAxis.y * sine;
 		d = vecAxis.z * sine;
 	}
-	constexpr Quaternion(const Vector &vecFrom, const Vector &vecTo) noexcept
+	constexpr Quaternion(const Vector3 &vecFrom, const Vector3 &vecTo) noexcept
 	{
 		auto const vecCross = CrossProduct(vecFrom, vecTo);
 		auto const flMagnitude = Hydrogenium::sqrt(a * a + b * b + c * c + d * d);
@@ -1188,7 +1279,7 @@ export struct Quaternion
 			vecCross.z / flMagnitude
 		);
 	}
-	explicit constexpr Quaternion(const Vector& vecEulerAngles) : Quaternion(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll) {}
+	explicit constexpr Quaternion(const Angles& vecEulerAngles) : Quaternion(vecEulerAngles.yaw, vecEulerAngles.pitch, vecEulerAngles.roll) {}
 	explicit constexpr Quaternion(const Matrix<3, 3>& m) noexcept	// 'm' must be a pure rotation matrix! 
 	{
 		a = gcem::sqrt(1.0 + m[0][0] + m[1][1] + m[2][2]) / 2.0;
@@ -1218,7 +1309,7 @@ export struct Quaternion
 	inline constexpr decltype(auto) Versor() const noexcept { return *this / Norm(); }
 	inline constexpr decltype(auto) Reciprocal() const noexcept { return Conjugate() / NormSquared(); }
 	inline constexpr decltype(auto) Real() const noexcept { return a; }
-	inline constexpr decltype(auto) Pure() const noexcept { return Vector(b, c, d); }
+	inline constexpr Vector3 Pure() const noexcept { return Vector3(b, c, d); }
 
 	// Methods
 	constexpr bool IsNaN() const noexcept { return Hydrogenium::is_nan(a, b, c, d); }
@@ -1248,16 +1339,16 @@ export struct Quaternion
 		};
 	}
 	constexpr decltype(auto) operator*=(const Quaternion& q) noexcept { return (*this = *this * q); }
-	constexpr decltype(auto) operator*(const Vector& v) const noexcept { return 2.0 * DotProduct(Pure(), v) * Pure() + (a * a - Pure().LengthSquared()) * v + 2.0 * a * CrossProduct(Pure(), v); }	// Rotate a vector by this quaternion.
+	constexpr decltype(auto) operator*(const Vector3& v) const noexcept { return 2.0 * DotProduct(Pure(), v) * Pure() + (a * a - Pure().LengthSquared()) * v + 2.0 * a * CrossProduct(Pure(), v); }	// Rotate a vector by this quaternion.
 
 	// Access
 	constexpr qtn_t& operator[](size_t index) noexcept { assert(index < 4); return ((qtn_t*)(&a))[index]; }
 	constexpr const qtn_t operator[](size_t index) const noexcept { assert(index < 4); return ((const qtn_t*)(&a))[index]; }
 
 	// Conversion
-	constexpr Vector Euler() const noexcept
+	constexpr Angles Euler() const noexcept
 	{
-		Vector vecAngles;
+		Angles vecAngles;
 
 		// roll (x-axis rotation)
 		auto sinr_cosp = 2 * (a * b + c * d);
