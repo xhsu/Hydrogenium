@@ -495,6 +495,9 @@ void UnitTest_UtlKeyValues(void) noexcept
 	delete p;
 }*/
 
+extern void UnitTest_UTF8Iterator() noexcept;
+extern void UnitTest_ASCIIStringView(void) noexcept;
+
 
 int main(int argc, char* argv[]) noexcept
 {
@@ -509,6 +512,8 @@ int main(int argc, char* argv[]) noexcept
 	//UnitTest_UtlRandom();
 	//UnitTest_UtlConcepts();
 	//UnitTest_UtlKeyValues();
+	UnitTest_UTF8Iterator();
+	UnitTest_ASCIIStringView();
 
 	return EXIT_SUCCESS;
 }

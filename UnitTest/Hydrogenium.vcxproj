@@ -198,6 +198,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="UnitTest_UtlLinearAlgebra.cpp" />
+    <ClCompile Include="UnitTest_UtlStringView.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp" />
