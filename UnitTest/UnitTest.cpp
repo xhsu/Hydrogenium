@@ -497,6 +497,7 @@ void UnitTest_UtlKeyValues(void) noexcept
 
 extern void UnitTest_UTF8Iterator() noexcept;
 extern void UnitTest_ASCIIStringView(void) noexcept;
+extern void UniTest_UTF8StringView(void) noexcept;
 
 
 int main(int argc, char* argv[]) noexcept
@@ -514,6 +515,7 @@ int main(int argc, char* argv[]) noexcept
 	//UnitTest_UtlKeyValues();
 	UnitTest_UTF8Iterator();
 	UnitTest_ASCIIStringView();
+	UniTest_UTF8StringView();
 
 	return EXIT_SUCCESS;
 }

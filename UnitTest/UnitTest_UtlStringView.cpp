@@ -1,4 +1,6 @@
-﻿import <math.h>;
+﻿#include <assert.h>
+
+import <math.h>;
 import <stddef.h>;
 import <stdint.h>;
 
@@ -13,6 +15,11 @@ import <stdexcept>;
 import <string_view>;
 import <string>;
 
+import <format>;
+import <iostream>;
+
+#include "fmt/core.h"
+
 struct mysv
 {
 	using Traits_t = std::char_traits<char>;
@@ -26,6 +33,12 @@ struct mysv
 	constexpr mysv(char const* psz, ptrdiff_t const iSize) noexcept : m_psz(psz), m_iSize(iSize), m_len(iSize), m_count(recount()) {}
 	constexpr mysv(std::string const& sz) noexcept : mysv(sz.data(), sz.size()) {}
 	constexpr mysv(std::string_view const& sz) noexcept : mysv(sz.data(), sz.size()) {}
+
+	template <size_t N>
+	constexpr mysv& operator= (const char(&rgsz)[N]) noexcept { m_psz = rgsz; m_iSize = N; m_count = recount(); for (m_len = N - 1; m_psz[m_len] == '\0'; --m_len) {} ++m_len; return *this; }
+	constexpr mysv& operator= (mysv const& rhs) noexcept = default;
+	constexpr mysv& operator= (std::string const& sz) noexcept { m_psz = sz.data(); m_iSize = sz.size(); m_len = std::ssize(sz); m_count = recount(); return *this; }
+	constexpr mysv& operator= (std::string_view const& sz) noexcept { m_psz = sz.data(); m_iSize = sz.size(); m_len = std::ssize(sz); m_count = recount(); return *this; }
 
 	inline constexpr bool operator== (mysv const& rhs) const noexcept { return length() == rhs.length() && Traits_t::compare(m_psz, rhs.m_psz, length()) == 0; }
 	inline constexpr auto operator<=> (mysv const& rhs) const noexcept { return Traits_t::compare(m_psz, rhs.m_psz, length()) <=> 0; }
@@ -159,7 +172,7 @@ struct mysv
 	inline constexpr size_t size() const noexcept { return m_iSize; }
 	inline constexpr ptrdiff_t ssize() const noexcept { return m_iSize > (size_t)std::numeric_limits<ptrdiff_t>::max() ? std::numeric_limits<ptrdiff_t>::max() : (ptrdiff_t)m_iSize; }
 	inline constexpr ptrdiff_t length() const noexcept { return m_len; }
-	static constexpr auto max_size() noexcept { return npos - 1; }	// #INVESTIGATE what does this mean??
+	static consteval auto max_size() noexcept { return npos - 1; }	// #INVESTIGATE what does this mean??
 	inline constexpr bool empty() const noexcept { return length() == 0; }
 
 	// Capacity: EXT
@@ -488,9 +501,102 @@ struct u8iter_t final
 	const char* m_psz{};
 };
 
-struct utf8_string_view_t final
+struct myu8sv final
 {
+	using Traits_t = std::char_traits<char>;
+	using Iter_t = u8iter_t;
+	using RevIter_t = std::reverse_iterator<Iter_t>;
+	using Elem_t = std::string_view;
 
+	static inline constexpr auto npos = std::numeric_limits<ptrdiff_t>::max();
+
+	template <size_t N>
+	constexpr myu8sv(const char(&rgsz)[N]) noexcept : m_psz(&rgsz[0]), m_iSize(N), m_entries() { recount(); }
+
+	inline constexpr bool operator== (myu8sv const& rhs) const noexcept { return length() == rhs.length() && Traits_t::compare(m_psz, rhs.m_psz, size()) == 0; }
+	inline constexpr auto operator<=> (myu8sv const& rhs) const noexcept { return Traits_t::compare(m_psz, rhs.m_psz, size()) <=> 0; }	// cannot use length() here, it requires underlying data.
+
+	inline constexpr operator std::string_view() const noexcept { return std::string_view{ m_psz, m_iSize }; }
+	inline constexpr operator std::string() const noexcept { return std::string(m_psz, m_iSize); }
+
+	// Iterators
+
+	inline constexpr Iter_t begin() const noexcept { return Iter_t{ m_psz }; }
+	inline constexpr Iter_t end() const noexcept { return Iter_t{ m_psz + m_entries.back() + this->back().length() }; }
+	inline constexpr RevIter_t rbegin() const noexcept { return std::make_reverse_iterator(end()); }
+	inline constexpr RevIter_t rend() const noexcept { return std::make_reverse_iterator(begin()); }
+
+	// Element access
+
+	inline constexpr Elem_t operator[] (ptrdiff_t const pos) const noexcept { auto const p = m_psz + m_entries[locate(pos)]; return Elem_t{ p, u8iter_t::width(*p) }; }
+	inline constexpr Elem_t at(ptrdiff_t const pos) const { if (auto const idx = locate(pos); idx >= length()) throw std::out_of_range("UTF8StringView::at(): index out of range"); else return this->operator[](idx); }
+	inline constexpr Elem_t front() const noexcept { return Elem_t{ m_psz, u8iter_t::width(*m_psz) }; }
+	inline constexpr Elem_t back() const noexcept { auto const p = m_psz + m_entries.back(); return Elem_t{ p, u8iter_t::width(*p) }; }
+	inline constexpr const char* data() const noexcept { return m_psz; }
+
+	// Element access: EXT
+
+	inline constexpr ptrdiff_t locate(ptrdiff_t const pos) const noexcept { return pos >= 0 ? pos : length() + pos; }
+
+	// Capacity
+
+	inline constexpr size_t size() const noexcept { return m_iSize; }
+	inline constexpr ptrdiff_t ssize() const noexcept { return m_iSize > (size_t)std::numeric_limits<ptrdiff_t>::max() ? std::numeric_limits<ptrdiff_t>::max() : (ptrdiff_t)m_iSize; }
+	inline constexpr ptrdiff_t length() const noexcept { return std::ssize(m_entries); }
+	static consteval auto max_size() noexcept { return npos - 1; }	// #INVESTIGATE what does this mean??
+	inline constexpr bool empty() const noexcept { return m_entries.empty(); }
+
+	// Capacity: EXT
+
+	inline constexpr void recount() noexcept
+	{
+		auto const first = m_psz, last = m_psz + m_iSize;
+
+		m_entries.clear();
+		m_entries.reserve(m_iSize);
+
+		for (auto it = first; it != last;)
+		{
+			if (auto& c = *it; c < 0b10000000 && c > 0)
+			{
+				m_entries.push_back(it - first);
+				++it;
+			}
+			else if ((c & 0b11100000) == 0b11000000)
+			{
+				m_entries.push_back(it - first);
+				it += 2;
+			}
+			else if ((c & 0b11110000) == 0b11100000)
+			{
+				m_entries.push_back(it - first);
+				it += 3;
+			}
+			else if ((c & 0b11111000) == 0b11110000)
+			{
+				m_entries.push_back(it - first);
+				it += 4;
+			}
+			else if (c == '\0')
+			{
+				break;
+			}
+			else
+			{
+				// Broken UTF8
+				std::terminate();
+				std::unreachable();
+			}
+		}
+
+		m_entries.shrink_to_fit();
+	}
+
+	// Members
+
+	const char* m_psz{};
+	size_t m_iSize{};
+	std::vector<ptrdiff_t> m_entries{};
 };
 
 void UnitTest_UTF8Iterator() noexcept
@@ -780,4 +886,83 @@ void UnitTest_ASCIIStringView(void) noexcept
 	static_assert(szUTF.grapheme_is_pos_encode(12));	// 8
 	static_assert(szUTF.grapheme_is_pos_encode(13));	// 作
 	static_assert(!szUTF.grapheme_is_pos_encode(14));
+}
+
+void UniTest_UTF8StringView(void) noexcept
+{
+	static constexpr auto fnTestCmp = []() constexpr /*static*/ noexcept
+	{
+		const myu8sv szUTF{ u8"你好，UTF8作業系統！" };
+
+		std::vector<myu8sv> rgsz{ u8"異常", u8"字符串", u8"只讀字符串", u8"限度", u8"可選值", u8"函數", u8"迭代器", u8"範圍", u8"斷言" };
+		std::vector<myu8sv> rgszAns{ u8"函數", u8"只讀字符串", u8"可選值", u8"字符串", u8"斷言", u8"異常", u8"範圍", u8"迭代器", u8"限度" };
+
+		if (rgsz == rgszAns)
+			std::unreachable();
+
+		std::ranges::sort(rgsz);
+
+		return
+
+			szUTF == u8"你好，UTF8作業系統！" &&
+			szUTF != u8"你不好，UTF8作業系統！" &&
+			szUTF != u8"你好，UTF8作業系統~" &&
+
+			rgsz == rgszAns;
+	};
+	static_assert(fnTestCmp());
+
+	static constexpr auto fnTestIter = []() constexpr /*static*/ noexcept
+	{
+		myu8sv szUTF{ u8"你好，UTF8作業系統！" };
+		ptrdiff_t i = 0;
+
+		for (auto&& gf : szUTF)
+		{
+			if (szUTF[i] != gf)
+				std::unreachable();
+
+			++i;
+		}
+
+		if (i != szUTF.length())
+			std::unreachable();
+
+		i = -1;
+		for (auto it = szUTF.rbegin(); it != szUTF.rend(); ++it)
+		{
+			if (szUTF[i] != *it)
+				std::unreachable();
+
+			--i;
+		}
+
+		if (i != -szUTF.length() - 1)
+			std::unreachable();
+
+		return true;
+	};
+	static_assert(fnTestIter());
+
+	static constexpr auto fnTestElemAcc = []() constexpr /*static*/ noexcept
+	{
+		const myu8sv szUTF{ u8"你好，UTF8作業系統！" };
+
+		return
+			szUTF[0] == u8"你" &&
+			szUTF[1] == u8"好" &&
+			szUTF[3] == u8"U" &&
+			szUTF[4] == u8"T" &&
+			szUTF[-6] == u8"8" &&
+			szUTF[7] == u8"作" &&
+			szUTF[-2] == u8"統" &&
+
+			szUTF.front() == u8"你" &&
+			szUTF.back() == u8"！";
+	};
+	static_assert(fnTestElemAcc());
+
+	static_assert(myu8sv{ u8"你好，UTF8作業系統！" }.size() == 29);
+	static_assert(myu8sv{ u8"你好，UTF8作業系統！" }.ssize() == 29);
+	static_assert(myu8sv{ u8"你好，UTF8作業系統！" }.length() == 12);
 }
