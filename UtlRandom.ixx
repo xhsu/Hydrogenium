@@ -1,6 +1,7 @@
 export module UtlRandom;
 
 export import <random>;
+export import <ranges>;
 
 import UtlConcepts;
 
@@ -83,7 +84,15 @@ Iter UTIL_GetRandomOne(Iter start, Iter end) noexcept
 
 export
 [[nodiscard]]
-decltype(auto) UTIL_GetRandomOne(const Iterable auto& obj) noexcept
+decltype(auto) UTIL_GetRandomOne(const std::ranges::random_access_range auto& obj) noexcept
 {
-	return *UTIL_GetRandomOne(std::begin(obj), std::end(obj));
+	static MT19937_t gen(g_PureRD());
+
+	if constexpr (requires { obj[size_t{}]; { std::ssize(obj) } -> std::same_as<std::ptrdiff_t>; })
+	{
+		std::uniform_int_distribution<std::ptrdiff_t> dis(0, std::ssize(obj) - 1);
+		return obj[dis(gen)];
+	}
+	else
+		return *UTIL_GetRandomOne(std::begin(obj), std::end(obj));
 }
