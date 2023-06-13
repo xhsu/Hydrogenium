@@ -15,10 +15,12 @@ export import <cstring>;
 export import <cwctype>;
 
 // C++
+export import <algorithm>;
 export import <array>;
 export import <charconv>;
 export import <experimental/generator>;
 export import <ranges>;
+export import <string_view>;
 export import <string>;
 
 // Friendly modules.
@@ -1023,5 +1025,14 @@ inline constexpr auto front_trim = std::views::drop_while(isspace_c);
 
 export
 inline constexpr auto back_trim = std::views::reverse | std::views::drop_while(isspace_c) | std::views::reverse;	// #FIXME doesn't work, don't know why.
+
+export
+inline bool wcsieql(std::wstring_view lhs, std::wstring_view rhs) noexcept
+{
+	return std::ranges::equal(
+		lhs, rhs,
+		[](wchar_t lc, wchar_t rc) noexcept -> bool { return std::towlower(lc) == std::towlower(rc); }
+	);
+}
 
 #pragma warning( pop )
