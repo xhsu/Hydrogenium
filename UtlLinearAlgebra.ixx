@@ -52,6 +52,8 @@ struct Vector : std::array<vec_t, iDimension>
 
 	static inline constexpr auto DIMENSION = iDimension;
 
+	static_assert(DIMENSION > 0, "Buddy, don't have a vector with 0 dimension!");
+
 	// Construction
 	constexpr Vector() noexcept = default;
 	constexpr Vector(Arithmetic auto... args) noexcept requires(sizeof...(args) <= DIMENSION) : super{ static_cast<vec_t>(args)... } {}

@@ -98,6 +98,7 @@
       <AdditionalOptions>/Zc:char8_t- /utf-8 %(AdditionalOptions)</AdditionalOptions>
       <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
       <DisableSpecificWarnings>4244</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -118,6 +119,7 @@
       <AdditionalOptions>/Zc:char8_t- /utf-8 %(AdditionalOptions)</AdditionalOptions>
       <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
       <DisableSpecificWarnings>4244</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -138,6 +140,7 @@
       <AdditionalOptions>/Zc:char8_t- /utf-8 %(AdditionalOptions)</AdditionalOptions>
       <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
       <DisableSpecificWarnings>4244</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -158,6 +161,7 @@
       <AdditionalOptions>/Zc:char8_t- /utf-8 %(AdditionalOptions)</AdditionalOptions>
       <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
       <DisableSpecificWarnings>4244</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -198,6 +202,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="UnitTest_UtlLinearAlgebra.cpp" />
+    <ClCompile Include="UnitTest_UtlReflexpr.cpp" />
     <ClCompile Include="UnitTest_UtlStringView.cpp" />
   </ItemGroup>
   <ItemGroup>
