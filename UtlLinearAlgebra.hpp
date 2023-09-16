@@ -123,6 +123,16 @@ namespace Hydrogenium
 
 		[[nodiscard]] static consteval auto size(void) noexcept { return DIMENSION; }
 
+		[[nodiscard]] inline constexpr auto cbegin(this auto&& self) noexcept { return self.m_components.cbegin(); }
+		[[nodiscard]] inline constexpr auto begin(this auto&& self) noexcept { return self.m_components.begin(); }
+		[[nodiscard]] inline constexpr auto rbegin(this auto&& self) noexcept { return self.m_components.rbegin(); }
+		[[nodiscard]] inline constexpr auto crbegin(this auto&& self) noexcept { return self.m_components.crbegin(); }
+
+		[[nodiscard]] inline constexpr auto cend(this auto&& self) noexcept { return self.m_components.cend(); }
+		[[nodiscard]] inline constexpr auto end(this auto&& self) noexcept { return self.m_components.end(); }
+		[[nodiscard]] inline constexpr auto rend(this auto&& self) noexcept { return self.m_components.rend(); }
+		[[nodiscard]] inline constexpr auto crend(this auto&& self) noexcept { return self.m_components.crend(); }
+
 		array<vec_t, DIMENSION> m_components{};
 	};
 }

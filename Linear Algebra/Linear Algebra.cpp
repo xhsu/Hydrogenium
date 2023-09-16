@@ -1,6 +1,9 @@
 // Linear Algebra.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <typeindex>
+#include <typeinfo>
+
 #include "../UtlLinearAlgebra.hpp"
 
 using namespace Hydrogenium;
@@ -9,7 +12,9 @@ int main() noexcept
 {
 	//static_assert(std::is_trivial_v<Vector2>);
 	static_assert(std::is_standard_layout_v<Vector2>);
-	//static_assert(std::ranges::range<Vector2>);
+	static_assert(std::ranges::input_range<Vector2>);
+	static_assert(std::ranges::output_range<Vector2, vec_t>);
+	static_assert(std::is_same_v<std::ranges::range_value_t<Vector2>, vec_t>);
 
 	using std::array;
 	static_assert(sizeof(Vector2) == 2 * sizeof(vec_t));
@@ -19,10 +24,44 @@ int main() noexcept
 	static constexpr Vector2 vecTwo{ 1, 2 }, vecTwo1{ rgiArr }, vecTwo2{ rgiArr, 5 };
 	static constexpr Vector<5> vecFive{ rgiArr }, vecFive1{ rgiArr, 5 };
 
-	// Math operations
+	// Math Op: EQUALITY
 	static_assert(vecTwo == vecTwo1 && vecTwo1 == vecTwo2);
 	static_assert(vecFive != vecFive1);
 	static_assert(Vector2::I() != Vector2::J());
+
+	// Math Op: Compare
+	static_assert(vecTwo < Vector2{ 2, 2 });
+	static_assert(vecTwo <= Vector2{ 2, 2 } && vecTwo <= vecTwo1);
+	static_assert(vecTwo > Vector2{ 1, 1 });
+	static_assert(vecTwo >= Vector2{ 1, 1 } && vecTwo >= vecTwo1);
+
+	// C++ Op: Indexing & Iterating
+	static_assert(vecTwo[0] == vecTwo1[0] && vecTwo[1] == vecTwo1[1]);
+	static_assert(std::ranges::equal(
+		vecTwo.begin(), vecTwo.end(),
+		vecTwo1.begin(), vecTwo1.end()
+	));
+	static_assert(std::ranges::equal(
+		vecTwo.rbegin(), vecTwo.rend(),
+		vecTwo1.rbegin(), vecTwo1.rend()
+	));
+	static_assert(std::ranges::equal(
+		vecTwo.cbegin(), vecTwo.cend(),
+		vecTwo1.cbegin(), vecTwo1.cend()
+	));
+	static_assert(std::ranges::equal(
+		vecTwo.crbegin(), vecTwo.crend(),
+		vecTwo1.crbegin(), vecTwo1.crend()
+	));
+
+	Vector2 vecDynTwo{ vecTwo };
+	static_assert(std::is_same_v<decltype(vecDynTwo[0]), vec_t&>);
+	static_assert(std::is_same_v<decltype(vecTwo[0]), vec_t const&>);
+	assert(vecDynTwo[0] == 1);
+	vecDynTwo[0] = 777;
+	assert(vecDynTwo[0] == 777);
+	vecDynTwo[0] = 1;
+	assert(vecDynTwo == vecTwo);
 
 	return 0;
 }
