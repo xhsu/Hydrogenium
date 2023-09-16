@@ -5,6 +5,8 @@ VisualStudioVersion = 17.3.32519.111
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Hydrogenium", "Hydrogenium.vcxproj", "{22F316ED-43AD-47E1-BB5D-8280244E04A6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Linear Algebra", "..\Linear Algebra\Linear Algebra.vcxproj", "{473B4B2F-DB7A-44E2-8372-DDC8012552B6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,14 @@ Global
 		{22F316ED-43AD-47E1-BB5D-8280244E04A6}.Release|x64.Build.0 = Release|x64
 		{22F316ED-43AD-47E1-BB5D-8280244E04A6}.Release|x86.ActiveCfg = Release|Win32
 		{22F316ED-43AD-47E1-BB5D-8280244E04A6}.Release|x86.Build.0 = Release|Win32
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Debug|x64.ActiveCfg = Debug|x64
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Debug|x64.Build.0 = Debug|x64
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Debug|x86.ActiveCfg = Debug|Win32
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Debug|x86.Build.0 = Debug|Win32
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Release|x64.ActiveCfg = Release|x64
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Release|x64.Build.0 = Release|x64
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Release|x86.ActiveCfg = Release|Win32
+		{473B4B2F-DB7A-44E2-8372-DDC8012552B6}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

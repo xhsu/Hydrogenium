@@ -50,6 +50,7 @@ static WORD s_iBackgroundColor = WINCON_BG_BLACK;
 
 export void clear_console(void) noexcept
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -83,6 +84,7 @@ export auto __CLRCALL_OR_CDECL white_bg(OStream auto& _Ostr) noexcept -> decltyp
 
 export auto __CLRCALL_OR_CDECL white_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -92,6 +94,7 @@ export auto __CLRCALL_OR_CDECL white_text(OStream auto& _Ostr) noexcept -> declt
 
 export auto __CLRCALL_OR_CDECL blue_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -101,6 +104,7 @@ export auto __CLRCALL_OR_CDECL blue_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL green_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -110,6 +114,7 @@ export auto __CLRCALL_OR_CDECL green_text(OStream auto& _Ostr) noexcept -> declt
 
 export auto __CLRCALL_OR_CDECL skyblue_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -119,6 +124,7 @@ export auto __CLRCALL_OR_CDECL skyblue_text(OStream auto& _Ostr) noexcept -> dec
 
 export auto __CLRCALL_OR_CDECL red_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -128,6 +134,7 @@ export auto __CLRCALL_OR_CDECL red_text(OStream auto& _Ostr) noexcept -> decltyp
 
 export auto __CLRCALL_OR_CDECL plum_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -137,6 +144,7 @@ export auto __CLRCALL_OR_CDECL plum_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL gold_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -146,6 +154,7 @@ export auto __CLRCALL_OR_CDECL gold_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL silver_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -155,6 +164,7 @@ export auto __CLRCALL_OR_CDECL silver_text(OStream auto& _Ostr) noexcept -> decl
 
 export auto __CLRCALL_OR_CDECL gray_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -164,6 +174,7 @@ export auto __CLRCALL_OR_CDECL gray_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL cornflower_blue_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -173,6 +184,7 @@ export auto __CLRCALL_OR_CDECL cornflower_blue_text(OStream auto& _Ostr) noexcep
 
 export auto __CLRCALL_OR_CDECL lime_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -182,6 +194,7 @@ export auto __CLRCALL_OR_CDECL lime_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL cyan_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -191,6 +204,7 @@ export auto __CLRCALL_OR_CDECL cyan_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL pink_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -200,6 +214,7 @@ export auto __CLRCALL_OR_CDECL pink_text(OStream auto& _Ostr) noexcept -> declty
 
 export auto __CLRCALL_OR_CDECL magenta_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -209,6 +224,7 @@ export auto __CLRCALL_OR_CDECL magenta_text(OStream auto& _Ostr) noexcept -> dec
 
 export auto __CLRCALL_OR_CDECL beige_text(OStream auto& _Ostr) noexcept -> decltype(_Ostr)
 {
+	[[unlikely]]
 	if (!s_hConsole)
 		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -247,3 +263,32 @@ export std::wostream& wcout_cyan(void) noexcept { return std::wcout << cyan_text
 export std::wostream& wcout_pink(void) noexcept { return std::wcout << pink_text; }
 export std::wostream& wcout_magenta(void) noexcept { return std::wcout << magenta_text; }
 export std::wostream& wcout_beige(void) noexcept { return std::wcout << beige_text; }
+
+export struct rgb_text
+{
+	rgb_text(std::int8_t r, std::int8_t g, std::int8_t b) noexcept : m_PackedRGB{ RGB(r, g, b) } {}
+
+	COLORREF m_PackedRGB{};
+};
+
+export auto __CLRCALL_OR_CDECL operator<< (OStream auto &os, rgb_text const &rhs) noexcept -> decltype(os)
+{
+	[[unlikely]]
+	if (!s_hConsole)
+		s_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	static CONSOLE_SCREEN_BUFFER_INFOEX info{ .cbSize = sizeof(CONSOLE_SCREEN_BUFFER_INFOEX) };
+
+	GetConsoleScreenBufferInfoEx(s_hConsole, &info);
+
+	info.ColorTable[WINCON_TEXT_BLACK] = rhs.m_PackedRGB;
+
+	SetConsoleScreenBufferInfoEx(s_hConsole, &info);
+
+	SetConsoleTextAttribute(s_hConsole, s_iBackgroundColor + WINCON_TEXT_BLACK);
+
+	return os;
+}
+
+export std::ostream &cout_rgb(std::int8_t r, std::int8_t g, std::int8_t b) noexcept { return std::cout << rgb_text(r, g, b); }
+export std::wostream &wcout_rgb(std::int8_t r, std::int8_t g, std::int8_t b) noexcept { return std::wcout << rgb_text(r, g, b); }

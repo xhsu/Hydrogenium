@@ -1,10 +1,9 @@
 #include <assert.h>
 
+#include <print>
 #include <source_location>
 #include <string_view>
 #include <type_traits>
-
-#include <fmt/core.h>
 
 template <auto iEnum, typename T = decltype(iEnum)> requires std::is_enum_v<T>
 struct reflexpr
@@ -57,8 +56,8 @@ enum struct MyScopedEnum : __int16
 
 void UnitTest_Reflexpr(void) noexcept
 {
-	fmt::print("enumerator: '{}'\n", reflexpr<MyMuggleEnum::ITEM1>::enumerator);
-	fmt::print("enumeration: '{}'\n", reflexpr<MyMuggleEnum::ITEM1>::enumeration);
-	fmt::print("enumerator: '{}'\n", reflexpr<MyScopedEnum::ITEM4>::enumerator);
-	fmt::print("enumeration: '{}'\n", reflexpr<MyScopedEnum::ITEM4>::enumeration);
+	std::print("enumerator: '{}'\n", reflexpr<MyMuggleEnum::ITEM1>::enumerator);
+	std::print("enumeration: '{}'\n", reflexpr<MyMuggleEnum::ITEM1>::enumeration);
+	std::print("enumerator: '{}'\n", reflexpr<MyScopedEnum::ITEM4>::enumerator);
+	std::print("enumeration: '{}'\n", reflexpr<MyScopedEnum::ITEM4>::enumeration);
 }

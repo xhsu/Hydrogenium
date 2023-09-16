@@ -415,8 +415,8 @@ struct VariadicTemplateWrapper
 			static_assert(!sizeof(T), "Type which only appears once can be indexed!");
 		else
 		{
-			constexpr std::array arr{ std::is_same_v<T, Tys>... };
-			constexpr auto it = std::find(arr.cbegin(), arr.cend(), true);
+			std::array arr{ std::is_same_v<T, Tys>... };
+			auto it = std::find(arr.cbegin(), arr.cend(), true);
 
 			if (it == arr.cend())
 				return npos;
