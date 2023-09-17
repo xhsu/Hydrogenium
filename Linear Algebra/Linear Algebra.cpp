@@ -25,6 +25,7 @@ int main() noexcept
 	static constexpr Vector<5> vecFive{ rgiArr }, vecFive1{ rgiArr, 5 };
 
 	// Math Op: EQUALITY
+	static_assert(Vector2{} == Vector2::Zero());
 	static_assert(vecTwo == vecTwo1 && vecTwo1 == vecTwo2);
 	static_assert(vecFive != vecFive1);
 	static_assert(Vector2::I() != Vector2::J());
@@ -62,6 +63,48 @@ int main() noexcept
 	assert(vecDynTwo[0] == 777);
 	vecDynTwo[0] = 1;
 	assert(vecDynTwo == vecTwo);
+
+	// Math Op: Length
+	auto const flRootFive = std::sqrt(5.0);
+	assert(vecTwo.magnitude == flRootFive);
+	vecDynTwo.magnitude = 1;
+	assert(vecDynTwo == vecTwo.direction);
+	vecDynTwo.magnitude = flRootFive;
+	assert(vecDynTwo == vecTwo);
+
+	// Math Op: Direction
+	assert(vecDynTwo.direction == vecTwo.WithLengthOf(1));
+	vecDynTwo.direction = Vector2::I();
+	assert(std::abs(flRootFive - vecDynTwo.magnitude) < Hydrogenium::VEC_EPSILON);
+	vecDynTwo.direction = vecTwo;
+	assert(std::abs(flRootFive - vecDynTwo.magnitude) < Hydrogenium::VEC_EPSILON);
+	assert(vecDynTwo == vecTwo);
+	assert(Vector2::I().WithDirOf(Vector2::J()) == Vector2::J());
+	assert(std::abs(vecDynTwo.WithDirOf(Vector2::J()).magnitude - flRootFive) < Hydrogenium::VEC_EPSILON);
+
+	// Math Op: Algebra
+	static_assert(Vector2::I() + Vector2::J() == Vector2{ 1, 1 });
+	static_assert(vecTwo - Vector2::I() - Vector2{ 0, 2 } == Vector2::Zero());
+	static_assert((Vector2::I() * 2 + Vector2::J() * 4) / 2 == vecTwo);
+
+	// C++ Op: Copy to & casting
+	vecDynTwo.fill(7);
+	assert(vecDynTwo == Vector2(7, 7));
+	vecDynTwo = vecTwo;
+
+	array<vec_t, 5> rgfl{};
+	assert(std::ranges::equal_range(rgfl, 0));
+	vecDynTwo.CopyTo(rgfl);
+	assert(std::ranges::equal(rgfl, array{ 1.f, 2.f, 0.f, 0.f, 0.f }));
+	vecFive1.CopyTo(rgfl);
+	assert(std::ranges::equal(rgfl, array{ 1.f, 2.f, 3.f, 4.f, 5.f }));
+
+	static_assert(vecFive1.asVector<2>() == vecTwo);
+	static_assert(vecTwo.asVector<3>() == Vector{ 1, 2, 0 });
+
+	// CTAD
+	static_assert(Vector{ 1, 2 } == vecTwo);
+	static_assert(Vector{ 1, 2, 3, 4, 5 } == vecFive1);
 
 	return 0;
 }
