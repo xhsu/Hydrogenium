@@ -1,15 +1,12 @@
 // Linear Algebra.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
-#include <typeindex>
-#include <typeinfo>
-
 #include "../UtlLinearAlgebra.hpp"
-
-using namespace Hydrogenium;
 
 int main() noexcept
 {
+	using namespace Hydrogenium;
+
 	//static_assert(std::is_trivial_v<Vector2>);
 	static_assert(std::is_standard_layout_v<Vector2>);
 	static_assert(std::ranges::input_range<Vector2>);
@@ -86,6 +83,8 @@ int main() noexcept
 	static_assert(Vector2::I() + Vector2::J() == Vector2{ 1, 1 });
 	static_assert(vecTwo - Vector2::I() - Vector2{ 0, 2 } == Vector2::Zero());
 	static_assert((Vector2::I() * 2 + Vector2::J() * 4) / 2 == vecTwo);
+	static_assert((2 * Vector2::I() + 4 * Vector2::J()) / 2 == vecTwo);
+	static_assert(2 * Vector{ -1, -2 } == Vector{ -1, -2 } * 2);
 
 	// C++ Op: Copy to & casting
 	vecDynTwo.fill(7);
@@ -105,6 +104,33 @@ int main() noexcept
 	// CTAD
 	static_assert(Vector{ 1, 2 } == vecTwo);
 	static_assert(Vector{ 1, 2, 3, 4, 5 } == vecFive1);
+
+	// Property member
+	static_assert(vecFive1.x == 1 && vecFive1.y == 2 && vecFive1.z == 3 && vecFive1.w == 4);
+
+	// Dot product
+	static_assert(DotProduct(Vector2::I(), Vector2::J()) == 0);
+	static_assert(DotProduct(Vector{ 1, 2 }, Vector{ 3, 4 }) == 11);
+
+	// Cross product
+	static_assert(CrossProduct(Vector3::I(), Vector3::J()) == Vector3::K());
+	static_assert(CrossProduct(Vector{ 1, 2, 3 }, Vector{ 4, 5, 6 }) == Vector{ -3, 6, -3 });
+	static_assert(CrossProduct(Vector{ 1, 2 }, Vector{ 3, 4 }) == Vector{ 0, 0, -2 });
+
+	// Angle between
+	assert((Vector2::I() ^ Vector2::J()) == 90);
+	assert((Vector3::J() ^ Vector3::K()) == 90);
+	assert(std::abs((Vector{ 1, 2 } ^ Vector{ 3, 4 }) - 10.30484) < 1e-5);
+
+	// Vector2 Specialized
+	assert(Vector2::I().Angle() == 0);
+	assert(std::abs(Vector2::J().Angle() - 90) < 1e-5);
+	assert(std::abs(Vector{ 1, 1 }.Angle() - 45) < 1e-5);
+	assert(std::abs(Vector{ 3, 4 }.Angle() - 53.130102) < 1e-5);	// 3-4-5 triangle
+
+	assert(Vector2::I().Rotate(90) == Vector2::J());
+	assert((Vector{ 1, 1 }.Rotate(90) == Vector{ -1, 1 }));
+	assert((Vector{ 1, 1 }.Rotate(45) == Vector{ 0, std::numbers::sqrt2 }));
 
 	return 0;
 }

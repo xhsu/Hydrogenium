@@ -161,6 +161,8 @@ namespace Hydrogenium
 		[[nodiscard]] inline constexpr auto operator== (Arithmetic auto fl) const noexcept { assert(fl >= 0); if (fl < 0) return false; return Hydrogenium::abs(LengthSquared() - fl * fl) <= VEC_EPSILON; }
 		[[nodiscard]] inline constexpr auto operator<=> (Arithmetic auto fl) const noexcept { assert(fl >= 0); if (fl < 0) fl = 0; return LengthSquared() <=> (fl * fl); }
 
+		[[nodiscard]] inline constexpr auto operator- () const noexcept { return[&]<size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector(-m_components[I]...); }(std::make_index_sequence<DIMENSION>{}); }
+
 		[[nodiscard]] inline constexpr auto operator* (real_t const fl) const noexcept { return[&] <size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector{ (m_components[I] * fl)... }; }(std::make_index_sequence<DIMENSION>{}); }
 		[[nodiscard]] inline constexpr auto operator/ (real_t const fl) const noexcept { return[&] <size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector{ (m_components[I] / fl)... }; }(std::make_index_sequence<DIMENSION>{}); }
 		[[nodiscard]] inline constexpr auto operator+ (Vector const& rhs) const noexcept { return[&] <size_t... I>(std::index_sequence<I...>&&) noexcept { return Vector{ (m_components[I] + rhs[I])...}; }(std::make_index_sequence<DIMENSION>{}); }
@@ -225,14 +227,99 @@ namespace Hydrogenium
 
 		// C# Property
 
+		__forceinline constexpr vec_t _Impl_GetX() const noexcept requires(DIMENSION >= 1) { return (*this)[0]; }
+		__forceinline constexpr void _Impl_SetX(const real_t val) noexcept requires(DIMENSION >= 1) { (*this)[0] = static_cast<vec_t>(val); }
+		__forceinline constexpr vec_t _Impl_GetY() const noexcept requires(DIMENSION >= 2) { return (*this)[1]; }
+		__forceinline constexpr void _Impl_SetY(const real_t val) noexcept requires(DIMENSION >= 2) { (*this)[1] = static_cast<vec_t>(val); }
+		__forceinline constexpr vec_t _Impl_GetZ() const noexcept requires(DIMENSION >= 3) { return (*this)[2]; }
+		__forceinline constexpr void _Impl_SetZ(const real_t val) noexcept requires(DIMENSION >= 3) { (*this)[2] = static_cast<vec_t>(val); }
+		__forceinline constexpr vec_t _Impl_GetW() const noexcept requires(DIMENSION >= 4) { return (*this)[3]; }
+		__forceinline constexpr void _Impl_SetW(const real_t val) noexcept requires(DIMENSION >= 4) { (*this)[3] = static_cast<vec_t>(val); }
+
+		__declspec(property(get = _Impl_GetX, put = _Impl_SetX)) vec_t x;
+		__declspec(property(get = _Impl_GetY, put = _Impl_SetY)) vec_t y;
+		__declspec(property(get = _Impl_GetZ, put = _Impl_SetZ)) vec_t z;
+		__declspec(property(get = _Impl_GetW, put = _Impl_SetW)) vec_t w;
+
 		__declspec(property(get = Length, put = SetLength)) real_t magnitude;
 		__declspec(property(get = Normalize, put = Reorient)) Vector direction;
+
+		// Specialized
+
+		// Rotate in counter-clockwise. Angle is in degree.
+		[[nodiscard]]
+		inline /*constexpr*/ Vector<2> Rotate(const real_t angle) const noexcept requires(DIMENSION == 2)
+		{
+			const auto a = (angle * std::numbers::pi / 180.0);
+			const auto c = std::cos(a);
+			const auto s = std::sin(a);
+
+			return Vector<2>(
+				c * x - s * y,
+				s * x + c * y
+			);
+		}
+
+		// Angle with Vector2::I. Return in degree.
+		[[nodiscard]]
+		inline /*constexpr*/ real_t Angle(void) const noexcept requires(DIMENSION == 2)
+		{
+			return std::atan2(y, x) * 180.0 / std::numbers::pi;
+		}
 	};
 
 	// CTAD - argument count equals to dimension.
-	template <typename... Tys>
+	template <Arithmetic... Tys>
 	Vector(Tys...) -> Vector<sizeof...(Tys)>;
-}
 
-using Vector2 = Hydrogenium::Vector<2>;
-using Vector3 = Hydrogenium::Vector<3>;
+	using Vector2 = Vector<2>;
+	using Vector3 = Vector<3>;
+	using Vector4 = Vector<4>;
+
+	template <size_t DIMENSION>
+	[[nodiscard]] inline constexpr real_t DotProduct(const Vector<DIMENSION>& a, const Vector<DIMENSION>& b) noexcept
+	{
+		return [&]<size_t... I>(std::index_sequence<I...>&&) noexcept
+		{
+			return (... + (a[I] * b[I]));
+		}
+		(std::make_index_sequence<DIMENSION>{});
+	}
+
+	[[nodiscard]]
+	inline constexpr Vector3 CrossProduct(const Vector3& a, const Vector3& b) noexcept
+	{
+		return Vector3(
+			a.y * b.z - a.z * b.y,
+			a.z * b.x - a.x * b.z,
+			a.x * b.y - a.y * b.x
+		);
+	}
+
+	[[nodiscard]]
+	inline constexpr Vector3 CrossProduct(const Vector2& a, const Vector2& b) noexcept
+	{
+		return Vector3(
+			0,
+			0,
+			a.x * b.y - a.y * b.x
+		);
+	}
+
+	template <size_t DIMENSION>
+	[[nodiscard]] __forceinline constexpr Vector<DIMENSION> operator*(real_t fl, const Vector<DIMENSION>& v) noexcept
+	{
+		return v * fl;
+	}
+
+	template <size_t DIMENSION>
+	[[nodiscard]] inline /*constexpr*/ real_t operator^(const Vector<DIMENSION>& lhs, const Vector<DIMENSION>& rhs) noexcept	// Get the angle between two vectors. Returns an angle in degree.
+	{
+		auto const length_ab = std::sqrt(lhs.LengthSquared() * rhs.LengthSquared());	// sqrt(a) * sqrt(b) == sqrt(a*b)
+
+		if (length_ab < std::numeric_limits<real_t>::epsilon())
+			return (real_t)0;
+
+		return std::acos(DotProduct(lhs, rhs) / length_ab) * (180.0 / std::numbers::pi);
+	}
+}
