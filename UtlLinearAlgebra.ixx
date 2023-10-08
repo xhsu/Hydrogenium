@@ -276,8 +276,8 @@ struct Angles : std::array<vec_t, 3>	// same data-layout as engine's vec3_t
 	inline constexpr Angles& operator/=(real_t fl) noexcept { pitch /= fl; yaw /= fl; roll /= fl; return *this; }
 
 	// Conversion
-	inline constexpr operator float* () noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
-	inline constexpr operator const float* () const noexcept { return &(*this)[0]; } // Vectors will now automatically convert to float * when needed
+	explicit inline constexpr operator float* () noexcept { return this->data(); } // Vectors will now automatically convert to float * when needed
+	explicit inline constexpr operator const float* () const noexcept { return std::ranges::cdata(*this); } // Vectors will now automatically convert to float * when needed
 
 	// Linear Algebra
 	inline constexpr Angles Rationalize(void) const noexcept	// One must call this function before conver to quaternion.

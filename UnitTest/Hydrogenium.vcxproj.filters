@@ -47,6 +47,7 @@
     <ClCompile Include="UnitTest_UtlHook.cpp" />
     <ClCompile Include="UnitTest_UtlStringView.cpp" />
     <ClCompile Include="UnitTest_UtlReflexpr.cpp" />
+    <ClCompile Include="UnitTest_PatternMatching.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">
@@ -56,5 +57,8 @@
       <Filter>Modules</Filter>
     </ClInclude>
     <ClInclude Include="UnitTest.hpp" />
+    <ClInclude Include="..\UtlPatternMatching.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
