@@ -377,3 +377,88 @@ inline constexpr decltype(auto) operator| (std::ranges::range auto&& lhs, where_
 		| is<T>
 		| as<T>;
 }
+
+struct is_null_t final {};
+inline constexpr is_null_t is_null = {};
+
+inline constexpr bool operator/ (auto&& lhs, is_null_t) noexcept
+{
+	using from_t = decltype(lhs);
+	using rmcvref_from_t = std::remove_cvref_t<from_t>;
+	using rmptr_from_t = std::remove_pointer_t<rmcvref_from_t>;
+
+	[[maybe_unused]] constexpr bool bHasValueFn = requires { { lhs.has_value() } -> std::same_as<bool>; };
+	[[maybe_unused]] constexpr bool bMonostate = requires { { std::holds_alternative<std::monostate>(lhs) } -> std::same_as<bool>; };
+	[[maybe_unused]] constexpr bool bExpected = requires { typename rmcvref_from_t::error_type; typename rmcvref_from_t::unexpected_type; };
+	[[maybe_unused]] constexpr bool bFuture = requires { { lhs.wait_for(std::chrono::seconds(0)) == std::future_status::ready } -> std::same_as<bool>; };
+	[[maybe_unused]] constexpr bool bNullptrCmp = requires { { lhs == nullptr } -> std::same_as<bool>; };
+	[[maybe_unused]] constexpr bool bHasEmptyFn = requires { { std::ranges::empty(lhs) } -> std::same_as<bool>; };
+	[[maybe_unused]] constexpr bool bHasLengthFn = requires { { lhs.length() } -> std::same_as<std::size_t>; };
+	[[maybe_unused]] constexpr bool bWeakPtr = requires { { lhs.expired() } -> std::same_as<bool>; };
+
+	// Case 1: variant, any, expected, optional, future
+
+	if constexpr (bHasValueFn && !bExpected)
+	{
+		return !lhs.has_value();
+	}
+	else if constexpr (bHasValueFn && bExpected)
+	{
+		return lhs.has_value() && std::same_as<typename rmcvref_from_t::value_type, void>;	// watch this out.
+	}
+	else if constexpr (bMonostate)
+	{
+		return std::holds_alternative<std::monostate>(lhs);
+	}
+	else if constexpr (bFuture)
+	{
+		return lhs.wait_for(std::chrono::seconds(0)) != std::future_status::ready;
+	}
+
+	// Case 2: smart pointers
+	// Cast 3: pointers
+
+	else if constexpr (bWeakPtr)
+	{
+		return lhs.expired();
+	}
+	else if constexpr (bNullptrCmp)
+	{
+		return lhs == nullptr;
+	}
+
+	// Cast 6: ranges
+
+	else if constexpr (bHasLengthFn)
+	{
+		return lhs.length() == 0;
+	}
+	else if constexpr (bHasEmptyFn)
+	{
+		return std::ranges::empty(lhs);
+	}
+
+	// Case 5: general
+
+	else
+	{
+		static_assert(!sizeof(lhs), "Will never be null.");
+		return false;
+	}
+}
+
+inline constexpr decltype(auto) operator| (std::ranges::range auto&& lhs, is_null_t) noexcept
+{
+	return lhs
+		| std::views::filter([](auto&& v) noexcept -> bool { return ::operator/(std::forward<decltype(v)>(v), is_null); });
+}
+
+struct is_not_null_t final {};
+inline constexpr is_not_null_t is_not_null = {};
+inline constexpr bool operator/ (auto&& lhs, is_not_null_t) noexcept { return !::operator/(std::forward<decltype(lhs)>(lhs), is_null); }
+
+inline constexpr decltype(auto) operator| (std::ranges::range auto&& lhs, is_not_null_t) noexcept
+{
+	return lhs
+		| std::views::filter([](auto&& v) noexcept -> bool { return ::operator/(std::forward<decltype(v)>(v), is_not_null); });
+}
