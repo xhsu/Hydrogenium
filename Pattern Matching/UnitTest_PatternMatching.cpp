@@ -1,10 +1,13 @@
 #include "../UtlPatternMatching.hpp"
 
 #include <assert.h>
+
 #include <expected>
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <map>
+#include <array>
 
 using namespace std;
 using namespace std::literals;
@@ -21,7 +24,7 @@ static_assert(!std::is_base_of_v<Base&&, Derived&&>);
 
 void unit_test_stl_types() noexcept
 {
-	variant<int, double, string_view> v{ 1 };
+	variant<monostate, int, double, string_view> v{ 1 };
 	assert(v / is<int>);
 	assert(v / is_not<double>);
 	assert(v / is_not<string_view>);
@@ -44,6 +47,10 @@ void unit_test_stl_types() noexcept
 	assert(ref_v / is_not<string_view>);
 	static_assert(std::same_as<decltype(ref_v / as<double>), double const&>);
 
+	v = monostate{};
+	assert(v / is_null);
+	assert(ref_v / is_null);
+
 	any a{ 1 };
 	assert(a / is<int>);
 	assert(a / is<int&>);
@@ -58,6 +65,10 @@ void unit_test_stl_types() noexcept
 	assert(ref_a / is_not<float const>);
 	assert(ref_a / is_not<float const&>);
 	static_assert(std::same_as<decltype(ref_a / as<int const&>), int const&>);
+
+	a.reset();
+	assert(a / is_null);
+	assert(ref_a / is_null);
 
 	expected<int, double> e{ 1 };
 	assert(e / is<int>);
@@ -77,6 +88,10 @@ void unit_test_stl_types() noexcept
 	assert(ref_e / is_not<int const>);
 	assert(ref_e / is<double const>);
 
+	auto l = []() -> expected<void, int> { return {}; };
+	assert(l() / is_null);
+	assert(!(e / is_null));
+
 	optional o{ 1 };
 	assert(o / is<int>);
 	assert(o / is_not<std::nullopt_t>);
@@ -92,13 +107,50 @@ void unit_test_stl_types() noexcept
 	assert(ref_o / is<std::nullopt_t>);
 	assert(o / is_not<int>);
 	assert(ref_o / is_not<int>);
+	assert(o / is_null);
+	assert(ref_o / is_null);
 
-	future<int> f = std::async(std::launch::async, [] { return 8; });
+	future<int> f = std::async(std::launch::async, [] { this_thread::sleep_for(0.1s); return 8; });
+	assert(f / is_null);
 	f.wait();
 	assert(f / is<int>);
 	assert(f / is_not<float>);
 	static_assert(std::same_as<decltype(f / as<int>), int>);
 	assert(f / as<int> == 8);
+}
+
+void unit_test_ranges() noexcept
+{
+	string s1{ "hello" };
+	string_view sV{ "world" };
+
+	assert(s1 / is_not_null);
+	assert(sV / is_not_null);
+
+	s1 = "";
+	sV = "";
+
+	assert(s1 / is_null);
+	assert(sV / is_null);
+
+	vector vec{ 0, 1, 2 };
+	map<string_view, int, less<>> m{ {"hello", 1}, {"world", 2} };
+	array arr{ 2.f, 3.f, 4.f };
+
+	assert(vec / is_not_null);
+	assert(m / is_not_null);
+	assert(arr / is_not_null);
+
+	vec.clear();
+	m.clear();
+	arr.fill(0);
+
+	assert(vec / is_null);
+	assert(m / is_null);
+	assert(arr / is_not_null);
+
+	array<int, 0> no_numbers;
+	assert(no_numbers / is_null);
 }
 
 void unit_test_native_ptr() noexcept
@@ -119,6 +171,8 @@ void unit_test_native_ptr() noexcept
 
 	assert(*p / is<B&>);
 	assert(*p / is<D&>);
+
+	assert(p / is_not_null);
 
 	static_assert(std::same_as<decltype(*p / as<B&>), B&>);
 	static_assert(std::same_as<decltype(*p / as<D&>), D&>);
@@ -149,6 +203,8 @@ void unit_test_native_ptr() noexcept
 	assert(!(p / is<D*>));
 	assert(p / as<D*> == nullptr);
 
+	assert(p / is_null);
+
 	// D*
 
 	D* p2{ new D };
@@ -161,6 +217,8 @@ void unit_test_native_ptr() noexcept
 
 	assert(*p2 / is<B&>);
 	assert(*p2 / is<D&>);
+
+	assert(p2 / is_not_null);
 
 	static_assert(std::same_as<decltype(*p2 / as<B&>), B&>);
 	static_assert(std::same_as<decltype(*p2 / as<D&>), D&>);
@@ -175,6 +233,8 @@ void unit_test_native_ptr() noexcept
 
 	assert(!(p2 / is<D*>));
 	assert(p2 / as<D*> == nullptr);
+
+	assert(p2 / is_null);
 }
 
 void unit_test_unique_ptr() noexcept
@@ -189,12 +249,12 @@ void unit_test_unique_ptr() noexcept
 
 	assert(p / is<B*>);
 	assert(p / as<B*> != nullptr);
-	assert(p / is<std::nullptr_t> && !p);
+	assert(p / is<std::nullptr_t> && !p && p / is_null);
 
 	p = make_unique<D>();
 	assert(p / is<D*>);
 	assert(p / as<D*> != nullptr);
-	assert(p / is<std::nullptr_t> && !p);
+	assert(p / is<std::nullptr_t> && !p && p / is_null);
 
 	p = make_unique<D>();
 	assert(*p / is<B&>);
@@ -209,7 +269,7 @@ void unit_test_unique_ptr() noexcept
 
 	assert(p / is<B*>);
 	assert(p / as<B*> != nullptr);
-	assert(p / is<std::nullptr_t> && !p);
+	assert(p / is<std::nullptr_t> && !p && p / is_null);
 
 	p = make_unique<B>();
 	assert(!(p / is<D*>));
@@ -234,12 +294,12 @@ void unit_test_unique_ptr() noexcept
 
 	assert(p2 / is<B*>);
 	assert(p2 / as<B*> != nullptr);
-	assert(p2 / is<std::nullptr_t> && !p2);
+	assert(p2 / is<std::nullptr_t> && !p2 && p2 / is_null);
 
 	p2 = make_unique<D>();
 	assert(p2 / is<D*>);
 	assert(p2 / as<D*> != nullptr);
-	assert(p2 / is<std::nullptr_t> && !p2);
+	assert(p2 / is<std::nullptr_t> && !p2 && p2 / is_null);
 
 	p2 = make_unique<D>();
 	assert(*p2 / is<B&>);
@@ -278,6 +338,8 @@ void unit_test_shared_ptr() noexcept
 	assert(*p / is<B&>);
 	assert(*p / is<D&>);
 
+	assert(p / is_not_null);
+
 	static_assert(std::same_as<decltype(*p / as<B&>), B&>);
 	static_assert(std::same_as<decltype(*p / as<D&>), D&>);
 
@@ -304,6 +366,8 @@ void unit_test_shared_ptr() noexcept
 	assert(!(p / is<D*>));
 	assert(p / as<D*> == nullptr);
 
+	assert(p / is_null);
+
 	// D*
 
 	auto p2 = make_shared<D>();
@@ -317,6 +381,8 @@ void unit_test_shared_ptr() noexcept
 	assert(*p2 / is<B&>);
 	assert(*p2 / is<D&>);
 
+	assert(p2 / is_not_null);
+
 	static_assert(std::same_as<decltype(*p2 / as<B&>), B&>);
 	static_assert(std::same_as<decltype(*p2 / as<D&>), D&>);
 
@@ -329,6 +395,8 @@ void unit_test_shared_ptr() noexcept
 
 	assert(!(p2 / is<D*>));
 	assert(p2 / as<D*> == nullptr);
+
+	assert(p2 / is_null);
 }
 
 void unit_test_weak_ptr() noexcept
@@ -352,6 +420,8 @@ void unit_test_weak_ptr() noexcept
 
 	//assert(*p / is<B&>);
 	//assert(*p / is<D&>);
+
+	assert(p / is_not_null);
 
 	//static_assert(std::same_as<decltype(*p / as<B&>), B&>);
 	//static_assert(std::same_as<decltype(*p / as<D&>), D&>);
@@ -379,6 +449,8 @@ void unit_test_weak_ptr() noexcept
 	assert(!(p / is<D*>));
 	assert(p / as<D*> == nullptr);
 
+	assert(p / is_null);
+
 	// D*
 
 	weak_ptr<D> p2 = pd;
@@ -392,6 +464,8 @@ void unit_test_weak_ptr() noexcept
 	//assert(*p2 / is<B&>);
 	//assert(*p2 / is<D&>);
 
+	assert(p2 / is_not_null);
+
 	//static_assert(std::same_as<decltype(*p2 / as<B&>), B&>);
 	//static_assert(std::same_as<decltype(*p2 / as<D&>), D&>);
 
@@ -404,6 +478,8 @@ void unit_test_weak_ptr() noexcept
 
 	assert(!(p2 / is<D*>));
 	assert(p2 / as<D*> == nullptr);
+
+	assert(p2 / is_null);
 }
 
 
@@ -414,4 +490,5 @@ int main() noexcept
 	unit_test_shared_ptr();
 	unit_test_weak_ptr();
 	unit_test_stl_types();
+	unit_test_ranges();
 }
