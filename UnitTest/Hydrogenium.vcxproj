@@ -192,7 +192,6 @@
     <ClCompile Include="..\UtlString.ixx" />
     <ClCompile Include="..\UtlWinConsole.ixx" />
     <ClCompile Include="UnitTest.cpp" />
-    <ClCompile Include="UnitTest_PatternMatching.cpp" />
     <ClCompile Include="UnitTest_UtlHook.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
