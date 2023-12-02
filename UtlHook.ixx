@@ -15,6 +15,7 @@ export module UtlHook;
 
 export import <array>;
 export import <bit>;
+export import <ranges>;
 export import <vector>;
 
 using std::array;
@@ -230,11 +231,34 @@ DWORD MH_GetModuleSize(HMODULE hModule) noexcept	// #REPORT_TO_MSVC_inline
 }
 
 export template <size_t dwPatternSize>
-void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept	// #REPORT_TO_MSVC_inline
+inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept
 {
 	auto const hModule = LoadLibraryA(pszModule);
+	auto const addr = MH_SearchPattern((void*)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern);
 
-	return (void *)((std::uintptr_t)MH_SearchPattern((void *)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern) + iDisplacement);
+	if (!addr)
+		return nullptr;
+
+	return (void *)((std::uintptr_t)addr + iDisplacement);	// in case we return stuff like (nullptr + 1)
+}
+
+// Search multiple patterns, if any of them works, then that's it.
+export
+inline void* UTIL_SearchPattern(const char* const pszModule, std::ptrdiff_t const iDisplacement, auto&... patterns) noexcept
+{
+	static_assert(std::conjunction_v<std::is_same<std::ranges::range_value_t<decltype(patterns)>, unsigned char>...>, "All patterns must be an native array of unsigned char.");
+
+	auto const hModule = LoadLibraryA(pszModule);
+	auto const dwBase = (void*)MH_GetModuleBase(hModule);
+	auto const dwSize = MH_GetModuleSize(hModule);
+
+	array const rgpResults{ MH_SearchPattern(dwBase, dwSize, patterns)... };
+
+	for (auto&& addr : rgpResults)
+		if (addr != nullptr)
+			return (void*)((std::uintptr_t)addr + iDisplacement);
+
+	return nullptr;
 }
 
 export
