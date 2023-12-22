@@ -47,6 +47,7 @@
     <ClCompile Include="UnitTest_UtlHook.cpp" />
     <ClCompile Include="UnitTest_UtlStringView.cpp" />
     <ClCompile Include="UnitTest_UtlReflexpr.cpp" />
+    <ClCompile Include="UnitTest_Rational.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">
