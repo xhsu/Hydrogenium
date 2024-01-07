@@ -10,22 +10,22 @@ import UtlConcepts;
 
 export enum : WORD
 {
-	WINCON_TEXT_BLACK = 0x0,
-	WINCON_TEXT_BLUE = 0x1,
-	WINCON_TEXT_GREEN,
-	WINCON_TEXT_SKY_BLUE,
-	WINCON_TEXT_RED,
-	WINCON_TEXT_PLUM,
-	WINCON_TEXT_GOLD,
-	WINCON_TEXT_SILVER,
-	WINCON_TEXT_GRAY,
-	WINCON_TEXT_CORNFLOWER_BLUE,
-	WINCON_TEXT_LIME,
-	WINCON_TEXT_CYAN,
-	WINCON_TEXT_PINK,
-	WINCON_TEXT_MAGENTA,
-	WINCON_TEXT_BEIGE,
-	WINCON_TEXT_WHITE,
+	WINCON_TEXT_BLACK = 0x0,	// 0x0C0C0C fmt::color::black
+	WINCON_TEXT_BLUE = 0x1,		// 0x0037DA fmt::color::medium_blue
+	WINCON_TEXT_GREEN,			// 0x13A10E fmt::color::forest_green
+	WINCON_TEXT_SKY_BLUE,		// 0x3A96DD fmt::color::royal_blue
+	WINCON_TEXT_RED,			// 0xC50F1F fmt::color::fire_brick
+	WINCON_TEXT_PLUM,			// 0x881798 fmt::color::dark_magenta
+	WINCON_TEXT_GOLD,			// 0xC19C00 fmt::color::dark_golden_rod
+	WINCON_TEXT_SILVER,			// 0xCCCCCC fmt::color::light_gray
+	WINCON_TEXT_GRAY,			// 0x767676 fmt::color::gray
+	WINCON_TEXT_CORNFLOWER_BLUE,// 0x3B78FF fmt::color::royal_blue
+	WINCON_TEXT_LIME,			// 0x16C60C fmt::color::lime_green
+	WINCON_TEXT_CYAN,			// 0x61D6D6 fmt::color::medium_turquoise
+	WINCON_TEXT_PINK,			// 0xE74856 fmt::color::indian_red
+	WINCON_TEXT_MAGENTA,		// 0xB4009E fmt::color::dark_magenta
+	WINCON_TEXT_BEIGE,			// 0xF9F1A5 fmt::color::pale_golden_rod
+	WINCON_TEXT_WHITE,			// 0xF2F2F2 fmt::color::white_smoke
 
 	WINCON_BG_BLACK = 0x00,
 	WINCON_BG_BLUE = 0x10,
