@@ -1,24 +1,37 @@
 ﻿#include <assert.h>
 
-import <math.h>;
-import <stddef.h>;
-import <stdint.h>;
+//import <math.h>;
+//import <stddef.h>;
+//import <stdint.h>;
+//
+//import <algorithm>;
+//import <functional>;
+//import <iterator>;
+//import <limits>;
+//import <memory>;
+//import <optional>;
+//import <ranges>;
+//import <stdexcept>;
+//import <string_view>;
+//import <string>;
+//
+//import <format>;
+//import <iostream>;
+#ifdef __INTELLISENSE__
 
-import <algorithm>;
-import <functional>;
-import <iterator>;
-import <limits>;
-import <memory>;
-import <optional>;
-import <ranges>;
-import <stdexcept>;
-import <string_view>;
-import <string>;
+#include <algorithm>
+#include <functional>
+#include <iterator>
+#include <memory>
+#include <ranges>
+#include <stdexcept>
+#include <string_view>
+#include <vector>
 
-import <format>;
-import <iostream>;
+#else
+import std.compat;
+#endif
 
-#include "fmt/core.h"
 
 struct mysv
 {
@@ -386,6 +399,87 @@ struct mysv
 	size_t m_iSize{};
 	ptrdiff_t m_len{};
 	ptrdiff_t m_count{};
+};
+
+template <typename StringOwner>
+struct gf_ref final
+{
+	constexpr gf_ref(StringOwner* psz, ptrdiff_t idx) noexcept
+		requires (requires { psz->replace(size_t{}, size_t{}, std::string_view{}); })
+	: m_str{ *psz }, m_pos{ idx }
+	{
+		if (idx >= 0)
+		{
+			for (ptrdiff_t i = 0, pos = 0; pos < std::ssize(m_str);)
+			{
+				auto const width = u8width(m_str[pos]);
+
+				if (width > 0)
+					++i;
+
+				if (i >= idx)
+				{
+					m_pos = pos;
+					break;
+				}
+				else
+					pos += width;
+			}
+		}
+		else
+		{
+			auto const locations = std::views::enumerate(m_str)
+				| std::views::filter([](auto&& pr) /*static*/ noexcept { return u8width(std::get<1>(pr)) > 0; })
+				| std::views::keys
+				| std::ranges::to<std::vector>();
+
+			m_pos = locations.at(locations.size() + idx);
+		}
+	}
+
+	constexpr gf_ref& operator= (std::string_view rhs) && noexcept
+	{
+		m_str.replace(m_pos, u8width(m_str[m_pos]), rhs);
+		return *this;
+	}
+
+	static constexpr auto u8width(unsigned char c) noexcept
+	{
+		if (c < 0b10000000 && c >= 0)
+		{
+			return 1;
+		}
+		else if ((c & 0b11100000) == 0b11000000)
+		{
+			return 2;
+		}
+		else if ((c & 0b11110000) == 0b11100000)
+		{
+			return 3;
+		}
+		else if ((c & 0b11111000) == 0b11110000)
+		{
+			return 4;
+		}
+		else if ((c >> 6) == 0b10)
+		{
+			return 0;
+		}
+		else
+		{
+			// Broken UTF8
+			std::terminate();
+			std::unreachable();
+		}
+	}
+
+	static constexpr bool is_utf8_followed_bytes(unsigned char c) noexcept
+	{
+		return ((c >> 6) ^ 0b10) == 0;
+	}
+
+	StringOwner& m_str;
+	ptrdiff_t m_pos{};
 };
 
 struct u8iter_t final

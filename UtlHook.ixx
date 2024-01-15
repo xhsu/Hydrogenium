@@ -274,4 +274,14 @@ void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept	// #R
 	}
 }
 
+export template <typename T>
+constexpr T* UTIL_RetrieveGlobalVariable(void* func_head, std::ptrdiff_t ofs) noexcept
+{
+	if (func_head == nullptr)
+		return nullptr;
+
+	auto const iptr = (std::uintptr_t)func_head + ofs;
+	return reinterpret_cast<T*>(*(std::uintptr_t**)iptr);
+}
+
 #pragma warning( pop )
