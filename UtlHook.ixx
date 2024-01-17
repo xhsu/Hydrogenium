@@ -284,4 +284,20 @@ constexpr T* UTIL_RetrieveGlobalVariable(void* func_head, std::ptrdiff_t ofs) no
 	return reinterpret_cast<T*>(*(std::uintptr_t**)iptr);
 }
 
+export inline
+void* UTIL_LoadLibraryFunction(const char* pszModule, const char* pszFunction) noexcept
+{
+	auto h = LoadLibraryA(pszModule);
+	if (!h) [[unlikely]]
+		return nullptr;
+
+	return GetProcAddress(h, pszFunction);
+}
+
+export __forceinline
+bool UTIL_ModulePresence(const char* pszName) noexcept
+{
+	return GetModuleHandleA(pszName) == NULL;
+}
+
 #pragma warning( pop )
