@@ -11,19 +11,28 @@ module;
 #define NOMINMAX
 #include <Windows.h>
 
+#ifdef __INTELLISENSE__
+#include <array>
+#include <bit>
+#include <ranges>
+#include <vector>
+#endif
+
 export module UtlHook;
 
+#ifndef __INTELLISENSE__
 export import <array>;
 export import <bit>;
 export import <ranges>;
 export import <vector>;
+#endif
 
 using std::array;
 using std::bit_cast;
 using std::vector;
 
-export [[nodiscard]]
-auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme) noexcept	// #REPORT_TO_MSVC_inline
+export [[nodiscard]] inline
+auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme) noexcept
 {
 	FlushInstructionCache(GetCurrentProcess(), iAddress, iSize);
 
@@ -31,22 +40,22 @@ auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProt
 	return VirtualProtect(iAddress, iSize, iProtectionScheme, &iSavedProtection);
 }
 
-export [[nodiscard]]
-auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme, PDWORD piOriginalProtectionScheme) noexcept	// #REPORT_TO_MSVC_inline
+export [[nodiscard]] inline
+auto UTIL_ChangeMemoryProtection(void *iAddress, unsigned int iSize, DWORD iProtectionScheme, PDWORD piOriginalProtectionScheme) noexcept
 {
 	FlushInstructionCache(GetCurrentProcess(), iAddress, iSize);
 
 	return VirtualProtect(iAddress, iSize, iProtectionScheme, piOriginalProtectionScheme);
 }
 
-export [[nodiscard]]
-void **UTIL_RetrieveVirtualFunctionTable(void *pObject) noexcept	// #REPORT_TO_MSVC_inline
+export [[nodiscard]] inline
+void **UTIL_RetrieveVirtualFunctionTable(void *pObject) noexcept
 {
 	return *((void ***)(((char *)pObject)));
 }
 
-export [[nodiscard]]
-void *UTIL_RetrieveVirtualFunction(void *const pObject, std::size_t const iIndex) noexcept	// #REPORT_TO_MSVC_inline
+export [[nodiscard]] inline
+void *UTIL_RetrieveVirtualFunction(void *const pObject, std::size_t const iIndex) noexcept
 {
 	const std::uintptr_t *const pvft = bit_cast<std::uintptr_t *>(pObject);
 	const std::uintptr_t *const vft = bit_cast<std::uintptr_t *>(*pvft);
@@ -55,7 +64,7 @@ void *UTIL_RetrieveVirtualFunction(void *const pObject, std::size_t const iIndex
 }
 
 export [[nodiscard]]
-void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnReplacement) noexcept	// #REPORT_TO_MSVC_inline
+void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnReplacement) noexcept
 {
 	vector<unsigned char> rgSequence
 	{
@@ -120,8 +129,8 @@ void *UTIL_CreateTrampoline(bool bThiscall, int iParamCount, void *pfnReplacemen
 	return p;
 };
 
-export
-void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned char(&rgPatch)[5], unsigned char(&rgOriginalBytes)[5], void **ppfnOriginal = nullptr) noexcept	// #REPORT_TO_MSVC_inline
+export inline
+void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned char(&rgPatch)[5], unsigned char(&rgOriginalBytes)[5], void **ppfnOriginal = nullptr) noexcept
 {
 	rgPatch[0] = 0xE9;	// jmp ; relative jump
 	*((uint32_t *)(&rgPatch[1])) = (char *)pfnReplacement - (char *)pTargetAddr - 5;
@@ -132,8 +141,8 @@ void UTIL_PreparePatch(void *pTargetAddr, void *pfnReplacement, unsigned char(&r
 		*ppfnOriginal = bit_cast<void *>(*((uint32_t *)(&rgOriginalBytes[1])) + (uint32_t)pTargetAddr + 5u);
 }
 
-export
-void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplacement, void **ppfnOriginal) noexcept	// #REPORT_TO_MSVC_inline
+export inline
+void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplacement, void **ppfnOriginal) noexcept
 {
 	if (UTIL_ChangeMemoryProtection(&vft[index], sizeof(pfnReplacement), PAGE_EXECUTE_READWRITE)) [[likely]]
 	{
@@ -146,8 +155,8 @@ void UTIL_VirtualTableInjection(void **vft, size_t index, void *pfnReplacement, 
 	}
 }
 
-export
-void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept	// #REPORT_TO_MSVC_inline keyword here will cause Weapon.cpp fn 'OrpheuF_FireBullets' C1001
+export inline
+void UTIL_DoPatch(void *pTargetAddr, unsigned char const(&rgPatch)[5]) noexcept
 {
 	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgPatch), PAGE_EXECUTE_READWRITE))	[[likely]]
 	{
@@ -159,8 +168,8 @@ void UTIL_DoPatch(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept	// #RE
 	}
 }
 
-export
-void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]) noexcept	// #REPORT_TO_MSVC_inline keyword here will cause Weapon.cpp fn 'OrpheuF_FireBullets' C1001
+export inline
+void UTIL_UndoPatch(void *pTargetAddr, unsigned char const(&rgOriginalBytes)[5]) noexcept
 {
 	if (UTIL_ChangeMemoryProtection(pTargetAddr, sizeof(rgOriginalBytes), PAGE_EXECUTE_READWRITE))	[[likely]]
 	{
@@ -172,8 +181,8 @@ void UTIL_UndoPatch(void *pTargetAddr, unsigned char(&rgOriginalBytes)[5]) noexc
 	}
 }
 
-export
-void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept	// #REPORT_TO_MSVC_inline
+export inline
+void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexcept
 {
 	auto const pTramp = *((uint32_t *)(&rgPatch[1])) + (uint32_t)pTargetAddr + 5;
 
@@ -182,7 +191,7 @@ void UTIL_DisposeTrampoline(void *pTargetAddr, unsigned char(&rgPatch)[5]) noexc
 	memset(&rgPatch[0], 0x00, sizeof(rgPatch));
 }
 
-export template <size_t dwPatternSize, size_t dwPatternLen = dwPatternSize - 1U>
+export template <size_t dwPatternSize, size_t dwPatternLen = dwPatternSize - 1U> [[nodiscard]]
 void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, const unsigned char(&rgszPattern)[dwPatternSize]) noexcept
 {
 	DWORD dwStartAddr = bit_cast<DWORD>(pStartSearch);
@@ -213,8 +222,8 @@ void *MH_SearchPattern(void const *const pStartSearch, const DWORD dwSearchLen, 
 	return nullptr;
 }
 
-export
-DWORD MH_GetModuleBase(HMODULE hModule) noexcept	// #REPORT_TO_MSVC_inline
+export [[nodiscard]] inline
+DWORD MH_GetModuleBase(HMODULE hModule) noexcept
 {
 	MEMORY_BASIC_INFORMATION mem{};
 
@@ -224,16 +233,16 @@ DWORD MH_GetModuleBase(HMODULE hModule) noexcept	// #REPORT_TO_MSVC_inline
 	return (DWORD)mem.AllocationBase;
 }
 
-export
-DWORD MH_GetModuleSize(HMODULE hModule) noexcept	// #REPORT_TO_MSVC_inline
+export [[nodiscard]] inline
+DWORD MH_GetModuleSize(HMODULE hModule) noexcept
 {
 	return ((IMAGE_NT_HEADERS *)((DWORD)hModule + ((IMAGE_DOS_HEADER *)hModule)->e_lfanew))->OptionalHeader.SizeOfImage;
 }
 
-export template <size_t dwPatternSize>
-inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept
+export template <size_t dwPatternSize> [[nodiscard]]
+void *UTIL_SearchPattern(const char *const pszModule, const unsigned char(&rgszPattern)[dwPatternSize], std::ptrdiff_t const iDisplacement = 0) noexcept
 {
-	auto const hModule = LoadLibraryA(pszModule);
+	auto const hModule = GetModuleHandleA(pszModule);
 	auto const addr = MH_SearchPattern((void*)MH_GetModuleBase(hModule), MH_GetModuleSize(hModule), rgszPattern);
 
 	if (!addr)
@@ -243,12 +252,10 @@ inline void *UTIL_SearchPattern(const char *const pszModule, const unsigned char
 }
 
 // Search multiple patterns, if any of them works, then that's it.
-export
-inline void* UTIL_SearchPattern(const char* const pszModule, std::ptrdiff_t const iDisplacement, auto&... patterns) noexcept
+export template <size_t... N> [[nodiscard]]
+void* UTIL_SearchPattern(const char* const pszModule, std::ptrdiff_t const iDisplacement, const unsigned char (&... patterns)[N]) noexcept
 {
-	static_assert(std::conjunction_v<std::is_same<std::ranges::range_value_t<decltype(patterns)>, unsigned char>...>, "All patterns must be an native array of unsigned char.");
-
-	auto const hModule = LoadLibraryA(pszModule);
+	auto const hModule = GetModuleHandleA(pszModule);
 	auto const dwBase = (void*)MH_GetModuleBase(hModule);
 	auto const dwSize = MH_GetModuleSize(hModule);
 
@@ -261,8 +268,44 @@ inline void* UTIL_SearchPattern(const char* const pszModule, std::ptrdiff_t cons
 	return nullptr;
 }
 
-export
-void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept	// #REPORT_TO_MSVC_inline
+export template <typename T> inline
+void UTIL_SearchPattern(void) noexcept
+{
+	// Requires:
+	// T::MODULE as char const[]
+	// T::PATTERNS as std::tuple<std::reference_wrapper<const char[N]>...>
+	// T::DISPLACEMENT as std::ptrdiff_t
+	// T::pfn
+
+	auto const hModule = GetModuleHandleA(T::MODULE);
+	auto const dwBase = (void*)MH_GetModuleBase(hModule);
+	auto const dwSize = MH_GetModuleSize(hModule);
+
+	auto const fnDispatcher =
+		[&](auto... CRef) noexcept
+		{
+			return array{
+				MH_SearchPattern(
+					dwBase, dwSize,
+					reinterpret_cast<unsigned char const(&)[sizeof(CRef.get())]>(CRef.get())	// fuck my life. Why there aren't an unsigned char literal?
+				)...
+			};
+		};
+
+	for (auto&& addr : std::apply(fnDispatcher, T::PATTERNS))
+	{
+		if (addr != nullptr)
+		{
+			T::pfn = reinterpret_cast<std::remove_cvref_t<decltype(T::pfn)>>((std::uintptr_t)addr + T::DISPLACEMENT);
+			break;
+		}
+		else
+			T::pfn = nullptr;
+	}
+}
+
+export inline
+void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept
 {
 	static DWORD dwProtect{};
 
@@ -274,7 +317,7 @@ void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept	// #R
 	}
 }
 
-export template <typename T>
+export template <typename T> [[nodiscard]]
 constexpr T* UTIL_RetrieveGlobalVariable(void* func_head, std::ptrdiff_t ofs) noexcept
 {
 	if (func_head == nullptr)
@@ -284,7 +327,7 @@ constexpr T* UTIL_RetrieveGlobalVariable(void* func_head, std::ptrdiff_t ofs) no
 	return reinterpret_cast<T*>(*(std::uintptr_t**)iptr);
 }
 
-export inline
+export [[nodiscard]] inline
 void* UTIL_LoadLibraryFunction(const char* pszModule, const char* pszFunction) noexcept
 {
 	auto h = LoadLibraryA(pszModule);
@@ -294,10 +337,69 @@ void* UTIL_LoadLibraryFunction(const char* pszModule, const char* pszFunction) n
 	return GetProcAddress(h, pszFunction);
 }
 
-export __forceinline
+export [[nodiscard]] __forceinline
 bool UTIL_ModulePresence(const char* pszName) noexcept
 {
 	return GetModuleHandleA(pszName) == NULL;
 }
+
+export template <typename T>
+struct FunctionHook final
+{
+	constexpr FunctionHook(T const& local_fn) noexcept
+		: m_LocalFN{ local_fn }
+	{
+		;
+	}
+
+	auto PreparePatch(T const& addr) noexcept
+	{
+		m_Address = addr;
+		return UTIL_PreparePatch(m_Address, m_LocalFN, m_PatchedBytes, m_OriginalBytes);
+	}
+
+	auto DoPatch() const noexcept
+	{
+		return UTIL_DoPatch(m_Address, m_PatchedBytes);
+	}
+
+	auto UndoPatch() const noexcept
+	{
+		return UTIL_UndoPatch(m_Address, m_OriginalBytes);
+	}
+
+	__forceinline void ApplyOn(T const& addr) noexcept
+	{
+		PreparePatch(addr);
+		DoPatch();
+	}
+
+	auto CallOriginal(auto&&... args) const noexcept
+	{
+		if constexpr (requires{ { m_Address(std::forward<decltype(args)>(args)...) } -> std::same_as<void>; })
+		{
+			UndoPatch();
+			m_Address(std::forward<decltype(args)>(args)...);
+			DoPatch();
+		}
+		else
+		{
+			UndoPatch();
+			auto const ret = m_Address(std::forward<decltype(args)>(args)...);
+			DoPatch();
+
+			return ret;
+		}
+	}
+
+	__forceinline auto operator() (auto&&... args) const noexcept { return CallOriginal(std::forward<decltype(args)>(args)...); }
+
+	unsigned char m_OriginalBytes[5]{};
+	unsigned char m_PatchedBytes[5]{};
+	T m_Address{};
+	T m_LocalFN{};
+
+	static_assert(std::is_pointer_v<T>, "Must be a local function pointer!");
+};
 
 #pragma warning( pop )
