@@ -67,7 +67,7 @@ T UTIL_SeededRandom(MT19937_t::result_type uiSeed, T low, T high) noexcept
 		static_assert(!sizeof(T), "<T> Must be a arithmetic non-boolean type!");
 }
 
-export template<ProperIter Iter>
+export template <ProperIter Iter>
 [[nodiscard]]
 Iter UTIL_GetRandomOne(Iter start, Iter end) noexcept
 {
@@ -95,4 +95,12 @@ decltype(auto) UTIL_GetRandomOne(const std::ranges::random_access_range auto& ob
 	}
 	else
 		return *UTIL_GetRandomOne(std::begin(obj), std::end(obj));
+}
+
+export inline
+decltype(auto) UTIL_Shuffle(std::ranges::random_access_range auto&& obj) noexcept
+{
+	static MT19937_t gen(g_PureRD());
+
+	return std::ranges::shuffle(obj, gen);
 }
