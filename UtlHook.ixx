@@ -343,6 +343,12 @@ bool UTIL_ModulePresence(const char* pszName) noexcept
 	return GetModuleHandleA(pszName) == NULL;
 }
 
+export [[nodiscard]] __forceinline
+auto UTIL_GetModuleBase(const char* pszName) noexcept
+{
+	return MH_GetModuleBase(GetModuleHandleA(pszName));
+}
+
 export template <typename T>
 struct FunctionHook final
 {
