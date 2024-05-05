@@ -172,6 +172,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Application.ixx" />
+    <ClCompile Include="..\Style.ixx" />
     <ClCompile Include="..\UtlArithmetic.ixx" />
     <ClCompile Include="..\UtlBuffer.ixx" />
     <ClCompile Include="..\UtlColor.ixx" />
@@ -206,6 +207,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp" />
+    <ClInclude Include="..\Style.hpp" />
     <ClInclude Include="..\UtlFormatter.hpp" />
     <ClInclude Include="..\UtlPatternMatching.hpp" />
     <ClInclude Include="UnitTest.hpp" />

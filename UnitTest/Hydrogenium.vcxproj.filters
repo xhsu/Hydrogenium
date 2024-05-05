@@ -57,6 +57,9 @@
     <ClCompile Include="..\UtlCommandLine.ixx">
       <Filter>Modules</Filter>
     </ClCompile>
+    <ClCompile Include="..\Style.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">
@@ -67,6 +70,9 @@
     </ClInclude>
     <ClInclude Include="UnitTest.hpp" />
     <ClInclude Include="..\UtlPatternMatching.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Style.hpp">
       <Filter>Modules</Filter>
     </ClInclude>
   </ItemGroup>
