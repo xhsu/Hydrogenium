@@ -45,7 +45,7 @@ int main(int, char*[]) noexcept
 		std::println("Current counter: '{}'", iCounter);
 
 		fclose(f);
-		f = fopen(CounterFile, "wb");
+		f = fopen(CounterFile, "wt");
 		if (f == nullptr)
 		{
 			std::print("Error: Cannot write to file '{}'.\n", CounterFile);
@@ -57,7 +57,7 @@ int main(int, char*[]) noexcept
 		delete[] p;
 		fclose(f);
 	}
-	else if (f = fopen(CounterFile, "wb"); f != nullptr)
+	else if (f = fopen(CounterFile, "wt"); f != nullptr)
 	{
 		std::print(f, "#define BUILD_COUNT\t{}\n", 1);
 		fclose(f);
