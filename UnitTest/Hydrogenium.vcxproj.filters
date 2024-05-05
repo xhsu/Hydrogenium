@@ -48,6 +48,15 @@
     <ClCompile Include="UnitTest_UtlStringView.cpp" />
     <ClCompile Include="UnitTest_UtlReflexpr.cpp" />
     <ClCompile Include="UnitTest_Rational.cpp" />
+    <ClCompile Include="..\Application.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlCommandLine.cpp">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlCommandLine.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">

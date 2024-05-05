@@ -171,9 +171,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\Application.ixx" />
     <ClCompile Include="..\UtlArithmetic.ixx" />
     <ClCompile Include="..\UtlBuffer.ixx" />
     <ClCompile Include="..\UtlColor.ixx" />
+    <ClCompile Include="..\UtlCommandLine.cpp" />
+    <ClCompile Include="..\UtlCommandLine.ixx" />
     <ClCompile Include="..\UtlConcepts.ixx" />
     <ClCompile Include="..\UtlFileSystem.ixx" />
     <ClCompile Include="..\UtlFunction.ixx" />
