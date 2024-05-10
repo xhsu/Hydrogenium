@@ -7,222 +7,6 @@
 
 
 
-namespace Hydrogenium::CCType
-{
-	// #UPDATE_AT_CPP23 if consteval
-
-	// int isalnum(int c);
-	constexpr bool IsAlNum(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return
-				('0' <= c && c <= '9')
-				|| ('a' <= c && c <= 'z')
-				|| ('A' <= c && c <= 'Z');
-		}
-		else
-		{
-			return std::isalnum(c);
-		}
-	}
-
-	// int isalpha(int c);
-	constexpr bool IsAlpha(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return
-				('a' <= c && c <= 'z')
-				|| ('A' <= c && c <= 'Z');
-		}
-		else
-		{
-			return std::isalpha(c);
-		}
-	}
-
-	//int isblank(int c);
-	constexpr bool IsBlank(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return c == '\t' || c == ' ';
-		}
-		else
-		{
-			return std::isblank(c);
-		}
-	}
-
-	//int iscntrl(int c);
-	constexpr bool IsCntrl(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return
-				('\x00' <= c && c <= '\x1F')
-				|| c == '\x7F';
-		}
-		else
-		{
-			return std::iscntrl(c);
-		}
-	}
-
-	//int isdigit(int c);
-	constexpr bool IsDigit(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return ('0' <= c && c <= '9');
-		}
-		else
-		{
-			return std::isdigit(c);
-		}
-	}
-
-	//int isgraph(int c);
-	constexpr bool IsGraph(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return ('\x21' <= c && c <= '\x7E');
-		}
-		else
-		{
-			return std::isgraph(c);
-		}
-	}
-
-	//int islower(int c);
-	constexpr bool IsLower(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return 'a' <= c && c <= 'z';
-		}
-		else
-		{
-			return std::islower(c);
-		}
-	}
-
-	//int isprint(int c);
-	constexpr bool IsPrint(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return ('\x20' <= c && c <= '\x7E');
-		}
-		else
-		{
-			return std::isprint(c);
-		}
-	}
-
-	//int ispunct(int c);
-	constexpr bool IsPunct(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return
-				('\x21' <= c && c <= '\x2F')		// !"#$%&'()*+,-./
-				|| ('\x3A' <= c && c <= '\x40')		// :;<=>?@
-				|| ('\x5B' <= c && c <= '\x60')		// [\]^_`
-				|| ('\x7B' <= c && c <= '\x7E')		// {|}~
-				;
-		}
-		else
-		{
-			return std::ispunct(c);
-		}
-	}
-
-	//int isspace(int c);
-	constexpr bool IsSpace(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return
-				c == ' '
-				|| c == '\f'
-				|| c == '\n'
-				|| c == '\r'
-				|| c == '\t'
-				|| c == '\v'
-				;
-		}
-		else
-		{
-			return std::isspace(c);
-		}
-	}
-
-	//int isupper(int c);
-	constexpr bool IsUpper(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return 'A' <= c && c <= 'Z';
-		}
-		else
-		{
-			return std::isupper(c);
-		}
-	}
-
-	//int isxdigit(int c);
-	constexpr bool IsXDigit(unsigned char c) noexcept
-	{
-		if (std::is_constant_evaluated())
-		{
-			return
-				('0' <= c && c <= '9')
-				|| ('a' <= c && c <= 'f')
-				|| ('A' <= c && c <= 'F');
-		}
-		else
-		{
-			return std::isxdigit(c);
-		}
-	}
-
-	//int tolower(int c);
-	constexpr auto ToLower(unsigned char c) noexcept -> decltype(c)
-	{
-		if (std::is_constant_evaluated())
-		{
-			if ('A' <= c && c <= 'Z')
-				return static_cast<decltype(c)>(c - 'A' + 'a');
-
-			return c;
-		}
-		else
-		{
-			return static_cast<decltype(c)>(std::tolower(c));
-		}
-	}
-
-	//int toupper(int c);
-	constexpr auto ToUpper(unsigned char c) noexcept -> decltype(c)
-	{
-		if (std::is_constant_evaluated())
-		{
-			if ('a' <= c && c <= 'z')
-				return static_cast<decltype(c)>(c - 'a' + 'A');
-
-			return c;
-		}
-		else
-		{
-			return static_cast<decltype(c)>(std::toupper(c));
-		}
-
-	}
-}
-
 namespace Hydrogenium
 {
 	template <typename T>
@@ -511,381 +295,6 @@ namespace Hydrogenium
 	};
 }
 
-namespace Hydrogenium::CString
-{
-	using std::optional;
-	using std::size_t;
-	using std::string;
-	using std::string_view;
-
-// #UPDATE_AT_CPP23 if consteval
-
-	//void* memcpy(void* s1, const void* s2, size_t n);      // freestanding
-	//void* memmove(void* s1, const void* s2, size_t n);     // freestanding
-
-	//char* strcpy(char* s1, const char* s2);                // freestanding
-	constexpr string* StrCpy(string* dest, string_view src) noexcept
-	{
-		dest->assign(src);
-		return dest;
-	}
-
-	//char* strncpy(char* s1, const char* s2, size_t n);     // freestanding
-	constexpr string* StrNCpy(string* dest, string_view src, size_t count) noexcept
-	{
-		dest->assign(
-			src.data(),
-			std::min(src.length(), count)
-		);
-
-		// Not going to have UB or add additional '\0' to the end of dest.
-
-		return dest;
-	}
-
-	//char* strcat(char* s1, const char* s2);                // freestanding
-	constexpr string* StrCat(string* dest, string_view src) noexcept
-	{
-		dest->append(src);
-		return dest;
-	}
-
-	//char* strncat(char* s1, const char* s2, size_t n);     // freestanding
-	constexpr string* StrNCat(string* dest, string_view src, size_t count) noexcept
-	{
-		dest->append(
-			src.data(),
-			std::min(src.length(), count)
-		);
-
-		return dest;
-	}
-
-	//int memcmp(const void* s1, const void* s2, size_t n);  // freestanding
-
-	//int strcmp(const char* s1, const char* s2);            // freestanding
-	constexpr int StrCmp(string_view lhs, string_view rhs) noexcept
-	{
-		return string_view::traits_type::compare(
-			lhs.data(),
-			rhs.data(),
-			std::min(lhs.length(), rhs.length())
-		);
-	}
-	static_assert(StrCmp("Cats", "Cats") == 0);
-	static_assert(StrCmp("Garfield", "Heathcliff") < 0);
-	static_assert(StrCmp("Snagglepuss", "Hobbes") > 0);
-
-	//int strcoll(const char* s1, const char* s2);
-
-	//int strncmp(const char* s1, const char* s2, size_t n); // freestanding
-	constexpr int StrNCmp(string_view lhs, string_view rhs, size_t count) noexcept
-	{
-		return string_view::traits_type::compare(
-			lhs.data(),
-			rhs.data(),
-
-			// UB removed.
-			std::ranges::min({ lhs.length(), rhs.length(), count })
-		);
-	}
-	static_assert(StrNCmp("Hello, world!", "Hello, everybody!", 13) > 0);
-	static_assert(StrNCmp("Hello, everybody!", "Hello, world!", 13) < 0);
-	static_assert(StrNCmp("Hello, everybody!", "Hello, world!", 7) == 0);
-	static_assert(StrNCmp("Hello, !", "Hello, !", 0x1000) == 0);
-
-	//size_t strxfrm(char* s1, const char* s2, size_t n);
-	//const void* memchr(const void* s, int c, size_t n);    // freestanding
-	//void* memchr(void* s, int c, size_t n);                // freestanding
-
-	//const char* strchr(const char* s, int c);              // freestanding
-	//char* strchr(char* s, int c);                          // freestanding
-	constexpr optional<string_view> StrChr(string_view str, unsigned char ch) noexcept
-	{
-		if (auto const pos = str.find_first_of(ch); pos != str.npos)
-			return optional<string_view>{ std::in_place, str.substr(pos) };
-
-		return std::nullopt;
-	}
-	static_assert(*StrChr("Try not", 'T') == "Try not");
-	static_assert(!StrChr("Try not", 'N'));
-
-	//size_t strcspn(const char* s1, const char* s2);        // freestanding
-	constexpr size_t StrCSpn(string_view dest, string_view src) noexcept
-	{
-		if (auto const pos = dest.find_first_of(src); pos != string_view::npos)
-			return pos;
-
-		return dest.length();
-	}
-	static_assert(StrCSpn("abcde312$#@", "*$#") == 8);
-
-	//const char* strpbrk(const char* s1, const char* s2);   // freestanding
-	//char* strpbrk(char* s1, const char* s2);               // freestanding
-	constexpr optional<string_view> StrPBrk(string_view dest, string_view breakset) noexcept
-	{
-		if (auto const pos = dest.find_first_of(breakset); pos != dest.npos)
-			return optional<string_view>{ std::in_place, dest.substr(pos) };
-
-		return std::nullopt;
-	}
-	static_assert(*StrPBrk("hello, world!", " ,!") == ", world!");
-	static_assert(!StrPBrk("hello, world!", "@~").has_value());
-
-	//const char* strrchr(const char* s, int c);             // freestanding
-	//char* strrchr(char* s, int c);                         // freestanding
-	constexpr optional<string_view> StrRChr(string_view str, unsigned char ch) noexcept
-	{
-		if (auto const pos = str.find_last_of(ch); pos != str.npos)
-			return optional<string_view>{ std::in_place, str.substr(pos) };
-
-		return std::nullopt;
-	}
-	static_assert(*StrRChr("/home/user/hello.c", '/') == "/hello.c");
-	static_assert(!StrRChr("/home/user/hello.c", '\\').has_value());
-
-	//size_t strspn(const char* s1, const char* s2);         // freestanding
-	constexpr size_t StrSpn(string_view dest, string_view src) noexcept
-	{
-		if (auto const pos = dest.find_first_not_of(src); pos != string_view::npos)
-			return pos;
-
-		return dest.length();
-	}
-	static_assert(StrSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
-
-	//const char* strstr(const char* s1, const char* s2);    // freestanding
-	//char* strstr(char* s1, const char* s2);                // freestanding
-	constexpr optional<string_view> StrStr(string_view haystack, string_view needle) noexcept
-	{
-		if (auto const pos = haystack.find(needle); pos != string_view::npos)
-			return optional<string_view>{ std::in_place, haystack.substr(pos) };
-
-		return std::nullopt;
-	}
-	static_assert(*StrStr("Try not. Do, or do not. There is no try.", "not") == "not. Do, or do not. There is no try.");
-	static_assert(!StrStr("haystack", "needle"));
-
-	//char* strtok(char* s1, const char* s2);                // freestanding
-	optional<string_view> StrTok(optional<string_view> str, string_view delim)
-	{
-		static thread_local const char* buffer = nullptr, *last_excl = nullptr;
-
-		if (str.has_value())
-		{
-			buffer = str->data();
-			last_excl = buffer + str->size();
-		}
-
-		buffer += StrSpn({ buffer, last_excl }, delim);
-
-		if (buffer >= last_excl)
-			return std::nullopt;
-
-		auto const tokenBegin = buffer;
-
-		buffer += StrCSpn({ buffer, last_excl }, delim);
-
-		if (buffer >= last_excl)
-			return std::nullopt;
-
-		// buffer is the end in this section as it is going to be assigned as '\0' in original strtok().
-		return optional<string_view>{ std::in_place, tokenBegin, buffer };
-	}
-
-	void UnitTest_StrTok() noexcept
-	{
-		string_view input = "one + two * (three - four)!";
-		string_view delimiters = "! +- (*)";
-
-		auto token = StrTok(input, delimiters);
-		while (token)
-		{
-			std::cout << '"' << *token << '"' << ' ';
-			token = StrTok(std::nullopt, delimiters);
-		}
-
-		std::cout << "\nExpected output: " R"("one" "two" "three" "four")" << std::endl;
-	}
-
-	//void* memset(void* s, int c, size_t n);                // freestanding
-	//char* strerror(int errnum);
-
-	//size_t strlen(const char* s);                          // freestanding
-	constexpr size_t StrLen(string_view str) noexcept
-	{
-		return str.length();
-	}
-	static_assert(StrLen("dog cat\0mouse") == 7);
-
-	//char *strdup( const char *src );						// (since C23)
-	constexpr string StrDup(string_view str) noexcept
-	{
-		return string{ str };
-	}
-
-	//char *strndup( const char *src, size_t size );		// (since C23)
-	constexpr string StrNDup(string_view src, size_t size) noexcept
-	{
-		return string{ src.substr(size) };
-	}
-
-	namespace detail
-	{
-		constexpr bool CaseIgnoredEqual(char lhs, char rhs) noexcept
-		{
-			if (CCType::IsUpper(lhs))
-				lhs = static_cast<decltype(lhs)>(lhs - 'A' + 'a');
-			if (CCType::IsUpper(rhs))
-				rhs = static_cast<decltype(rhs)>(rhs - 'A' + 'a');
-
-			return lhs == rhs;
-		}
-	}
-
-	//int _stricmp(const char* string1, const char* string2);	// MSVC
-	constexpr int StrICmp(string_view lhs, string_view rhs) noexcept
-	{
-		auto s1 = lhs.cbegin(), s2 = rhs.cbegin();
-		auto const e1 = lhs.cend(), e2 = rhs.cend();
-
-		while (
-			s1 != e1 && s2 != e2
-			&& detail::CaseIgnoredEqual(*s1, *s2)
-			)
-		{
-			++s1;
-			++s2;
-		}
-
-
-		// treat as if it were NUL terminus if end() reached.
-		// MS _stricmp() is treat as if all case are lower.
-		// see test:
-		// fmt::println("(abc) stricmp: {}; strcmp: {}", _stricmp("abc", "[\\]^_`"), strcmp("abc", "[\\]^_`"));
-		// fmt::println("(ABC) stricmp: {}; strcmp: {}", _stricmp("ABC", "[\\]^_`"), strcmp("ABC", "[\\]^_`"));
-
-		unsigned char const c1 = s1 == e1 ? '\0' : CCType::ToLower(*s1);
-		unsigned char const c2 = s2 == e2 ? '\0' : CCType::ToLower(*s2);
-
-		return c1 - c2;
-	}
-	static_assert(StrICmp("a0b1c2", "A0B1C2") == 0);
-	static_assert(StrICmp("abc", "DEF") < 0 && StrCmp("abc", "DEF") > 0);
-	static_assert(StrICmp("GHI", "def") > 0 && StrCmp("GHI", "def") < 0);
-	static_assert(StrICmp(u8"你好", u8"你好") == 0 && StrICmp(u8"你好", u8"你好嗎") < 0);
-
-	//char *_strlwr(char* str);								// MSVC
-	constexpr string StrLwr(string_view str) noexcept
-	{
-		string ret{};
-		ret.reserve(str.length());
-
-		for (auto&& c : str)
-			ret.push_back(CCType::ToLower(c));
-
-		return ret;
-	}
-	constexpr string* StrLwr(string* str) noexcept
-	{
-		for (auto& c : *str)
-			c = CCType::ToLower(c);
-
-		return str;
-	}
-	static_assert(StrLwr(u8"AbCdEfG01234") == u8"abcdefg01234");	// UTF-8 Tested. MSVC is bugged in compile-time UTF.
-
-	//int _strnicmp(const char* string1, const char* string2, size_t count);	// MSVC
-	constexpr int StrNICmp(string_view lhs, string_view rhs, size_t count) noexcept
-	{
-		return StrICmp(
-			lhs | std::views::take(count),
-			rhs | std::views::take(count)
-		);
-	}
-	static_assert(StrNICmp("", "", 0x100) == 0);
-	static_assert(StrNICmp(u8"你好", u8"你好嗎", StrLen(u8"你好")) == 0);
-
-	//size_t _strncnt(const char* str, size_t count);		// MSVC
-
-	//unsigned int _strnextc(const char* str);				// MSVC
-
-	//char *_strninc(const char* str, size_t count);		// MSVC
-
-	//char *_strrev(char* str);								// MSVC
-	constexpr string StrRev(string_view str) noexcept
-	{
-		return
-			str
-			| std::views::reverse
-			| std::ranges::to<string>();
-	}
-	constexpr string* StrRev(string* str) noexcept
-	{
-		auto ret = StrRev(*str);
-		std::swap(*str, ret);
-		return str;
-	}
-	static_assert(StrRev("AbCdEfG01234") == "43210GfEdCbA");
-
-	//char *_strspnp(const char* str, const char* charset);	// MSVC
-	constexpr string_view StrSpnP(string_view str, string_view charset) noexcept
-	{
-		if (auto const pos = str.find_first_not_of(charset); pos != string_view::npos)
-			return str.substr(pos);
-
-		return string_view{ str.cend(), str.cend() };
-	}
-	static_assert(StrSpnP("cabbage", "c") == "abbage");
-	static_assert(StrSpnP("haystack", "needle") == "haystack");
-	static_assert(StrSpnP("01234", "0123456789").empty());
-
-	//char *_strupr(char* str);								// MSVC
-	constexpr string StrUpr(string_view str) noexcept
-	{
-		string ret{};
-		ret.reserve(str.length());
-
-		for (auto&& c : str)
-			ret.push_back(CCType::ToUpper(c));
-
-		return ret;
-	}
-	constexpr string* StrUpr(string* str) noexcept
-	{
-		for (auto& c : *str)
-			c = CCType::ToUpper(c);
-
-		return str;
-	}
-	static_assert(StrUpr(u8"AbCdEfG01234") == u8"ABCDEFG01234");	// UTF-8 Tested. MSVC is bugged in compile-time UTF.
-
-	//char *stristr(char* str, const char* substr);			// Quake
-	constexpr optional<string_view> StrIStr(string_view haystack, string_view needle) noexcept
-	{
-		optional<string_view> opt{ std::nullopt };
-
-		auto ret = std::ranges::search(
-			haystack,
-			needle,
-			{},
-			CCType::ToLower,
-			CCType::ToLower
-		);
-
-		if (ret.empty())
-			return opt;
-
-		auto const pos = std::ranges::distance(haystack.begin(), ret.begin());
-
-		opt.emplace(haystack.substr(pos));
-		return opt;
-	}
-	static_assert(*StrIStr("abCD abcd", "Bcd") == "bCD abcd");
-	static_assert(!StrIStr("abcd abcd", ""));
-	static_assert(!StrIStr("abcd abcd", "efg"));
-}
-
 namespace Hydrogenium::StringPolicy::Advancing
 {
 	// #UPDATE_AT_CPP23 static operator()
@@ -997,12 +406,57 @@ namespace Hydrogenium::StringPolicy::Counter
 	struct cap_at_n_t final
 	{
 		using size_type = size_t;
+
+		template <typename T, typename C>
+		struct pattern_view_view
+		{
+			[[nodiscard]]
+			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, size_t count) const noexcept
+			{
+				return T::Impl(
+					lhs | std::views::take(count),
+					rhs | std::views::take(count)
+				);
+			}
+		};
+
+		template <typename T, typename C>
+		struct pattern_view_char
+		{
+			[[nodiscard]]
+			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch, size_t last_pos) const noexcept
+			{
+				return T::Impl(
+					str | std::views::take(last_pos),
+					ch
+				);
+			}
+		};
 	};
 
 	inline constexpr auto cap_at_n = cap_at_n_t{};
 
 	struct cap_at_len_t final
 	{
+		template <typename T, typename C>
+		struct pattern_view_view
+		{
+			[[nodiscard]]
+			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs) const noexcept
+			{
+				return T::Impl(lhs, rhs);
+			}
+		};
+
+		template <typename T, typename C>
+		struct pattern_view_char
+		{
+			[[nodiscard]]
+			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch) const noexcept
+			{
+				return T::Impl(str, ch);
+			}
+		};
 	};
 
 	inline constexpr auto cap_at_len = cap_at_len_t{};
@@ -1062,7 +516,7 @@ namespace Hydrogenium::String
 
 		using adv_fn_t = decltype(adv_fn);
 		using comp_fn_t = decltype(comp_fn);
-		using counter_fn_t = decltype(counter_fn);
+		using counter_fn_t = std::remove_cvref_t<decltype(counter_fn)>;
 
 		struct detail final
 		{
@@ -1099,6 +553,17 @@ namespace Hydrogenium::String
 			}
 		};
 
+		struct cmp_fn_t : counter_fn_t::template pattern_view_view<cmp_fn_t, char_type>
+		{
+			using counter_fn_t::template pattern_view_view<cmp_fn_t, char_type>::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs) noexcept
+			{
+				return detail::Cmp(lhs, rhs);
+			}
+		};
+		static inline constexpr auto Cmp2 = cmp_fn_t{};
+
 		[[nodiscard]]
 		static constexpr int Cmp(ctype_info::view_type lhs, ctype_info::view_type rhs) noexcept
 			requires (!requires{ typename counter_fn_t::size_type; })
@@ -1134,7 +599,6 @@ namespace Hydrogenium::String
 
 namespace Hydrogenium::String::UnitTest
 {
-	using namespace CString;
 	using namespace StringPolicy;
 
 	using Str = Utils<>;
@@ -1156,18 +620,19 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsI::Cmp(L"abc", L"DEF") < 0 && Wcs::Cmp(L"abc", L"DEF") > 0);
 	static_assert(WcsI::Cmp(L"GHI", L"def") > 0 && Wcs::Cmp(L"GHI", L"def") < 0);
 	static_assert(Wcs::Cmp(L"你好", L"你好") == 0 && Wcs::Cmp(L"你好", L"你好嗎") < 0);
-	static_assert(WcsN::Cmp(L"你好", L"你好嗎", 2) == 0 && WcsN::Cmp(L"你好", L"你好嗎", 3) < 0);
+	static_assert(WcsN::Cmp2(L"你好", L"你好嗎", 2) == 0 && WcsN::Cmp(L"你好", L"你好嗎", 3) < 0);
+
 }
 
 constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
 {
-	using namespace Hydrogenium::CCType;
+	using namespace Hydrogenium;
 
 	auto ret =
 		sv
-		| std::views::drop_while(IsSpace)
+		| std::views::drop_while(CType<char>::IsSpace)
 		| std::views::reverse
-		| std::views::drop_while(IsSpace)
+		| std::views::drop_while(CType<char>::IsSpace)
 		| std::views::reverse;
 
 	if (std::ranges::empty(ret))

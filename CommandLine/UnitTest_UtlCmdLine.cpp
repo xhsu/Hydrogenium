@@ -63,8 +63,6 @@ static_assert(
 
 int main(int argc, char* argv[]) noexcept
 {
-	using namespace Hydrogenium::CCType;
-	using namespace Hydrogenium::CString;
 	//CommandLineRun(argc, argv, CMD_HANDLER);
 	//CommandLineUnitTest();
 	using namespace Hydrogenium::String::UnitTest;

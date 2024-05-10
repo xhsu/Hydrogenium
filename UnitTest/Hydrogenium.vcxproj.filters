@@ -80,5 +80,11 @@
       <Filter>Modules</Filter>
     </ClInclude>
     <ClInclude Include="..\Precompiled.hpp" />
+    <ClInclude Include="..\UtlChType.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\UtlCString.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
