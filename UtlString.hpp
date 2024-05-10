@@ -358,24 +358,24 @@ namespace Hydrogenium::StringPolicy::Comparing
 {
 	struct case_ignored_t final
 	{
-		template <typename T> [[nodiscard]]
-		static constexpr int Cmp(T lhs, T rhs) noexcept
+		template <typename T, typename U> [[nodiscard]]
+		static constexpr int Cmp(T lhs, U rhs) noexcept
 		{
 			if (CType<T>::IsUpper(lhs))
 				lhs = CType<T>::ToLower(lhs);
-			if (CType<T>::IsUpper(rhs))
-				rhs = CType<T>::ToLower(rhs);
+			if (CType<U>::IsUpper(rhs))
+				rhs = CType<U>::ToLower(rhs);
 
 			return lhs - rhs;
 		}
 
-		template <typename T> [[nodiscard]]
-		static constexpr bool Eql(T lhs, T rhs) noexcept
+		template <typename T, typename U> [[nodiscard]]
+		static constexpr bool Eql(T lhs, U rhs) noexcept
 		{
 			if (CType<T>::IsUpper(lhs))
 				lhs = CType<T>::ToLower(lhs);
-			if (CType<T>::IsUpper(rhs))
-				rhs = CType<T>::ToLower(rhs);
+			if (CType<U>::IsUpper(rhs))
+				rhs = CType<U>::ToLower(rhs);
 
 			return lhs == rhs;
 		}
@@ -432,6 +432,21 @@ namespace Hydrogenium::StringPolicy::Counter
 				);
 			}
 		};
+
+		template <typename T, typename C>
+		struct pattern_nullable_view
+		{
+			[[nodiscard]]
+			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, size_t count) const noexcept
+			{
+				decltype(str) opt{ std::nullopt };
+
+				if (str)
+					opt.emplace(*str | std::views::take(count));
+
+				return T::Impl(opt, token);
+			}
+		};
 	};
 
 	inline constexpr auto cap_at_n = cap_at_n_t{};
@@ -457,6 +472,16 @@ namespace Hydrogenium::StringPolicy::Counter
 				return T::Impl(str, ch);
 			}
 		};
+
+		template <typename T, typename C>
+		struct pattern_nullable_view
+		{
+			[[nodiscard]]
+			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, size_t count) const noexcept
+			{
+				return T::Impl(str, token);
+			}
+		};
 	};
 
 	inline constexpr auto cap_at_len = cap_at_len_t{};
@@ -476,6 +501,35 @@ namespace Hydrogenium::StringPolicy::Result
 	// index
 	// iterator
 	// dup
+
+	struct as_it_is_t final
+	{
+		// Cmp
+		constexpr auto operator() (std::same_as<int> auto val) const noexcept -> decltype(val)
+		{
+			return val;
+		}
+
+		// Len, Cnt, Spn, CSpn
+		constexpr auto operator() (std::same_as<size_t> auto val) const noexcept -> decltype(val)
+		{
+			return val;
+		}
+
+		// Chr, PBrk, Str, Tok
+		template <typename C>
+		constexpr auto operator() (std::basic_string_view<C, std::char_traits<C>> val) const noexcept -> decltype(val)
+		{
+			return val;
+		}
+
+		// Dup, Lwr, Rev, Upr
+		template <typename C>
+		constexpr auto operator() (std::basic_string<C, std::char_traits<C>, std::allocator<C>>* ptr) const noexcept -> decltype(ptr)
+		{
+			return ptr;
+		}
+	};
 }
 
 namespace Hydrogenium::String
@@ -500,26 +554,58 @@ namespace Hydrogenium::String
 
 	static_assert(ComparingPolicy<StringPolicy::Comparing::case_ignored_t, char>);
 	static_assert(ComparingPolicy<StringPolicy::Comparing::regular_t, char>);
+
+	struct MyDummy
+	{
+		static constexpr auto Impl(auto&&...) noexcept {}
+
+		constexpr auto operator() (auto&&... args) const noexcept { return Impl(std::forward<decltype(args)>(args)...); }
+	};
+
+	template <typename T, typename C>
+	concept CounterPolicy = requires
+	{
+		&T::template pattern_view_view<MyDummy, C>::operator();
+		&T::template pattern_view_char<MyDummy, C>::operator();
+		&T::template pattern_nullable_view<MyDummy, C>::operator();
+	};
+
+	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_len_t, char>);
+	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_n_t, wchar_t>);
 }
 
 namespace Hydrogenium::String
 {
 	template <
 		typename char_type = char,
-		String::AdvancingPolicy<char_type> auto adv_fn = StringPolicy::Advancing::as_ascii,
-		String::ComparingPolicy<char_type> auto comp_fn = StringPolicy::Comparing::regular,
-		auto counter_fn = StringPolicy::Counter::cap_at_len
+		String::AdvancingPolicy<char_type> auto Advancer = StringPolicy::Advancing::as_ascii,
+		String::ComparingPolicy<char_type> auto Comparators = StringPolicy::Comparing::regular,
+		String::CounterPolicy<char_type> auto counter_fn = StringPolicy::Counter::cap_at_len
 	>
 	struct Utils final
 	{
 		using ctype_info = CType<char_type>;
 
-		using adv_fn_t = decltype(adv_fn);
-		using comp_fn_t = decltype(comp_fn);
-		using counter_fn_t = std::remove_cvref_t<decltype(counter_fn)>;
+		using advancer_t = decltype(Advancer);
+		using comparators_t = decltype(Comparators);
+		using call_sigs_t = std::remove_cvref_t<decltype(counter_fn)>;
 
 		struct detail final
 		{
+			// Chr - v, c -> string_view
+			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch) noexcept -> ctype_info::view_type
+			{
+				auto it = str.cbegin();
+				for (; it != str.cend(); ++it)
+				{
+					if (Comparators.Eql(*it, ch))
+						break;
+				}
+
+				return { it, str.cend() };
+			}
+
+			// Cmp - v, v -> int
 			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs) noexcept
 			{
 				auto s1 = lhs.cbegin(), s2 = rhs.cbegin();
@@ -527,73 +613,59 @@ namespace Hydrogenium::String
 
 				while (
 					s1 != e1 && s2 != e2
-					&& comp_fn.Eql(*s1, *s2)
+					&& Comparators.Eql(*s1, *s2)
 					)
 				{
-					adv_fn(s1);
-					adv_fn(s2);
+					Advancer(s1);
+					Advancer(s2);
 				}
 
 				typename ctype_info::param_type const c1 = s1 == e1 ? '\0' : *s1;
 				typename ctype_info::param_type const c2 = s2 == e2 ? '\0' : *s2;
 
-				return comp_fn.Cmp(c1, c2);
+				return Comparators.Cmp(c1, c2);
 			}
 
-			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch) noexcept -> ctype_info::view_type
-			{
-				auto it = str.cbegin();
-				for (; it != str.cend(); ++it)
-				{
-					if (comp_fn.Eql(*it, ch))
-						break;
-				}
-
-				return { it, str.cend() };
-			}
+			// Cnt - v -> size_t
+			// CSpn - v, v -> size_t
+			// Dup - v -> string
+			// Len - v -> size_t
+			// Lwr - o -> string
+			// PBrk - v, v -> string_view
+			// Rev - o -> string
+			// Spn - v, v -> size_t
+			// Str - v, v -> string_view
+			// Tok - n, v -> string_view
+			// Upr - o -> string
 		};
 
-		struct cmp_fn_t : counter_fn_t::template pattern_view_view<cmp_fn_t, char_type>
+#pragma region Chr
+		struct chr_fn_t : call_sigs_t::template pattern_view_char<chr_fn_t, char_type>
 		{
-			using counter_fn_t::template pattern_view_view<cmp_fn_t, char_type>::operator();
+			using super = call_sigs_t::template pattern_view_char<chr_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch) noexcept
+			{
+				return detail::Chr(str, ch);
+			}
+		};
+		static inline constexpr auto Chr = chr_fn_t{};
+#pragma endregion Chr
+
+#pragma region Cmp
+		struct cmp_fn_t : call_sigs_t::template pattern_view_view<cmp_fn_t, char_type>
+		{
+			using super = call_sigs_t::template pattern_view_view<cmp_fn_t, char_type>;
+			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs) noexcept
 			{
 				return detail::Cmp(lhs, rhs);
 			}
 		};
-		static inline constexpr auto Cmp2 = cmp_fn_t{};
-
-		[[nodiscard]]
-		static constexpr int Cmp(ctype_info::view_type lhs, ctype_info::view_type rhs) noexcept
-			requires (!requires{ typename counter_fn_t::size_type; })
-		{
-			return detail::Cmp(lhs, rhs);
-		}
-
-		[[nodiscard]]
-		static constexpr int Cmp(ctype_info::view_type lhs, ctype_info::view_type rhs, size_t count) noexcept
-			requires requires{ typename counter_fn_t::size_type; }
-		{
-			return detail::Cmp(
-				lhs | std::views::take(count),
-				rhs | std::views::take(count)
-			);
-		}
-
-		[[nodiscard]]
-		static constexpr auto Chr(ctype_info::view_type str, ctype_info::param_type ch) noexcept -> ctype_info::view_type
-			requires (!requires{ typename counter_fn_t::size_type; })
-		{
-			return detail::Chr(str, ch);
-		}
-
-		[[nodiscard]]
-		static constexpr auto Chr(ctype_info::view_type str, ctype_info::param_type ch, size_t count) noexcept -> ctype_info::view_type
-			requires requires{ typename counter_fn_t::size_type; }
-		{
-			return detail::Chr(str.substr(count), ch);
-		}
+		static inline constexpr auto Cmp = cmp_fn_t{};
+#pragma endregion Cmp
 	};
 }
 
@@ -611,6 +683,9 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrI::Cmp("GHI", "def") > 0 && Str::Cmp("GHI", "def") < 0);
 	static_assert(Str::Cmp(u8"你好", u8"你好") == 0 && Str::Cmp(u8"你好", u8"你好嗎") < 0);
 
+	static_assert(Str::Chr("Try not", 't') == "t" && StrI::Chr("Try not", 'T') == "Try not");
+	static_assert(StrN::Chr("Try not", 't', 4).empty() && StrNI::Chr("Try not", 't', 4) == "Try ");	// #UNDONE this is not good. the return of StrNI series should kept the original length.
+
 	using Wcs = Utils<wchar_t>;
 	using WcsI = Utils<wchar_t, Advancing::as_ascii, Comparing::case_ignored>;
 	using WcsN = Utils<wchar_t, Advancing::as_ascii, Comparing::regular, StringPolicy::Counter::cap_at_n>;
@@ -620,8 +695,10 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsI::Cmp(L"abc", L"DEF") < 0 && Wcs::Cmp(L"abc", L"DEF") > 0);
 	static_assert(WcsI::Cmp(L"GHI", L"def") > 0 && Wcs::Cmp(L"GHI", L"def") < 0);
 	static_assert(Wcs::Cmp(L"你好", L"你好") == 0 && Wcs::Cmp(L"你好", L"你好嗎") < 0);
-	static_assert(WcsN::Cmp2(L"你好", L"你好嗎", 2) == 0 && WcsN::Cmp(L"你好", L"你好嗎", 3) < 0);
+	static_assert(WcsN::Cmp(L"你好", L"你好嗎", 2) == 0 && WcsN::Cmp(L"你好", L"你好嗎", 3) < 0);
 
+	static_assert(Wcs::Chr(L"Try not", L't') == L"t" && WcsI::Chr(L"Try not", L'T') == L"Try not");
+	static_assert(WcsN::Chr(L"Try not", L't', 4).empty() && WcsNI::Chr(L"Try not", L't', 4) == L"Try ");
 }
 
 constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
@@ -638,7 +715,10 @@ constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
 	if (std::ranges::empty(ret))
 		return "";
 
-	return { std::addressof(*ret.begin()), std::ranges::size(ret) };
+	return {
+		ret.begin().base().base(),
+		ret.end().base().base(),
+	};
 }
 
 static_assert(UTIL_Trim("").empty());

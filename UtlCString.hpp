@@ -17,10 +17,10 @@ namespace Hydrogenium::CString
 
 	// #UPDATE_AT_CPP23 if consteval
 
-		//void* memcpy(void* s1, const void* s2, size_t n);      // freestanding
-		//void* memmove(void* s1, const void* s2, size_t n);     // freestanding
+	//void* memcpy(void* s1, const void* s2, size_t n);      // freestanding
+	//void* memmove(void* s1, const void* s2, size_t n);     // freestanding
 
-		//char* strcpy(char* s1, const char* s2);                // freestanding
+	//char* strcpy(char* s1, const char* s2);                // freestanding
 	constexpr string* StrCpy(string* dest, string_view src) noexcept
 	{
 		dest->assign(src);
