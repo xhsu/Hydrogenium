@@ -306,7 +306,7 @@ namespace Hydrogenium::StringPolicy::Advancing
 		BAD_MB_POINT,
 	};
 
-	struct as_ascii_t final
+	struct as_normal_ptr final
 	{
 		constexpr APRES operator() (auto& ptr) const noexcept
 		{
@@ -320,13 +320,15 @@ namespace Hydrogenium::StringPolicy::Advancing
 		}
 	};
 
-	inline constexpr auto as_ascii = as_ascii_t{};
+	inline constexpr auto increment = as_normal_ptr{};
 
 	struct as_utf8_t final
 	{
 		constexpr APRES operator() (auto& ptr) const noexcept
+			requires (sizeof(decltype(ptr[0])) == sizeof(unsigned char))
 		{
-			auto& c = *ptr;
+			// UTF-8 is designed for 8-bits, so this is a forced cast, no generic involved.
+			auto c = static_cast<unsigned char>(*ptr);
 
 			if (c == '\0')
 				return APRES::EOS;
@@ -497,11 +499,6 @@ namespace Hydrogenium::StringPolicy::Direction
 
 namespace Hydrogenium::StringPolicy::Result
 {
-	// #CONTINUE_FROM_HERE
-	// index
-	// iterator
-	// dup
-
 	struct as_it_is_t final
 	{
 		// Cmp
@@ -542,8 +539,9 @@ namespace Hydrogenium::String
 		requires !requires{ { T{}(std::declval<C*>()) }; };	// must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
 	};
 
-	static_assert(AdvancingPolicy<StringPolicy::Advancing::as_ascii_t, char>);
+	static_assert(AdvancingPolicy<StringPolicy::Advancing::as_normal_ptr, char>);
 	static_assert(AdvancingPolicy<StringPolicy::Advancing::as_utf8_t, unsigned char>);
+	static_assert(!AdvancingPolicy<StringPolicy::Advancing::as_utf8_t, wchar_t>);
 
 	template <typename T, typename C>
 	concept ComparingPolicy = requires (C c)
@@ -572,13 +570,24 @@ namespace Hydrogenium::String
 
 	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_len_t, char>);
 	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_n_t, wchar_t>);
+
+	template <typename T, typename C>
+	concept ResultPolicy = requires (T t, CType<C>::view_type v, CType<C>::owner_type *p)
+	{
+		std::invoke(t, (int)0);
+		std::invoke(t, (size_t)0);
+		std::invoke(t, v);
+		std::invoke(t, p);
+	};
+
+	static_assert(ResultPolicy<StringPolicy::Result::as_it_is_t, char>);
 }
 
 namespace Hydrogenium::String
 {
 	template <
 		typename char_type = char,
-		String::AdvancingPolicy<char_type> auto Advancer = StringPolicy::Advancing::as_ascii,
+		String::AdvancingPolicy<char_type> auto Advancer = StringPolicy::Advancing::increment,
 		String::ComparingPolicy<char_type> auto Comparators = StringPolicy::Comparing::regular,
 		String::CounterPolicy<char_type> auto counter_fn = StringPolicy::Counter::cap_at_len
 	>
@@ -596,7 +605,7 @@ namespace Hydrogenium::String
 			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch) noexcept -> ctype_info::view_type
 			{
 				auto it = str.cbegin();
-				for (; it != str.cend(); ++it)
+				for (; it < str.cend(); Advancer(it))
 				{
 					if (Comparators.Eql(*it, ch))
 						break;
@@ -612,7 +621,7 @@ namespace Hydrogenium::String
 				auto const e1 = lhs.cend(), e2 = rhs.cend();
 
 				while (
-					s1 != e1 && s2 != e2
+					s1 < e1 && s2 < e2
 					&& Comparators.Eql(*s1, *s2)
 					)
 				{
@@ -627,6 +636,21 @@ namespace Hydrogenium::String
 			}
 
 			// Cnt - v -> size_t
+			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str) noexcept
+			{
+				size_t n{};
+				auto it = str.cbegin();
+				auto const end = str.cend();
+
+				while (it < end)
+				{
+					Advancer(it);
+					++n;
+				}
+
+				return n;
+			}
+
 			// CSpn - v, v -> size_t
 			// Dup - v -> string
 			// Len - v -> size_t
@@ -674,9 +698,9 @@ namespace Hydrogenium::String::UnitTest
 	using namespace StringPolicy;
 
 	using Str = Utils<>;
-	using StrI = Utils<char, Advancing::as_ascii, Comparing::case_ignored>;
-	using StrN = Utils<char, Advancing::as_ascii, Comparing::regular, StringPolicy::Counter::cap_at_n>;
-	using StrNI = Utils<char, Advancing::as_ascii, Comparing::case_ignored, StringPolicy::Counter::cap_at_n>;
+	using StrI = Utils<char, Advancing::increment, Comparing::case_ignored>;
+	using StrN = Utils<char, Advancing::increment, Comparing::regular, StringPolicy::Counter::cap_at_n>;
+	using StrNI = Utils<char, Advancing::increment, Comparing::case_ignored, StringPolicy::Counter::cap_at_n>;
 
 	static_assert(StrI::Cmp("a0b1c2", "A0B1C2") == 0);
 	static_assert(StrI::Cmp("abc", "DEF") < 0 && Str::Cmp("abc", "DEF") > 0);
@@ -687,9 +711,9 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrN::Chr("Try not", 't', 4).empty() && StrNI::Chr("Try not", 't', 4) == "Try ");	// #UNDONE this is not good. the return of StrNI series should kept the original length.
 
 	using Wcs = Utils<wchar_t>;
-	using WcsI = Utils<wchar_t, Advancing::as_ascii, Comparing::case_ignored>;
-	using WcsN = Utils<wchar_t, Advancing::as_ascii, Comparing::regular, StringPolicy::Counter::cap_at_n>;
-	using WcsNI = Utils<wchar_t, Advancing::as_ascii, Comparing::case_ignored, StringPolicy::Counter::cap_at_n>;
+	using WcsI = Utils<wchar_t, Advancing::increment, Comparing::case_ignored>;
+	using WcsN = Utils<wchar_t, Advancing::increment, Comparing::regular, StringPolicy::Counter::cap_at_n>;
+	using WcsNI = Utils<wchar_t, Advancing::increment, Comparing::case_ignored, StringPolicy::Counter::cap_at_n>;
 
 	static_assert(WcsI::Cmp(L"a0b1c2", L"A0B1C2") == 0);
 	static_assert(WcsI::Cmp(L"abc", L"DEF") < 0 && Wcs::Cmp(L"abc", L"DEF") > 0);
@@ -699,6 +723,15 @@ namespace Hydrogenium::String::UnitTest
 
 	static_assert(Wcs::Chr(L"Try not", L't') == L"t" && WcsI::Chr(L"Try not", L'T') == L"Try not");
 	static_assert(WcsN::Chr(L"Try not", L't', 4).empty() && WcsNI::Chr(L"Try not", L't', 4) == L"Try ");
+
+	using Mbs = Utils<unsigned char, Advancing::as_utf8>;
+
+	static_assert(Mbs::detail::Cnt(u8"Heraclius") == Str::detail::Cnt(u8"Heraclius"));
+	static_assert(Mbs::detail::Cnt(u8"Ἡράκλειος") == 9);
+	static_assert(Mbs::detail::Cnt(u8"Héraclius") == 9);
+	static_assert(Mbs::detail::Cnt(u8"Ираклий") == 7);
+	static_assert(Mbs::detail::Cnt(u8"ヘラクレイオス") == 7);
+	static_assert(Mbs::detail::Cnt(u8"希拉克略") == 4);
 }
 
 constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
