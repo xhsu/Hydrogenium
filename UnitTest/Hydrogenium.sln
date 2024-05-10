@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Pattern Matching", "..\Patt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BuildCounter", "..\BuildCounter\BuildCounter.vcxproj", "{8E18550A-77A9-4EDE-ACDA-7A3952607643}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CommandLine", "..\CommandLine\CommandLine.vcxproj", "{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -49,6 +51,14 @@ Global
 		{8E18550A-77A9-4EDE-ACDA-7A3952607643}.Release|x64.ActiveCfg = Release|x64
 		{8E18550A-77A9-4EDE-ACDA-7A3952607643}.Release|x64.Build.0 = Release|x64
 		{8E18550A-77A9-4EDE-ACDA-7A3952607643}.Release|x86.ActiveCfg = Release|x64
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Debug|x64.ActiveCfg = Debug|x64
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Debug|x64.Build.0 = Debug|x64
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Debug|x86.ActiveCfg = Debug|Win32
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Debug|x86.Build.0 = Debug|Win32
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Release|x64.ActiveCfg = Release|x64
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Release|x64.Build.0 = Release|x64
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Release|x86.ActiveCfg = Release|Win32
+		{C42D097D-2FA6-4C4B-AC30-C8DA44742CAE}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

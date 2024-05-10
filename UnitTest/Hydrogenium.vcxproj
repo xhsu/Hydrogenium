@@ -172,6 +172,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Application.ixx" />
+    <ClCompile Include="..\Precompiled.cpp" />
     <ClCompile Include="..\Style.ixx" />
     <ClCompile Include="..\UtlArithmetic.ixx" />
     <ClCompile Include="..\UtlBuffer.ixx" />
@@ -206,10 +207,12 @@
     <ClCompile Include="UnitTest_UtlStringView.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Precompiled.hpp" />
     <ClInclude Include="..\ScopedEnumOperator.hpp" />
     <ClInclude Include="..\Style.hpp" />
     <ClInclude Include="..\UtlFormatter.hpp" />
     <ClInclude Include="..\UtlPatternMatching.hpp" />
+    <ClInclude Include="..\UtlString.hpp" />
     <ClInclude Include="UnitTest.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

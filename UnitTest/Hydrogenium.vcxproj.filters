@@ -60,6 +60,7 @@
     <ClCompile Include="..\Style.ixx">
       <Filter>Modules</Filter>
     </ClCompile>
+    <ClCompile Include="..\Precompiled.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ScopedEnumOperator.hpp">
@@ -75,5 +76,9 @@
     <ClInclude Include="..\Style.hpp">
       <Filter>Modules</Filter>
     </ClInclude>
+    <ClInclude Include="..\UtlString.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Precompiled.hpp" />
   </ItemGroup>
 </Project>
