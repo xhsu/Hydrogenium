@@ -9,18 +9,33 @@
 
 namespace Hydrogenium
 {
+	enum struct CodePoint : uint_fast8_t
+	{
+		WHOLE = 0,
+		BEGIN_OF_2 = 2,
+		BEGIN_OF_3,
+		BEGIN_OF_4,
+		MID,
+		INVALID,
+	};
+
+	constexpr auto operator<=> (CodePoint lhs, CodePoint rhs) noexcept
+	{
+		return std::to_underlying(lhs) <=> std::to_underlying(rhs);
+	}
+
 	template <typename T>
 	struct CType final
 	{
-		static inline constexpr bool is_narrow = std::is_same_v<T, char> || std::is_same_v<T, signed char> || std::is_same_v<T, unsigned char>;
-		static inline constexpr bool is_wide = std::is_same_v<T, wchar_t>;
+		using char_type = std::remove_cvref_t<T>;
+		static inline constexpr bool is_narrow = std::is_same_v<char_type, char> || std::is_same_v<char_type, signed char> || std::is_same_v<char_type, unsigned char>;
+		static inline constexpr bool is_wide = std::is_same_v<char_type, wchar_t>;
 
 		using param_type = std::conditional_t<is_narrow, unsigned char, wchar_t>;
 		using eof_type = std::common_type_t<decltype(EOF), decltype(WEOF)>;
 		using view_type = std::conditional_t<is_narrow, ::std::string_view, ::std::wstring_view>;
 		using owner_type = std::conditional_t<is_narrow, ::std::string, ::std::wstring>;
-		using char_type = T;
-		using traits_type = ::std::char_traits<T>;
+		using traits_type = ::std::char_traits<char_type>;
 
 		static_assert(is_narrow || is_wide, "T must be one of char, signed char, unsigned char or wchar_t.");
 
@@ -292,7 +307,74 @@ namespace Hydrogenium
 			}
 
 		}
+
+		// Luna's extension
+		[[nodiscard]] static constexpr auto CodePointOf(param_type c) noexcept -> CodePoint
+		{
+			auto const u = static_cast<uint32_t>(c);
+
+			// UTF-8
+			if constexpr (sizeof(c) == sizeof(unsigned char))
+			{
+				if (u <= 0x7F)
+					return CodePoint::WHOLE;
+
+				else if ((u & 0b111'000'00) == 0b110'000'00)
+					return CodePoint::BEGIN_OF_2;
+
+				else if ((u & 0b1111'0000) == 0b1110'0000)
+					return CodePoint::BEGIN_OF_3;
+
+				else if ((u & 0b11111'000) == 0b11110'000)
+					return CodePoint::BEGIN_OF_4;
+
+				else if ((u & 0b11'000000) == 0b10'000000)
+					return CodePoint::MID;
+
+				else
+					return CodePoint::INVALID;
+			}
+
+			// UTF-16
+			else if constexpr (sizeof(c) == sizeof(char16_t))
+			{
+				if (!((u - 0xd800u) < 0x800u))
+				{
+					return CodePoint::WHOLE;
+				}
+				else if ((u & 0xfffffc00u) == 0xd800u)
+				{
+					return CodePoint::BEGIN_OF_2;
+				}
+				else if ((u & 0xfffffc00u) == 0xdc00u)
+				{
+					return CodePoint::MID;
+				}
+				else
+				{
+					return CodePoint::INVALID;
+				}
+			}
+
+			// UTF-32
+			else if constexpr (sizeof(c) == sizeof(char32_t))
+			{
+				return CodePoint::WHOLE;
+			}
+		}
 	};
+
+	static_assert(CType<char>::CodePointOf(u8"A"[0]) == CodePoint::WHOLE);
+	static_assert(CType<char>::CodePointOf(u8"Á"[0]) == CodePoint::BEGIN_OF_2);
+	static_assert(CType<char>::CodePointOf(u8"あ"[0]) == CodePoint::BEGIN_OF_3);
+	static_assert(CType<char>::CodePointOf(u8"あ"[1]) == CodePoint::MID);
+	static_assert(CType<char>::CodePointOf(u8"𐒰"[0]) == CodePoint::BEGIN_OF_4);
+
+	static_assert(CType<wchar_t>::CodePointOf(L"A"[0]) == CodePoint::WHOLE);
+	static_assert(CType<wchar_t>::CodePointOf(L"Á"[0]) == CodePoint::WHOLE);
+	static_assert(CType<wchar_t>::CodePointOf(L"あ"[0]) == CodePoint::WHOLE);
+	static_assert(CType<wchar_t>::CodePointOf(L"𐒰"[0]) == CodePoint::BEGIN_OF_2);
+	static_assert(CType<wchar_t>::CodePointOf(L"𐒰"[1]) == CodePoint::MID);
 }
 
 namespace Hydrogenium::StringPolicy::Advancing
@@ -302,7 +384,11 @@ namespace Hydrogenium::StringPolicy::Advancing
 	enum struct APRES : std::uint_fast8_t
 	{
 		ADVANCED = 0,
+		RECEDED,
+
+		BOS,	// begin of string
 		EOS,	// end of string
+		NOP,	// no-operation
 		BAD_MB_POINT,
 	};
 
@@ -318,9 +404,155 @@ namespace Hydrogenium::StringPolicy::Advancing
 			++ptr;
 			return APRES::ADVANCED;
 		}
+
+		static constexpr auto Dereference(auto&& iter) noexcept -> decltype(*iter)
+		{
+			return *iter;
+		}
+
+		static constexpr APRES Advance(auto& iter, auto&& end) noexcept
+		{
+			if (iter < end)
+				++iter;
+			else
+				return APRES::EOS;
+
+			return APRES::ADVANCED;
+		}
+
+		static constexpr APRES Recede(auto& iter, auto&& begin) noexcept
+		{
+			if (iter > begin)
+				--iter;
+			else
+				return APRES::BOS;
+
+			return APRES::RECEDED;
+		}
+
+		static constexpr APRES Arithmetic(auto& iter, auto&& begin, auto&& end, ptrdiff_t num) noexcept
+		{
+			if (num > 0)
+			{
+				while (num > 0 && iter < end)
+				{
+					++iter;
+					--num;
+				}
+
+				return iter == end ? APRES::EOS : APRES::ADVANCED;
+			}
+			else if (num < 0)
+			{
+				while (num < 0 && iter > begin)
+				{
+					--iter;
+					++num;
+				}
+
+				return iter == begin ? APRES::BOS : APRES::RECEDED;
+			}
+			else
+				return APRES::NOP;
+
+			std::unreachable();
+		}
+
+		static constexpr APRES FastForward(auto& iter, auto&& end, ptrdiff_t num) noexcept
+		{
+			if (num <= 0)
+				return APRES::NOP;
+
+			while (num > 0 && iter < end)
+			{
+				++iter;
+				--num;
+			}
+
+			return iter == end ? APRES::EOS : APRES::ADVANCED;
+		}
+
+		static constexpr APRES Rewind(auto& iter, auto&& begin, ptrdiff_t num) noexcept
+		{
+			if (num <= 0)
+				return APRES::NOP;
+
+			while (num > 0 && iter > begin)
+			{
+				--iter;
+				--num;
+			}
+
+			return iter == begin ? APRES::BOS : APRES::RECEDED;
+		}
 	};
 
-	inline constexpr auto increment = as_normal_ptr{};
+	consteval bool UnitTest_as_normal_ptr_FWD() noexcept
+	{
+		std::string_view words{ "0123456789" };
+		auto const bgn = words.begin(), ed = words.end();
+		auto it = bgn + 3;
+
+		if (as_normal_ptr::Dereference(it) != '3')
+			return false;
+
+		as_normal_ptr::FastForward(it, ed, 5);
+		if (as_normal_ptr::Dereference(it) != '8')
+			return false;
+
+		as_normal_ptr::Rewind(it, bgn, 2);
+		if (as_normal_ptr::Dereference(it) != '6')
+			return false;
+
+		as_normal_ptr::FastForward(it, ed, 100);
+		as_normal_ptr::Advance(it, ed);
+		as_normal_ptr::Arithmetic(it, bgn, ed, 100);
+		if (it != ed)
+			return false;
+
+		as_normal_ptr::Rewind(it, bgn, 100);
+		as_normal_ptr::Recede(it, bgn);
+		as_normal_ptr::Arithmetic(it, bgn, ed, -100);
+		if (it != bgn)
+			return false;
+
+		return true;
+	}
+	consteval bool UnitTest_as_normal_ptr_BWD() noexcept
+	{
+		std::string_view words{ "9876543210" };
+		auto const bgn = words.rbegin(), ed = words.rend();
+		auto it = bgn + 3;
+
+		if (as_normal_ptr::Dereference(it) != '3')
+			return false;
+
+		as_normal_ptr::FastForward(it, ed, 5);
+		if (as_normal_ptr::Dereference(it) != '8')
+			return false;
+
+		as_normal_ptr::Rewind(it, bgn, 2);
+		if (as_normal_ptr::Dereference(it) != '6')
+			return false;
+
+		as_normal_ptr::FastForward(it, ed, 100);
+		as_normal_ptr::Advance(it, ed);
+		as_normal_ptr::Arithmetic(it, bgn, ed, 100);
+		if (it != ed)
+			return false;
+
+		as_normal_ptr::Rewind(it, bgn, 100);
+		as_normal_ptr::Recede(it, bgn);
+		as_normal_ptr::Arithmetic(it, bgn, ed, -100);
+		if (it != bgn)
+			return false;
+
+		return true;
+	}
+	static_assert(UnitTest_as_normal_ptr_FWD());
+	static_assert(UnitTest_as_normal_ptr_BWD());
+
+	inline constexpr auto as_regular_ptr = as_normal_ptr{};
 
 	struct as_utf8_t final
 	{
@@ -351,7 +583,254 @@ namespace Hydrogenium::StringPolicy::Advancing
 
 			return APRES::ADVANCED;
 		}
+
+		// Not required functions
+
+		static constexpr APRES MoveToFirstCodePoint(auto& iter, auto&& begin, auto&& end) noexcept
+		{
+			using CT = CType<decltype(*iter)>;
+
+			/*
+			Consider this case:
+
+			┌──'Á'──┐ ┌───────'𐒰'───────┐ ┌────'あ'────┐
+			0xC3 0x81 0xF0 0x90 0x92 0xB0 0xE3 0x81 0x82
+						   |
+						   Your iterator.
+
+			One should move this iterator to the position of 0xF0, it then would be reasonable to move to any other point.
+			*/
+
+			if (iter == begin)
+			{
+				auto const cp = CT::CodePointOf(*iter);
+
+				if (cp == CodePoint::INVALID || cp == CodePoint::MID)
+					return APRES::BAD_MB_POINT;
+
+				return APRES::BOS;
+			}
+
+			if (iter == end)
+			{
+				do 
+				{
+					--iter;
+
+					if (auto const cp = CT::CodePointOf(*iter); cp <= CodePoint::BEGIN_OF_4)
+						break;
+
+				} while (iter > begin);
+
+				return APRES::RECEDED;
+			}
+
+			while (CT::CodePointOf(*iter) >= CodePoint::MID)
+			{
+				--iter;
+			}
+
+			return APRES::RECEDED;
+		}
+
+		// End of not required functions
+
+		static constexpr auto Dereference(auto&& iter) noexcept -> decltype(*iter)
+		{
+			return *iter;
+		}
+
+		static constexpr auto ValueOf(auto&& iter) noexcept
+		{
+			using CT = CType<decltype(*iter)>;
+			using view_type = typename CT::view_type;
+
+			switch (CT::CodePointOf(*iter))
+			{
+			case CodePoint::WHOLE:
+				return view_type{ iter, iter + 1 };
+
+			case CodePoint::BEGIN_OF_2:
+				return view_type{ iter, iter + 2 };
+
+			case CodePoint::BEGIN_OF_3:
+				return view_type{ iter, iter + 3 };
+
+			case CodePoint::BEGIN_OF_4:
+				return view_type{ iter, iter + 4 };
+
+			default:
+				std::abort();
+			}
+
+			std::unreachable();
+		}
+
+		static constexpr APRES Advance(auto& iter, auto&& end) noexcept
+		{
+			if (iter >= end)
+				return APRES::EOS;
+
+			using CT = CType<decltype(*iter)>;
+
+			/*
+			Consider this case:
+
+			┌──'Á'──┐ ┌───────'𐒰'───────┐ ┌────'あ'────┐
+			0xC3 0x81 0xF0 0x90 0x92 0xB0 0xE3 0x81 0x82
+						   |
+						   Your iterator.
+
+			One should move this iterator to the position of 0xF0, then it would be reasonable to 'advance' to 0xE3.
+			*/
+
+			while (CT::CodePointOf(*iter) == CodePoint::MID)
+				--iter;
+
+			if (iter < end)
+			{
+				switch (CT::CodePointOf(*iter))
+				{
+				case CodePoint::WHOLE:
+					++iter;
+					break;
+
+				case CodePoint::BEGIN_OF_2:
+					iter += 2;
+					break;
+
+				case CodePoint::BEGIN_OF_3:
+					iter += 3;
+					break;
+
+				case CodePoint::BEGIN_OF_4:
+					iter += 4;
+					break;
+
+				default:
+					std::abort();
+				}
+			}
+
+			if (iter > end) [[unlikely]]
+			{
+				iter = end;
+				return APRES::BAD_MB_POINT;
+			}
+
+			return iter == end ? APRES::EOS : APRES::ADVANCED;
+		}
+
+		static constexpr APRES Recede(auto& iter, auto&& begin) noexcept
+		{
+			using CT = CType<decltype(*iter)>;
+
+			/*
+			Consider this case:
+
+			┌──'Á'──┐ ┌───────'𐒰'───────┐ ┌────'あ'────┐
+			0xC3 0x81 0xF0 0x90 0x92 0xB0 0xE3 0x81 0x82
+			               |
+			               Your iterator.
+
+			One should move this iterator to the position of 0xF0, then it would be reasonable to 'advance' to 0xC3.
+			*/
+
+			/*
+			// Unfortunately it is not possible to impl this in receding process, as we have no info regarding endpos.
+			// This could cause dereferencing end iterator.
+			while (CT::CodePointOf(*iter) == CodePoint::MID)
+				--iter;
+			*/
+
+			if (iter > begin)
+			{
+				do 
+				{
+					--iter;
+				} while (iter > begin && CT::CodePointOf(*iter) == CodePoint::MID);
+			}
+
+			return iter == begin ? APRES::BOS : APRES::RECEDED;
+		}
+
+		static constexpr APRES Arithmetic(auto& iter, auto&& begin, auto&& end, ptrdiff_t num) noexcept
+		{
+			if (num > 0)
+			{
+				return FastForward(iter, end, num);
+			}
+			else if (num < 0)
+			{
+				return Rewind(iter, begin, -num);
+			}
+			else
+				return APRES::NOP;
+
+			std::unreachable();
+		}
+
+		static constexpr APRES FastForward(auto& iter, auto&& end, ptrdiff_t num) noexcept
+		{
+			if (num <= 0)
+				return APRES::NOP;
+
+			for (; num > 0; --num)
+			{
+				if (Advance(iter, end) == APRES::EOS)
+					return APRES::EOS;
+			}
+
+			return APRES::ADVANCED;
+		}
+
+		static constexpr APRES Rewind(auto& iter, auto&& begin, ptrdiff_t num) noexcept
+		{
+			if (num <= 0)
+				return APRES::NOP;
+
+			for (; num > 0; --num)
+			{
+				if (Recede(iter, begin) == APRES::BOS)
+					return APRES::BOS;
+			}
+
+			return APRES::RECEDED;
+		}
 	};
+
+	constexpr bool UnitTest_as_multibytes_t_FWD() noexcept
+	{
+		std::string_view words{ u8"零一二三四五六七八九" };
+		auto const bgn = words.begin(), ed = words.end();
+		auto it = bgn + 3 * 3;
+
+		if (as_utf8_t::ValueOf(it) != "三")
+			return false;
+
+		as_utf8_t::FastForward(it, ed, 5);
+		if (as_utf8_t::ValueOf(it) != "八")
+			return false;
+
+		as_utf8_t::Rewind(it, bgn, 2);
+		if (as_utf8_t::ValueOf(it) != "六")
+			return false;
+
+		as_utf8_t::FastForward(it, ed, 100);
+		as_utf8_t::Advance(it, ed);
+		as_utf8_t::Arithmetic(it, bgn, ed, 100);
+		if (it != ed)
+			return false;
+
+		as_utf8_t::Rewind(it, bgn, 100);
+		as_utf8_t::Recede(it, bgn);
+		as_utf8_t::Arithmetic(it, bgn, ed, -100);
+		if (it != bgn)
+			return false;
+
+		return true;
+	}
+	//static_assert(UnitTest_as_multibytes_t_FWD());
 
 	inline constexpr auto as_utf8 = as_utf8_t{};
 }
@@ -407,18 +886,13 @@ namespace Hydrogenium::StringPolicy::Counter
 {
 	struct cap_at_n_t final
 	{
-		using size_type = size_t;
-
 		template <typename T, typename C>
 		struct pattern_view_view
 		{
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, size_t count) const noexcept
 			{
-				return T::Impl(
-					lhs | std::views::take(count),
-					rhs | std::views::take(count)
-				);
+				return T::Impl(lhs, rhs, count);
 			}
 		};
 
@@ -428,10 +902,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch, size_t last_pos) const noexcept
 			{
-				return T::Impl(
-					str | std::views::take(last_pos),
-					ch
-				);
+				return T::Impl(str, ch, last_pos);
 			}
 		};
 
@@ -449,6 +920,16 @@ namespace Hydrogenium::StringPolicy::Counter
 				return T::Impl(opt, token);
 			}
 		};
+
+		template <typename T, typename C>
+		struct pattern_view
+		{
+			[[nodiscard]]
+			constexpr auto operator() (CType<C>::view_type str, size_t count) const noexcept
+			{
+				return T::Impl(str, count);
+			}
+		};
 	};
 
 	inline constexpr auto cap_at_n = cap_at_n_t{};
@@ -461,7 +942,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs) const noexcept
 			{
-				return T::Impl(lhs, rhs);
+				return T::Impl(lhs, rhs, CType<C>::view_type::npos);
 			}
 		};
 
@@ -471,7 +952,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch) const noexcept
 			{
-				return T::Impl(str, ch);
+				return T::Impl(str, ch, CType<C>::view_type::npos);
 			}
 		};
 
@@ -479,9 +960,19 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_nullable_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, size_t count) const noexcept
+			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token) const noexcept
 			{
 				return T::Impl(str, token);
+			}
+		};
+
+		template <typename T, typename C>
+		struct pattern_view
+		{
+			[[nodiscard]]
+			constexpr auto operator() (CType<C>::view_type str) const noexcept
+			{
+				return T::Impl(str, CType<C>::view_type::npos);
 			}
 		};
 	};
@@ -587,7 +1078,7 @@ namespace Hydrogenium::String
 {
 	template <
 		typename char_type = char,
-		String::AdvancingPolicy<char_type> auto Advancer = StringPolicy::Advancing::increment,
+		String::AdvancingPolicy<char_type> auto Advancer = StringPolicy::Advancing::as_regular_ptr,
 		String::ComparingPolicy<char_type> auto Comparators = StringPolicy::Comparing::regular,
 		String::CounterPolicy<char_type> auto counter_fn = StringPolicy::Counter::cap_at_len
 	>
@@ -602,23 +1093,25 @@ namespace Hydrogenium::String
 		struct detail final
 		{
 			// Chr - v, c -> string_view
-			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch) noexcept -> ctype_info::view_type
+			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, size_t until) noexcept -> ctype_info::view_type
 			{
 				auto it = str.cbegin();
-				for (; it < str.cend(); Advancer(it))
+				auto const end = it + std::min(str.size(), until);
+
+				for (; it < end; Advancer(it))
 				{
 					if (Comparators.Eql(*it, ch))
 						break;
 				}
 
-				return { it, str.cend() };
+				return { it, end };
 			}
 
 			// Cmp - v, v -> int
-			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs) noexcept
+			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, size_t count) noexcept
 			{
 				auto s1 = lhs.cbegin(), s2 = rhs.cbegin();
-				auto const e1 = lhs.cend(), e2 = rhs.cend();
+				auto const e1 = s1 + std::min(lhs.size(), count), e2 = s2 + std::min(rhs.size(), count);
 
 				while (
 					s1 < e1 && s2 < e2
@@ -636,11 +1129,11 @@ namespace Hydrogenium::String
 			}
 
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
-			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str) noexcept
+			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, size_t count) noexcept
 			{
 				size_t n{};
 				auto it = str.cbegin();
-				auto const end = str.cend();
+				auto const end = it + std::min(str.size(), count);
 
 				while (it < end)
 				{
@@ -653,7 +1146,20 @@ namespace Hydrogenium::String
 			}
 
 			// CSpn - v, v -> size_t
+			__forceinline constexpr size_t CSpn(ctype_info::view_type const& dest, ctype_info::view_type const& src) noexcept
+			{
+				if (auto const pos = dest.find_first_of(src); pos != dest.npos)
+					return pos;
+
+				return dest.length();
+			}
+
 			// Dup - v -> string
+			__forceinline constexpr auto Dup(ctype_info::view_type const& str) noexcept -> ctype_info::owner_type
+			{
+				return typename ctype_info::owner_type{ str };
+			}
+
 			// Len - v -> size_t
 			// Lwr - o -> string
 			// PBrk - v, v -> string_view
@@ -670,9 +1176,9 @@ namespace Hydrogenium::String
 			using super = call_sigs_t::template pattern_view_char<chr_fn_t, char_type>;
 			using super::operator();
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch) noexcept
+			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch, size_t until) noexcept
 			{
-				return detail::Chr(str, ch);
+				return detail::Chr(str, ch, until);
 			}
 		};
 		static inline constexpr auto Chr = chr_fn_t{};
@@ -684,13 +1190,27 @@ namespace Hydrogenium::String
 			using super = call_sigs_t::template pattern_view_view<cmp_fn_t, char_type>;
 			using super::operator();
 
-			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs) noexcept
+			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, size_t count) noexcept
 			{
-				return detail::Cmp(lhs, rhs);
+				return detail::Cmp(lhs, rhs, count);
 			}
 		};
 		static inline constexpr auto Cmp = cmp_fn_t{};
 #pragma endregion Cmp
+
+#pragma region Cnt
+		struct cnt_fn_t : call_sigs_t::template pattern_view<cnt_fn_t, char_type>
+		{
+			using super = call_sigs_t::template pattern_view<cnt_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& str, size_t count) noexcept
+			{
+				return detail::Cnt(str, count);
+			}
+		};
+		static inline constexpr auto Cnt = cnt_fn_t{};
+#pragma endregion Cnt
 	};
 }
 
@@ -699,9 +1219,9 @@ namespace Hydrogenium::String::UnitTest
 	using namespace StringPolicy;
 
 	using Str = Utils<>;
-	using StrI = Utils<char, Advancing::increment, Comparing::case_ignored>;
-	using StrN = Utils<char, Advancing::increment, Comparing::regular, StringPolicy::Counter::cap_at_n>;
-	using StrNI = Utils<char, Advancing::increment, Comparing::case_ignored, StringPolicy::Counter::cap_at_n>;
+	using StrI = Utils<char, Advancing::as_regular_ptr, Comparing::case_ignored>;
+	using StrN = Utils<char, Advancing::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
+	using StrNI = Utils<char, Advancing::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
 
 	static_assert(StrI::Cmp("a0b1c2", "A0B1C2") == 0);
 	static_assert(StrI::Cmp("abc", "DEF") < 0 && Str::Cmp("abc", "DEF") > 0);
@@ -712,9 +1232,9 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrN::Chr("Try not", 't', 4).empty() && StrNI::Chr("Try not", 't', 4) == "Try ");	// #UNDONE this is not good. the return of StrNI series should kept the original length.
 
 	using Wcs = Utils<wchar_t>;
-	using WcsI = Utils<wchar_t, Advancing::increment, Comparing::case_ignored>;
-	using WcsN = Utils<wchar_t, Advancing::increment, Comparing::regular, StringPolicy::Counter::cap_at_n>;
-	using WcsNI = Utils<wchar_t, Advancing::increment, Comparing::case_ignored, StringPolicy::Counter::cap_at_n>;
+	using WcsI = Utils<wchar_t, Advancing::as_regular_ptr, Comparing::case_ignored>;
+	using WcsN = Utils<wchar_t, Advancing::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
+	using WcsNI = Utils<wchar_t, Advancing::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
 
 	static_assert(WcsI::Cmp(L"a0b1c2", L"A0B1C2") == 0);
 	static_assert(WcsI::Cmp(L"abc", L"DEF") < 0 && Wcs::Cmp(L"abc", L"DEF") > 0);
@@ -726,13 +1246,15 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsN::Chr(L"Try not", L't', 4).empty() && WcsNI::Chr(L"Try not", L't', 4) == L"Try ");
 
 	using Mbs = Utils<unsigned char, Advancing::as_utf8>;
+	using MbsN = Utils<unsigned char, Advancing::as_utf8, Comparing::regular, Counter::cap_at_n>;
 
-	static_assert(Mbs::detail::Cnt(u8"Heraclius") == Str::detail::Cnt(u8"Heraclius"));
-	static_assert(Mbs::detail::Cnt(u8"Ἡράκλειος") == 9);
-	static_assert(Mbs::detail::Cnt(u8"Héraclius") == 9);
-	static_assert(Mbs::detail::Cnt(u8"Ираклий") == 7);
-	static_assert(Mbs::detail::Cnt(u8"ヘラクレイオス") == 7);
-	static_assert(Mbs::detail::Cnt(u8"希拉克略") == 4);
+	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
+	static_assert(Mbs::Cnt(u8"Ἡράκλειος") == 9);
+	static_assert(Mbs::Cnt(u8"Héraclius") == 9);
+	static_assert(Mbs::Cnt(u8"Ираклий") == 7);
+	static_assert(Mbs::Cnt(u8"ヘラクレイオス") == 7);
+	static_assert(Mbs::Cnt(u8"希拉克略") == 4);
+	//static_assert(MbsN::Cnt(u8"Heráclio", 5) == 5); // #CONTINUE_FROM_HERE
 }
 
 constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
