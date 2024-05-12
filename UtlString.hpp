@@ -1358,6 +1358,39 @@ namespace Hydrogenium::StringPolicy::Result
 			return ptr;
 		}
 	};
+
+	// Spn, CSpn(PBrk), Chr, Tok
+	struct as_pointer_t final {};
+	struct as_position_t final {};
+	struct as_view_t final {};
+
+	// Cmp
+	struct as_lexic_t final {};
+	struct as_eql_t final {};
+	struct as_lt_t final {};
+	struct as_lt_eq_t final {};
+	struct as_gt_t final {};
+	struct as_gt_eq_t final {};
+	struct as_not_eq_t final {};
+
+	// Cnt(Len)
+	struct as_signed_t final {};
+	struct as_unsigned_t final {};
+
+	// Dup, Lwr, Rev, Upr
+	struct as_calloc_t final {};
+	struct as_marshaled_t final {};
+
+	template <typename Q, typename T, typename C, typename M>
+	struct postprocessor_t final
+	{
+		inline static constexpr Q Query = Q{};
+		inline static constexpr T Test = T{};
+		inline static constexpr C Counting = C{};
+		inline static constexpr M Modify = M{};
+	};
+
+	inline constexpr auto as_it_is = postprocessor_t<as_view_t, as_lexic_t, as_unsigned_t, as_marshaled_t>{};
 }
 
 namespace Hydrogenium::String
@@ -1439,7 +1472,8 @@ namespace Hydrogenium::String
 		String::IteratingPolicy<char_type> auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
 		String::ComparingPolicy<char_type> auto Comparator = StringPolicy::Comparing::regular,
 		String::CounterPolicy<char_type> auto InvkPolicy = StringPolicy::Counter::cap_at_len,
-		String::DirectionPolicy<char_type> auto Range = StringPolicy::Direction::forwards{}
+		String::DirectionPolicy<char_type> auto Range = StringPolicy::Direction::forwards{},
+		auto RsltProc = StringPolicy::Result::as_it_is
 	>
 	struct Utils final
 	{
