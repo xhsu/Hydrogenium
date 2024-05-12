@@ -2,32 +2,33 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Testing">
-      <UniqueIdentifier>{8a4ba5c0-c7d3-413a-b559-1153a360bdf8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Modules">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Modules">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Style.ixx">
-      <Filter>Modules</Filter>
+    <ClCompile Include="UnitTest_UtlString.cpp">
+      <Filter>Testing</Filter>
     </ClCompile>
-    <ClCompile Include="..\UtlCommandLine.cpp">
-      <Filter>Modules</Filter>
-    </ClCompile>
-    <ClCompile Include="..\UtlCommandLine.ixx">
-      <Filter>Modules</Filter>
+    <ClCompile Include="UnitTest_UtlString_Compile.cpp">
+      <Filter>Testing</Filter>
     </ClCompile>
     <ClCompile Include="..\Precompiled.cpp">
       <Filter>Modules</Filter>
     </ClCompile>
-    <ClCompile Include="UnitTest_UtlCmdLine.cpp">
-      <Filter>Testing</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Style.hpp">
+    <ClInclude Include="..\UtlString.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\UtlCChType.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\UtlCString.hpp">
       <Filter>Modules</Filter>
     </ClInclude>
     <ClInclude Include="..\Precompiled.hpp">

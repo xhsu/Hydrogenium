@@ -53,6 +53,7 @@ export constexpr bool IsOptionalArgument(string_view arg) noexcept
 			|| IsVariadicArgument(arg));
 }
 
+// #CONTINUE_FROM_HERE
 export template <size_t N> constexpr auto StrVNICmp(string_view sz, char const (&lit)[N]) noexcept -> decltype(uint8_t{} - uint8_t{})
 {
 	auto const case_ignored_eql =
