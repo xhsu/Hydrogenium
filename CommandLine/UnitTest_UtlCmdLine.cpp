@@ -71,5 +71,4 @@ int main(int argc, char* argv[]) noexcept
 	fmt::println("{}", StrI::Cmp(u8"你好", u8"你好嗎"));
 	fmt::println("{}", Mbs::Cnt(u8"هرقل"));
 
-	Hydrogenium::StringPolicy::Advancing::UnitTest_as_multibytes_t_FWD();
 }
