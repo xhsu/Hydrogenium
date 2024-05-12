@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <concepts>
 #include <functional>
+#include <limits>
 #include <ranges>
 #include <string_view>
 #include <utility>
@@ -52,7 +53,7 @@ namespace Hydrogenium
 	};
 
 	// Pointing to same elem!! Recursively remove all wrapped r_iter<>
-	constexpr auto ToForwardIter(auto iter) noexcept
+	constexpr auto ToForwardIter(auto iter, bool do_offset = true) noexcept
 	{
 		if constexpr (MultiWrappedRevIter<decltype(iter)>)
 		{
@@ -60,8 +61,13 @@ namespace Hydrogenium
 		}
 		else if constexpr (ReverseIterator<decltype(iter)>)
 		{
-			// &*(reverse_iterator(i)) == &*(i - 1)
-			return (++iter).base();
+			if (do_offset)
+			{
+				// &*(reverse_iterator(i)) == &*(i - 1)
+				return (++iter).base();
+			}
+			else
+				return iter.base();
 		}
 		else
 		{
@@ -70,7 +76,7 @@ namespace Hydrogenium
 	}
 
 	// Pointing to same elem!! Recursively remove all wrapped r_iter<>
-	constexpr auto ToReverseIter(auto iter) noexcept
+	constexpr auto ToReverseIter(auto iter, bool do_offset = true) noexcept
 	{
 		if constexpr (MultiWrappedRevIter<decltype(iter)>)
 		{
@@ -82,8 +88,13 @@ namespace Hydrogenium
 		}
 		else
 		{
-			// &*(reverse_iterator(i)) == &*(i - 1)
-			return std::make_reverse_iterator(iter) - 1;
+			if (do_offset)
+			{
+				// &*(reverse_iterator(i)) == &*(i - 1)
+				return std::make_reverse_iterator(iter) - 1;
+			}
+			else
+				return std::make_reverse_iterator(iter);
 		}
 	}
 
@@ -1194,7 +1205,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, size_t count) const noexcept
+			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, ptrdiff_t count) const noexcept
 			{
 				return T::Impl(lhs, rhs, count);
 			}
@@ -1204,7 +1215,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view_char
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch, size_t last_pos) const noexcept
+			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch, ptrdiff_t last_pos) const noexcept
 			{
 				return T::Impl(str, ch, last_pos);
 			}
@@ -1214,7 +1225,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_nullable_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, size_t count) const noexcept
+			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, ptrdiff_t count) const noexcept
 			{
 				decltype(str) opt{ std::nullopt };
 
@@ -1229,7 +1240,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type str, size_t count) const noexcept
+			constexpr auto operator() (CType<C>::view_type str, ptrdiff_t count) const noexcept
 			{
 				return T::Impl(str, count);
 			}
@@ -1246,7 +1257,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs) const noexcept
 			{
-				return T::Impl(lhs, rhs, CType<C>::view_type::npos);
+				return T::Impl(lhs, rhs, std::numeric_limits<ptrdiff_t>::max());
 			}
 		};
 
@@ -1256,7 +1267,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch) const noexcept
 			{
-				return T::Impl(str, ch, CType<C>::view_type::npos);
+				return T::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
 			}
 		};
 
@@ -1276,7 +1287,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr auto operator() (CType<C>::view_type str) const noexcept
 			{
-				return T::Impl(str, CType<C>::view_type::npos);
+				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
 			}
 		};
 	};
@@ -1288,6 +1299,8 @@ namespace Hydrogenium::StringPolicy::Direction
 {
 	struct forwards final
 	{
+		inline static constexpr bool is_reverse = false;
+
 		static constexpr auto Begin(auto&& r) noexcept
 		{
 			return std::ranges::begin(r);
@@ -1301,6 +1314,8 @@ namespace Hydrogenium::StringPolicy::Direction
 
 	struct backwards final
 	{
+		inline static constexpr bool is_reverse = true;
+
 		static constexpr auto Begin(auto&& r) noexcept
 		{
 			return std::ranges::rbegin(r);
@@ -1399,6 +1414,7 @@ namespace Hydrogenium::String
 		{ T::End(view) } -> std::bidirectional_iterator;
 		{ T::Begin(view) } -> std::input_iterator;
 		{ T::End(view) } -> std::input_iterator;
+		T::is_reverse;
 	};
 
 	static_assert(DirectionPolicy<StringPolicy::Direction::forwards, char>);
@@ -1436,11 +1452,11 @@ namespace Hydrogenium::String
 		struct detail final
 		{
 			// Chr - v, c -> string_view
-			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, size_t until) noexcept -> ctype_info::view_type
+			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept -> ctype_info::view_type
 			{
 				auto it = Range.Begin(str);
 				auto const begin = Range.Begin(str),
-					end = IterPolicy.ArithCpy(begin, begin, Range.End(str), std::min(str.size(), until));
+					end = IterPolicy.ArithCpy(begin, begin, Range.End(str), std::min(std::ranges::ssize(str), until));
 
 				for (; it < end; IterPolicy.Arithmetic(it, begin, end, 1))
 				{
@@ -1448,16 +1464,29 @@ namespace Hydrogenium::String
 						break;
 				}
 
-				return { it, end };
+				if (it == end)
+					return { str.end(), str.end() };
+
+				if constexpr (Range.is_reverse)
+				{
+					return { ToForwardIter(it), ToForwardIter(begin, false) };
+				}
+				else
+				{
+					return { it, end };
+				}
 			}
 
 			// Cmp - v, v -> int
-			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, size_t count) noexcept
+			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
 			{
 				auto s1 = Range.Begin(lhs), s2 = Range.Begin(rhs);
 				auto const b1 = Range.Begin(lhs), b2 = Range.Begin(rhs);
-				auto const e1 = IterPolicy.ArithCpy(b1, b1, Range.End(lhs), std::min(lhs.size(), count)),
-					e2 = IterPolicy.ArithCpy(b2, b2, Range.End(rhs), std::min(rhs.size(), count));
+				auto const e1 = IterPolicy.ArithCpy(b1, b1, Range.End(lhs), std::min(std::ranges::ssize(lhs), count)),
+					e2 = IterPolicy.ArithCpy(b2, b2, Range.End(rhs), std::min(std::ranges::ssize(rhs), count));
+
+				IterPolicy.Initialize(s1, b1, e1);
+				IterPolicy.Initialize(s2, b2, e2);	// we are using while loop - ptr gets deref before being used.
 
 				while (
 					s1 < e1 && s2 < e2
@@ -1478,11 +1507,11 @@ namespace Hydrogenium::String
 			}
 
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
-			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, size_t count) noexcept
+			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
 				auto it = Range.Begin(str);
 				auto const begin = Range.Begin(str),
-					end = IterPolicy.ArithCpy(begin, begin, Range.End(str), std::min(str.size(), count));
+					end = IterPolicy.ArithCpy(begin, begin, Range.End(str), std::min(std::ranges::ssize(str), count));
 
 				size_t n = begin == end ? 0 : 1;	// #UPDATE_AT_CPP23 size type literal
 				for (; IterPolicy.Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED; ++n) {}
@@ -1521,7 +1550,7 @@ namespace Hydrogenium::String
 			using super = invoking_policy_t::template pattern_view_char<chr_fn_t, char_type>;
 			using super::operator();
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch, size_t until) noexcept
+			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept
 			{
 				return detail::Chr(str, ch, until);
 			}
@@ -1535,7 +1564,7 @@ namespace Hydrogenium::String
 			using super = invoking_policy_t::template pattern_view_view<cmp_fn_t, char_type>;
 			using super::operator();
 
-			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, size_t count) noexcept
+			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
 			{
 				return detail::Cmp(lhs, rhs, count);
 			}
@@ -1549,7 +1578,7 @@ namespace Hydrogenium::String
 			using super = invoking_policy_t::template pattern_view<cnt_fn_t, char_type>;
 			using super::operator();
 
-			static constexpr auto Impl(ctype_info::view_type const& str, size_t count) noexcept
+			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
 				return detail::Cnt(str, count);
 			}
@@ -1610,14 +1639,21 @@ namespace Hydrogenium::String::UnitTest
 	using StrI = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored>;
 	using StrN = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
 	using StrNI = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
+	using StrR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::backwards{}>;
+	using StrIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::backwards{}>;
+	using StrNR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::backwards{}>;
+	using StrNIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::backwards{}>;
 
 	static_assert(StrI::Cmp("a0b1c2", "A0B1C2") == 0);
 	static_assert(StrI::Cmp("abc", "DEF") < 0 && Str::Cmp("abc", "DEF") > 0);
 	static_assert(StrI::Cmp("GHI", "def") > 0 && Str::Cmp("GHI", "def") < 0);
 	static_assert(Str::Cmp(u8"你好", u8"你好") == 0 && Str::Cmp(u8"你好", u8"你好嗎") < 0);
+	static_assert(StrNR::Cmp("dynamic_cast", "static_cast", 7) == 0 && StrNR::Cmp("dynamic_cast", "static_cast", 8) < 0);	// just like ends_with
 
 	static_assert(Str::Chr("Try not", 't') == "t" && StrI::Chr("Try not", 'T') == "Try not");
-	static_assert(StrN::Chr("Try not", 't', 4).empty() && StrNI::Chr("Try not", 't', 4) == "Try ");	// #UNDONE this is not good. the return of StrNI series should kept the original length.
+	static_assert(StrN::Chr("Try not", 't', 4).empty() && StrNI::Chr("Try not", 't', 4) == "Try ");	// #NO_URGENT this is not good. the return of StrNI series should kept the original length.
+	static_assert(StrR::Chr("Try not", 'T') == "Try not" && StrIR::Chr("Try not", 'T') == "t");
+	static_assert(StrNR::Chr("Try not", 'T', 4).empty() && StrNIR::Chr("Try not", 'T', 4) == "t");
 
 	using Wcs = Utils<wchar_t>;
 	using WcsI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored>;
@@ -1635,6 +1671,8 @@ namespace Hydrogenium::String::UnitTest
 
 	using Mbs = Utils<char, Iterating::as_multibytes>;
 	using MbsN = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n>;
+	using MbsR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_len, Direction::backwards{}>;
+	using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::backwards{}>;
 
 	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
 	static_assert(Mbs::Cnt(u8"Ἡράκλειος") == 9);
@@ -1644,7 +1682,11 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Cnt(u8"希拉克略") == 4);
 	static_assert(MbsN::Cnt(u8"Heráclio", 5) == 5);
 	static_assert(MbsN::Cnt(u8"Іраклій", 0x100) == 7);
+
+	static_assert(Mbs::Chr(u8"你好", '\xE5').empty() && Str::Chr(u8"你好", '\xE5') == u8"好");	// u8"好" == 0xE5 0xA5 0xBD
+
 	static_assert(MbsN::Cmp(u8"你好", u8"你好嗎", 2) == 0 && MbsN::Cmp(u8"你好", u8"你好嗎", 3) < 0);
+	static_assert(MbsN::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsNR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D
 }
 
 constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
