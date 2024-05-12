@@ -80,7 +80,7 @@
       <Filter>Modules</Filter>
     </ClInclude>
     <ClInclude Include="..\Precompiled.hpp" />
-    <ClInclude Include="..\UtlChType.hpp">
+    <ClInclude Include="..\UtlCChType.hpp">
       <Filter>Modules</Filter>
     </ClInclude>
     <ClInclude Include="..\UtlCString.hpp">

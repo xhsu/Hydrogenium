@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "UtlChType.hpp"
+#include "UtlCChType.hpp"
 
 #include <iostream>	// only use for unit test StrTok
 #include <optional>
