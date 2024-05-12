@@ -20,6 +20,15 @@
     <ClCompile Include="..\Precompiled.cpp">
       <Filter>Modules</Filter>
     </ClCompile>
+    <ClCompile Include="UnitTest_UtlString_Misc.cpp">
+      <Filter>Testing</Filter>
+    </ClCompile>
+    <ClCompile Include="UnitTest_UtlString_CType.cpp">
+      <Filter>Testing</Filter>
+    </ClCompile>
+    <ClCompile Include="UnitTest_UtlString_IterPolicy.cpp">
+      <Filter>Testing</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UtlString.hpp">
