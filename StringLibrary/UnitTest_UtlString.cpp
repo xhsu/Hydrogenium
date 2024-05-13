@@ -44,6 +44,77 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsN::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsNR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D
 }
 
+using namespace Hydrogenium::StringPolicy;
+
+// Dup
+namespace Hydrogenium::String::UnitTest
+{
+
+}
+
+// PBrk, SpnP, CSpn, Spn
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Wcs::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡") == L"葡萄不吐葡萄皮");
+	static_assert(WcsN::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡", 1).empty());
+	static_assert(Mbs::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡") == u8"葡萄不吐葡萄皮");
+	static_assert(MbsN::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡", 1).empty());
+	static_assert(WcsR::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡") == L"葡萄皮");
+	static_assert(WcsNR::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡", 2).empty());
+	static_assert(MbsR::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡") == u8"葡萄皮");
+	static_assert(MbsNR::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡", 2).empty());
+
+	static_assert(StrI::PBrk("Try not", "tr") == "Try not");
+	static_assert(StrIR::PBrk("Try not", "tr") == "t");
+	static_assert(StrI::SpnP("Try not", "tr") == "y not");
+	static_assert(StrIR::SpnP("Try not", "tr") == "ot");
+
+	inline constexpr auto MbsCSpn = Utils<
+		char,
+		Iterating::as_multibytes,
+		Comparing::regular,
+		Counter::cap_at_len,
+		Direction::front_to_back,
+		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+	> ::PBrk;
+
+	inline constexpr auto MbsSpn = Utils<
+		char,
+		Iterating::as_multibytes,
+		Comparing::regular,
+		Counter::cap_at_len,
+		Direction::front_to_back,
+		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+	> ::SpnP;
+
+	inline constexpr auto MbsRCSpn = Utils<
+		char,
+		Iterating::as_multibytes,
+		Comparing::regular,
+		Counter::cap_at_len,
+		Direction::back_to_front,
+		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+	> ::PBrk;
+
+	inline constexpr auto MbsRSpn = Utils<
+		char,
+		Iterating::as_multibytes,
+		Comparing::regular,
+		Counter::cap_at_len,
+		Direction::back_to_front,
+		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+	> ::SpnP;
+
+	static_assert(MbsRCSpn(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 5);
+	//                        └────────┘  ← searching dir
+	static_assert(MbsRSpn(u8"吃葡萄不吐葡萄皮", u8"葡萄皮") == 4);
+	//                       └──────┘     ← searching dir
+	static_assert(MbsCSpn("abcde312$#@", "*$#") == 8);
+	//                     └───────┘
+	static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
+	//                    └────┘
+}
+
 extern void UnitTest_Runtime();
 
 int main(int, char* []) noexcept

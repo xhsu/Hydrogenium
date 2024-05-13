@@ -705,7 +705,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 	{
 		static inline constexpr bool normal_pointer = true;
 
-		static constexpr APRES Initialize(auto&, ...) noexcept
+		static constexpr APRES Initialize(auto&, auto&&...) noexcept
 		{
 			return APRES::NOP;
 		}
@@ -1572,26 +1572,68 @@ namespace Hydrogenium::String
 				return n;
 			}
 
-			// CSpn - v, v -> size_t
-			__forceinline constexpr size_t CSpn(ctype_info::view_type const& dest, ctype_info::view_type const& src) noexcept
-			{
-				if (auto const pos = dest.find_first_of(src); pos != dest.npos)
-					return pos;
-
-				return dest.length();
-			}
+			// CSpn - v, v -> size_t; Use PBrk instead.
 
 			// Dup - v -> string
-			__forceinline constexpr auto Dup(ctype_info::view_type const& str) noexcept -> ctype_info::owner_type
-			{
-				return typename ctype_info::owner_type{ str };
-			}
-
 			// Len - v -> size_t
 			// Lwr - o -> string
-			// PBrk - v, v -> string_view
+
+			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
+			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count, bool bSpnPMode) noexcept -> ctype_info::view_type
+			{
+				// the src is NOT order-sensitive, it's no more than a library of what to search.
+				// hence no range function put onto src.
+
+				auto s1 = Range.Begin(dest);
+				auto const b1 = Range.Begin(dest),
+					e1 = IterPolicy.ArithCpy(b1, b1, Range.End(dest), std::min(std::ranges::ssize(dest), count));
+
+				auto s2 = src.begin();
+				auto const b2 = src.begin(),
+					e2 = IterPolicy.ArithCpy(b2, b2, src.end(), src.size());
+
+				IterPolicy.Initialize(s1, b1, e1);
+				IterPolicy.Initialize(s2, b2, e2);	// we are using while loop - ptr gets deref before being used.
+
+				for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
+				{
+					bool found_in_src = false;
+					auto const ch1 = IterPolicy.ValueOf(s1);
+
+					for (s2 = b2; s2 < e2; IterPolicy.Arithmetic(s2, b2, e2, 1))
+					{
+						auto const ch2 = IterPolicy.ValueOf(s2);
+
+						if (Comparator.Eql(ch1, ch2))
+						{
+							found_in_src = true;
+							break;
+						}
+					}
+
+					if (found_in_src == !bSpnPMode)
+						break;
+				}
+
+				// why can't I use goto in constexpr?!
+			//LAB_POST_FINDING:;
+
+				if (s1 == e1)
+					return { dest.end(), dest.end() };
+
+				if constexpr (Range.is_reverse)
+				{
+					return { ToForwardIter(s1), ToForwardIter(b1, false) };
+				}
+				else
+				{
+					return { s1, e1 };
+				}
+			}
+
 			// Rev - o -> string
-			// Spn - v, v -> size_t
+			// Spn - v, v -> size_t; Use PBrk instead.
+			// SpnP - v, v -> string_view; Use PBrk instead.
 			// Str - v, v -> string_view
 			// Tok - n, v -> string_view
 			// Upr - o -> string
@@ -1646,6 +1688,58 @@ namespace Hydrogenium::String
 		};
 		static inline constexpr auto Cnt = cnt_fn_t{};
 #pragma endregion Cnt
+
+#pragma region Dup
+		struct dup_fn_t : invoking_policy_t::template pattern_view<dup_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_view<dup_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			{
+				return RsltProc.Modify(
+					str | std::views::take(count)
+				);
+			}
+		};
+		static inline constexpr auto Dup = dup_fn_t{};
+#pragma endregion Dup
+
+#pragma region PBrk
+		struct pbrk_fn_t : invoking_policy_t::template pattern_view_view<pbrk_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_view_view<pbrk_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
+			{
+				return RsltProc.Query(
+					dest,
+					detail::PBrk(dest, src, count, false),
+					IterPolicy
+				);
+			}
+		};
+		static inline constexpr auto PBrk = pbrk_fn_t{};
+#pragma endregion PBrk
+
+#pragma region SpnP
+		struct spnp_fn_t : invoking_policy_t::template pattern_view_view<spnp_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_view_view<spnp_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
+			{
+				return RsltProc.Query(
+					dest,
+					detail::PBrk(dest, src, count, true),
+					IterPolicy
+				);
+			}
+		};
+		static inline constexpr auto SpnP = spnp_fn_t{};
+#pragma endregion SpnP
 	};
 }
 
