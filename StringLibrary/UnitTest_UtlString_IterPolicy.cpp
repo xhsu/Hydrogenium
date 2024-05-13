@@ -1,9 +1,10 @@
 #include "UtlString.hpp"
 
+using namespace Hydrogenium::UnitTest;
+using namespace Hydrogenium::StringPolicy::Iterating;
+
 namespace Hydrogenium::StringPolicy::UnitTest
 {
-	using namespace Hydrogenium::UnitTest;
-
 	template <typename Policy>
 	constexpr bool UnitTest_iterating_policy(auto&& bgn, auto&& ed, std::span<char32_t const> results) noexcept
 	{
@@ -35,13 +36,13 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		return true;
 	}
 
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_normal_ptr>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_normal_ptr>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
 
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(CHN_TEXT_FWD.begin(), CHN_TEXT_FWD.end(), CHN_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(CHN_TEXT_FWD.rbegin(), CHN_TEXT_FWD.rend(), CHN_WORDS_BWD));
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(RMN_WTEXT_FWD.begin(), RMN_WTEXT_FWD.end(), RMN_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(RMN_WTEXT_FWD.rbegin(), RMN_WTEXT_FWD.rend(), RMN_WORDS_BWD));
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD.begin(), CHN_TEXT_FWD.end(), CHN_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD.rbegin(), CHN_TEXT_FWD.rend(), CHN_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD.begin(), RMN_WTEXT_FWD.end(), RMN_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD.rbegin(), RMN_WTEXT_FWD.rend(), RMN_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
 }

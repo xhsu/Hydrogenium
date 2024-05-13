@@ -9,10 +9,10 @@ namespace Hydrogenium::String::UnitTest
 	using StrI = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored>;
 	using StrN = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
 	using StrNI = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
-	using StrR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::backwards{} > ;
-	using StrIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::backwards{} > ;
-	using StrNR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::backwards{} > ;
-	using StrNIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::backwards{} > ;
+	using StrR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
+	using StrIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
+	using StrNR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
+	using StrNIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
 
 	static_assert(StrI::Cmp("a0b1c2", "A0B1C2") == 0);
 	static_assert(StrI::Cmp("abc", "DEF") < 0 && Str::Cmp("abc", "DEF") > 0);
@@ -41,8 +41,8 @@ namespace Hydrogenium::String::UnitTest
 
 	using Mbs = Utils<char, Iterating::as_multibytes>;
 	using MbsN = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n>;
-	using MbsR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_len, Direction::backwards{} > ;
-	using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::backwards{} > ;
+	using MbsR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
+	using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
 
 	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
 	static_assert(Mbs::Cnt(u8"Ἡράκλειος") == 9);
@@ -66,4 +66,6 @@ int main(int, char* []) noexcept
 	using namespace Hydrogenium;
 	using namespace Hydrogenium::UnitTest;
 	using namespace Hydrogenium::String::UnitTest;
+
+	UnitTest_Runtime();
 }
