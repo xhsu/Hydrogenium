@@ -1010,7 +1010,6 @@ namespace Hydrogenium::StringPolicy::Iterating
 		static constexpr auto ValueOf(auto&& iter) noexcept -> fchar_t
 		{
 			using CT = CType<decltype(*iter)>;
-			using view_type = typename CT::view_type;	// #MSVC_BUGGED_tailing_return_type_namespace_error
 
 			auto const fwd_iter = ToForwardIter(iter);
 			auto const cp = CT::CodePointOf(*fwd_iter);
@@ -1033,8 +1032,6 @@ namespace Hydrogenium::StringPolicy::Iterating
 		// Iter argument must be pointing to head of UTF stream, begin, or end.
 		static constexpr APRES Arithmetic(auto& iter, auto&& begin, auto&& end, ptrdiff_t num) noexcept
 		{
-			using CT = CType<decltype(*iter)>;
-
 			using iter_t = std::remove_cvref_t<decltype(iter)>;
 			using bgn_t = std::remove_cvref_t<decltype(begin)>;
 			using ed_t = std::remove_cvref_t<decltype(end)>;
@@ -1485,6 +1482,9 @@ namespace Hydrogenium::StringPolicy::Result
 
 	inline constexpr auto as_it_is = postprocessor_t<as_view_t, as_lexic_t, as_unsigned_t, as_marshaled_t>{};
 	static_assert(ResultProcessor<decltype(as_it_is), char>);
+
+	inline constexpr auto to_c_style = postprocessor_t<as_pointer_t, as_lexic_t, as_unsigned_t, as_unmanaged_t>{};
+	static_assert(ResultProcessor<decltype(to_c_style), char>);
 }
 
 namespace Hydrogenium::String
@@ -1647,6 +1647,69 @@ namespace Hydrogenium::String
 		static inline constexpr auto Cnt = cnt_fn_t{};
 #pragma endregion Cnt
 	};
+}
+
+namespace Hydrogenium
+{
+	namespace detail::strutl_decl
+	{
+		using namespace String;
+		using namespace StringPolicy;
+
+		using Str		= Utils<>;
+		using StrI		= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored>;
+		using StrN		= Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
+		using StrNI		= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
+		using StrR		= Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
+		using StrIR		= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
+		using StrNR		= Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
+		using StrNIR	= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+
+		using Wcs = Utils<wchar_t>;
+		using WcsI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored>;
+		using WcsN = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
+		using WcsNI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
+		using WcsR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
+		using WcsIR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
+		using WcsNR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
+		using WcsNIR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+
+		using Mbs = Utils<char, Iterating::as_multibytes>;
+		using MbsI = Utils<char, Iterating::as_multibytes, Comparing::case_ignored>;
+		using MbsN = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n>;
+		using MbsNI = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_n>;
+		using MbsR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
+		using MbsIR = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
+		using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
+		using MbsNIR = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+	}
+
+	using detail::strutl_decl::Str;
+	using detail::strutl_decl::StrI;
+	using detail::strutl_decl::StrN;
+	using detail::strutl_decl::StrNI;
+	using detail::strutl_decl::StrR;
+	using detail::strutl_decl::StrIR;
+	using detail::strutl_decl::StrNR;
+	using detail::strutl_decl::StrNIR;
+
+	using detail::strutl_decl::Wcs;
+	using detail::strutl_decl::WcsI;
+	using detail::strutl_decl::WcsN;
+	using detail::strutl_decl::WcsNI;
+	using detail::strutl_decl::WcsR;
+	using detail::strutl_decl::WcsIR;
+	using detail::strutl_decl::WcsNR;
+	using detail::strutl_decl::WcsNIR;
+
+	using detail::strutl_decl::Mbs;
+	using detail::strutl_decl::MbsI;
+	using detail::strutl_decl::MbsN;
+	using detail::strutl_decl::MbsNI;
+	using detail::strutl_decl::MbsR;
+	using detail::strutl_decl::MbsIR;
+	using detail::strutl_decl::MbsNR;
+	using detail::strutl_decl::MbsNIR;
 }
 
 

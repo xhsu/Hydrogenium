@@ -3,16 +3,7 @@
 
 namespace Hydrogenium::String::UnitTest
 {
-	using namespace StringPolicy;
-
-	using Str = Utils<>;
-	using StrI = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored>;
-	using StrN = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
-	using StrNI = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
-	using StrR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
-	using StrIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
-	using StrNR = Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
-	using StrNIR = Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+	// Str series
 
 	static_assert(StrI::Cmp("a0b1c2", "A0B1C2") == 0);
 	static_assert(StrI::Cmp("abc", "DEF") < 0 && Str::Cmp("abc", "DEF") > 0);
@@ -25,10 +16,7 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrR::Chr("Try not", 'T') == "Try not" && StrIR::Chr("Try not", 'T') == "t");
 	static_assert(StrNR::Chr("Try not", 'T', 4).empty() && StrNIR::Chr("Try not", 'T', 4) == "t");
 
-	using Wcs = Utils<wchar_t>;
-	using WcsI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored>;
-	using WcsN = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
-	using WcsNI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
+	// Wcs series
 
 	static_assert(WcsI::Cmp(L"a0b1c2", L"A0B1C2") == 0);
 	static_assert(WcsI::Cmp(L"abc", L"DEF") < 0 && Wcs::Cmp(L"abc", L"DEF") > 0);
@@ -39,10 +27,7 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Wcs::Chr(L"Try not", L't') == L"t" && WcsI::Chr(L"Try not", L'T') == L"Try not");
 	static_assert(WcsN::Chr(L"Try not", L't', 4).empty() && WcsNI::Chr(L"Try not", L't', 4) == L"Try ");
 
-	using Mbs = Utils<char, Iterating::as_multibytes>;
-	using MbsN = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n>;
-	using MbsR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
-	using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
+	// Mbs series
 
 	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
 	static_assert(Mbs::Cnt(u8"Ἡράκλειος") == 9);
