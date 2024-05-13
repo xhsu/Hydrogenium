@@ -25,7 +25,7 @@ namespace Hydrogenium::StringPolicy::UnitTest
 			return false;
 
 		Policy::Arithmetic(it, bgn, ed, -4);
-		if (Policy::ValueOf(it) != results[5])
+		if (Policy::ValueOf(it) != results[6])	// 'end' is the 10th element.
 			return false;
 
 		Policy::Arithmetic(it, bgn, ed, -100);
@@ -34,6 +34,9 @@ namespace Hydrogenium::StringPolicy::UnitTest
 
 		return true;
 	}
+
+	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_normal_ptr>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_normal_ptr>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
 
 	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(CHN_TEXT_FWD.begin(), CHN_TEXT_FWD.end(), CHN_WORDS_FWD));
 	static_assert(UnitTest_iterating_policy<StringPolicy::Iterating::as_multibytes_t>(CHN_TEXT_FWD.rbegin(), CHN_TEXT_FWD.rend(), CHN_WORDS_BWD));

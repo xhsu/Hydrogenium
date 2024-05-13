@@ -652,21 +652,15 @@ namespace Hydrogenium::StringPolicy::Iterating
 		{
 			if (num > 0)
 			{
-				while (num > 0 && iter < end)
-				{
-					++iter;
-					--num;
-				}
+				num = std::min(num, end - iter);
+				iter += num;
 
 				return iter >= end ? APRES::EOS : APRES::ADVANCED;
 			}
 			else if (num < 0)
 			{
-				while (num < 0 && iter > begin)
-				{
-					--iter;
-					++num;
-				}
+				num = std::max(num, begin - iter);
+				iter += num;
 
 				return iter <= begin ? APRES::BOS : APRES::RECEDED;
 			}
@@ -867,6 +861,17 @@ namespace Hydrogenium::StringPolicy::Iterating
 						return APRES::BOS;
 					}
 
+					if (iter >= end)
+					{
+						// the end cannot be dereferenced, just iterate until a valid pos found.
+						do 
+						{
+							--iter;
+						} while (iter > begin && CT::CodePointOf(*iter) >= CodePoint::MID);
+
+						return APRES::RECEDED;
+					}
+
 					auto const cp = CT::CodePointOf(*iter);
 					auto const cells_to_move = std::to_underlying(cp);
 
@@ -1033,9 +1038,6 @@ namespace Hydrogenium::StringPolicy::Iterating
 
 			if (begin == end)
 				return APRES::NOP;
-
-			if (iter == end || iter == begin)
-				Initialize(iter, begin, end);
 
 			if (num > 0)
 			{

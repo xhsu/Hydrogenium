@@ -59,9 +59,11 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsN::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsNR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D
 }
 
+extern void UnitTest_Runtime();
+
 int main(int, char* []) noexcept
 {
 	using namespace Hydrogenium;
+	using namespace Hydrogenium::UnitTest;
 	using namespace Hydrogenium::String::UnitTest;
-
 }
