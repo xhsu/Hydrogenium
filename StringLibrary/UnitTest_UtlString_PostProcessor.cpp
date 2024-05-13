@@ -1,3 +1,4 @@
+#include "Precompiled.hpp"
 #include "UtlString.hpp"
 
 using namespace Hydrogenium::UnitTest;
@@ -46,7 +47,5 @@ namespace Hydrogenium::StringPolicy::UnitTest
 
 void UnitTest_Runtime()
 {
-	as_marshaled_t functor{};
-	auto cpy1 = functor(ENG_TEXT_FWD);
-	auto cpy2 = functor(RMN_WTEXT_FWD);
+
 }

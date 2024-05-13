@@ -1,3 +1,4 @@
+#include "Precompiled.hpp"
 #include "UtlString.hpp"
 
 namespace Hydrogenium::UnitTest

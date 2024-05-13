@@ -118,6 +118,9 @@ namespace Hydrogenium
 		return std::to_underlying(lhs) <=> std::to_underlying(rhs);
 	}
 
+	// Full Unicode character type
+	using fchar_t = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
+
 	// #TODO UTF32 a.k.a. all-lang support?
 
 	template <typename T>
@@ -476,12 +479,12 @@ namespace Hydrogenium
 		}
 
 		// Luna's extension
-		[[nodiscard]] static constexpr auto ToFullWidth(view_type bytes) noexcept -> char32_t
+		[[nodiscard]] static constexpr auto ToFullWidth(view_type bytes) noexcept -> fchar_t
 		{
 			switch (CodePointOf(bytes.front()))
 			{
 			case CodePoint::WHOLE:
-				return static_cast<char32_t>(bytes.front());
+				return static_cast<fchar_t>(bytes.front());
 
 			case CodePoint::BEGIN_OF_2:
 			{
@@ -489,7 +492,7 @@ namespace Hydrogenium
 
 				if constexpr (is_utf8)
 				{
-					char32_t ret = (bytes[0] & 0b00011111) << 6 | (bytes[1] & 0b00111111);
+					fchar_t ret = (bytes[0] & 0b00011111) << 6 | (bytes[1] & 0b00111111);
 
 					if (ret < 0x80u)			// Not a valid result, Wrong encoding
 						ret = 0;				// Out of UTF8 bound, skip data  
@@ -511,7 +514,7 @@ namespace Hydrogenium
 				if constexpr (is_utf8)
 				{
 					assert(bytes.size() == 3);
-					char32_t ret = (bytes[0] & 0b00001111) << 12 | (bytes[1] & 0b00111111) << 6 | (bytes[2] & 0b00111111);
+					fchar_t ret = (bytes[0] & 0b00001111) << 12 | (bytes[1] & 0b00111111) << 6 | (bytes[2] & 0b00111111);
 
 					if (ret < 0x800u)			// Not a valid result, Wrong encoding
 						ret = 0;				// Out of UTF8 bound, skip data  
@@ -529,7 +532,7 @@ namespace Hydrogenium
 				if constexpr (is_utf8)
 				{
 					assert(bytes.size() == 4);
-					char32_t ret =
+					fchar_t ret =
 						(bytes[0] & 0b00000111) << 18 | (bytes[1] & 0b00111111) << 12 | (bytes[2] & 0b00111111) << 6 | (bytes[3] & 0b00111111);
 
 					if (ret < 0x10000u)			// Not a valid result, Wrong encoding
@@ -550,12 +553,12 @@ namespace Hydrogenium
 		}
 
 		// Luna's extension
-		[[nodiscard]] static constexpr auto ToFullWidth(std::integral auto c) noexcept -> char32_t
+		[[nodiscard]] static constexpr auto ToFullWidth(std::integral auto c) noexcept -> fchar_t
 		{
 			switch (CodePointOf(c))
 			{
 			case CodePoint::WHOLE:
-				return static_cast<char32_t>(c);
+				return static_cast<fchar_t>(c);
 
 			default:
 				assert(false);
@@ -564,7 +567,7 @@ namespace Hydrogenium
 		}
 
 		// Luna's extension
-		[[nodiscard]] static constexpr auto ToMultiBytes(char32_t wc) noexcept -> multibytes_type requires (is_utf8 || is_utf16)
+		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> multibytes_type requires (is_utf8 || is_utf16)
 		{
 			multibytes_type ret{};
 
@@ -611,6 +614,69 @@ namespace Hydrogenium
 	};
 
 	// Unit testing at: UnitTest_UtlString_CType.cpp
+}
+
+namespace Hydrogenium::StringPolicy
+{
+	namespace Iterating
+	{
+		// Forward declearation.
+		enum struct APRES : std::uint_fast8_t;
+	}
+
+	template <typename T, typename C>
+	concept IteratingPolicy = requires (C * p, C const* cp, C* const pc)
+	{
+		T::normal_pointer;	// enables random-access-iter optimization.
+		{ T::Initialize(p, pc, pc) } -> std::same_as<Iterating::APRES>;
+		{ T::ValueOf(cp) } -> NonVoid;
+		{ T::Arithmetic(p, pc, pc, ptrdiff_t{}) } -> std::same_as<Iterating::APRES>;
+
+		requires !requires{ T::Initialize(std::declval<C*>(), pc, pc); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
+		requires !requires{ T::Arithmetic(std::declval<C*>(), pc, pc, ptrdiff_t{}); };
+		{ T::ArithCpy(std::declval<C*>(), pc, pc, ptrdiff_t{}) } -> std::same_as<C*>;	// This one gives you a copy.
+	};
+
+	template <typename T, typename C>
+	concept ComparingPolicy = requires (C c)
+	{
+		{ T{}.Cmp(c, c) } -> std::same_as<int>;
+		{ T{}.Eql(c, c) } -> std::same_as<bool>;
+	};
+
+	struct MyDummy
+	{
+		static constexpr auto Impl(auto&&...) noexcept {}
+		constexpr auto operator() (auto&&... args) const noexcept { return Impl(std::forward<decltype(args)>(args)...); }
+	};
+
+	template <typename T, typename C>
+	concept CounterPolicy = requires
+	{
+		&T::template pattern_view_view<MyDummy, C>::operator();
+		&T::template pattern_view_char<MyDummy, C>::operator();
+		&T::template pattern_nullable_view<MyDummy, C>::operator();
+	};
+
+	template <typename T, typename C>
+	concept DirectionPolicy = requires (CType<C>::view_type view)
+	{
+		{ T::Begin(view) } -> std::bidirectional_iterator;
+		{ T::End(view) } -> std::bidirectional_iterator;
+		{ T::Begin(view) } -> std::input_iterator;
+		{ T::End(view) } -> std::input_iterator;
+		T::is_reverse;
+	};
+
+	// Result post-processing
+	template <typename R, typename C>
+	concept ResultProcessor = requires (CType<C>::view_type sv, CType<C>::owner_type s)
+	{
+		R::Query(sv, sv, nullptr);	// it seems like there is no way we can fit a generalized 'iter policy' in.
+		R::Test(int{});
+		R::Counting(size_t{});
+		{ R::Modify(s) } -> std::convertible_to<std::basic_string_view<C>>;
+	};
 }
 
 namespace Hydrogenium::StringPolicy::Iterating
@@ -941,7 +1007,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 			std::unreachable();
 		}
 
-		static constexpr auto ValueOf(auto&& iter) noexcept -> char32_t
+		static constexpr auto ValueOf(auto&& iter) noexcept -> fchar_t
 		{
 			using CT = CType<decltype(*iter)>;
 			using view_type = typename CT::view_type;	// #MSVC_BUGGED_tailing_return_type_namespace_error
@@ -1018,6 +1084,11 @@ namespace Hydrogenium::StringPolicy::Iterating
 	};
 
 	inline constexpr auto as_multibytes = as_multibytes_t{};
+
+	static_assert(IteratingPolicy<as_normal_ptr_t, char>);
+	static_assert(IteratingPolicy<as_normal_ptr_t, wchar_t>);
+	static_assert(IteratingPolicy<as_multibytes_t, unsigned char>);
+	static_assert(IteratingPolicy<as_multibytes_t, wchar_t>);
 
 	// Unit testing at: UnitTest_UtlString_IterPolicy.cpp
 }
@@ -1097,6 +1168,9 @@ namespace Hydrogenium::StringPolicy::Comparing
 	};
 
 	inline constexpr auto regular = regular_t{};
+
+	static_assert(ComparingPolicy<case_ignored_t, char>);
+	static_assert(ComparingPolicy<regular_t, char>);
 }
 
 namespace Hydrogenium::StringPolicy::Counter
@@ -1195,6 +1269,9 @@ namespace Hydrogenium::StringPolicy::Counter
 	};
 
 	inline constexpr auto cap_at_len = cap_at_len_t{};
+
+	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_len_t, char>);
+	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_n_t, wchar_t>);
 }
 
 namespace Hydrogenium::StringPolicy::Direction
@@ -1232,6 +1309,9 @@ namespace Hydrogenium::StringPolicy::Direction
 	};
 
 	inline constexpr auto back_to_front = backwards_t{};
+
+	static_assert(DirectionPolicy<StringPolicy::Direction::forwards_t, char>);
+	static_assert(DirectionPolicy<StringPolicy::Direction::backwards_t, char>);
 }
 
 namespace Hydrogenium::StringPolicy::Result
@@ -1404,97 +1484,22 @@ namespace Hydrogenium::StringPolicy::Result
 	};
 
 	inline constexpr auto as_it_is = postprocessor_t<as_view_t, as_lexic_t, as_unsigned_t, as_marshaled_t>{};
-}
-
-namespace Hydrogenium::String
-{
-	template <typename T, typename C>
-	concept IteratingPolicy = requires (C* p, C const* cp, C *const pc)
-	{
-		T::normal_pointer;	// enables random-access-iter optimization.
-		{ T::Initialize(p, pc, pc) } -> std::same_as<Hydrogenium::StringPolicy::Iterating::APRES>;
-		{ T::ValueOf(cp) } -> NonVoid;
-		{ T::Arithmetic(p, pc, pc, ptrdiff_t{}) } -> std::same_as<Hydrogenium::StringPolicy::Iterating::APRES>;
-
-		requires !requires{ T::Initialize(std::declval<C*>(), pc, pc); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
-		requires !requires{ T::Arithmetic(std::declval<C*>(), pc, pc, ptrdiff_t{}); };
-		{ T::ArithCpy(std::declval<C*>(), pc, pc, ptrdiff_t{}) } -> std::same_as<C*>;	// This one gives you a copy.
-	};
-
-	static_assert(IteratingPolicy<StringPolicy::Iterating::as_normal_ptr_t, char>);
-	static_assert(IteratingPolicy<StringPolicy::Iterating::as_normal_ptr_t, wchar_t>);
-	static_assert(IteratingPolicy<StringPolicy::Iterating::as_multibytes_t, unsigned char>);
-	static_assert(IteratingPolicy<StringPolicy::Iterating::as_multibytes_t, wchar_t>);
-
-	template <typename T, typename C>
-	concept ComparingPolicy = requires (C c)
-	{
-		{ T{}.Cmp(c, c) } -> std::same_as<int>;
-		{ T{}.Eql(c, c) } -> std::same_as<bool>;
-	};
-
-	static_assert(ComparingPolicy<StringPolicy::Comparing::case_ignored_t, char>);
-	static_assert(ComparingPolicy<StringPolicy::Comparing::regular_t, char>);
-
-	struct MyDummy
-	{
-		static constexpr auto Impl(auto&&...) noexcept {}
-
-		constexpr auto operator() (auto&&... args) const noexcept { return Impl(std::forward<decltype(args)>(args)...); }
-	};
-
-	template <typename T, typename C>
-	concept CounterPolicy = requires
-	{
-		&T::template pattern_view_view<MyDummy, C>::operator();
-		&T::template pattern_view_char<MyDummy, C>::operator();
-		&T::template pattern_nullable_view<MyDummy, C>::operator();
-	};
-
-	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_len_t, char>);
-	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_n_t, wchar_t>);
-
-	template <typename T, typename C>
-	concept DirectionPolicy = requires (CType<C>::view_type view)
-	{
-		{ T::Begin(view) } -> std::bidirectional_iterator;
-		{ T::End(view) } -> std::bidirectional_iterator;
-		{ T::Begin(view) } -> std::input_iterator;
-		{ T::End(view) } -> std::input_iterator;
-		T::is_reverse;
-	};
-
-	static_assert(DirectionPolicy<StringPolicy::Direction::forwards_t, char>);
-	static_assert(DirectionPolicy<StringPolicy::Direction::backwards_t, char>);
-
-	template <typename T, typename C>
-	concept ResultPolicy = requires (T t, CType<C>::view_type v, CType<C>::owner_type *p)	// #TODO build a concept for new result policy.
-	{
-		std::invoke(t, (int)0);
-		std::invoke(t, (size_t)0);
-		std::invoke(t, v);
-		std::invoke(t, p);
-	};
-
-	static_assert(ResultPolicy<StringPolicy::Result::as_it_is_t, char>);
+	static_assert(ResultProcessor<decltype(as_it_is), char>);
 }
 
 namespace Hydrogenium::String
 {
 	template <
 		typename char_type = char,
-		String::IteratingPolicy<char_type> auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
-		String::ComparingPolicy<char_type> auto Comparator = StringPolicy::Comparing::regular,
-		String::CounterPolicy<char_type> auto InvkPolicy = StringPolicy::Counter::cap_at_len,
-		String::DirectionPolicy<char_type> auto Range = StringPolicy::Direction::front_to_back,
-		auto RsltProc = StringPolicy::Result::as_it_is
+		StringPolicy::IteratingPolicy<char_type> auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
+		StringPolicy::ComparingPolicy<char_type> auto Comparator = StringPolicy::Comparing::regular,
+		StringPolicy::CounterPolicy<char_type> auto InvkPolicy = StringPolicy::Counter::cap_at_len,
+		StringPolicy::DirectionPolicy<char_type> auto Range = StringPolicy::Direction::front_to_back,
+		StringPolicy::ResultProcessor<char_type> auto RsltProc = StringPolicy::Result::as_it_is
 	>
 	struct Utils final
 	{
 		using ctype_info = CType<char_type>;
-
-		using iter_policy_t = decltype(IterPolicy);
-		using comparator_t = decltype(Comparator);
 		using invoking_policy_t = std::remove_cvref_t<decltype(InvkPolicy)>;
 
 		struct detail final

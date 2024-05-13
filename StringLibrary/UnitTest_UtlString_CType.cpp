@@ -1,6 +1,6 @@
-﻿#include "UtlString.hpp"
+﻿#include "Precompiled.hpp"
+#include "UtlString.hpp"
 
-#include <span>
 
 /*
 	auto fn =
