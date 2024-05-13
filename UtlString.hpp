@@ -624,13 +624,21 @@ namespace Hydrogenium::StringPolicy
 		enum struct APRES : std::uint_fast8_t;
 	}
 
+	struct MyDummy2
+	{
+		static constexpr auto Begin(auto&& view) noexcept { return view.begin(); }
+		static constexpr auto End(auto&& view) noexcept { return view.end(); }
+	};
+
 	template <typename T, typename C>
-	concept IteratingPolicy = requires (C * p, C const* cp, C* const pc)
+	concept IteratingPolicy = requires (C* p, C const* cp, C* const pc, CType<C>::view_type view)
 	{
 		T::normal_pointer;	// enables random-access-iter optimization.
-		{ T::Initialize(p, pc, pc) } -> std::same_as<Iterating::APRES>;
+		T::Get(view, MyDummy2{}, ptrdiff_t{});	// the middle one should be range policy.
+
 		{ T::ValueOf(cp) } -> NonVoid;
 		{ T::Arithmetic(p, pc, pc, ptrdiff_t{}) } -> std::same_as<Iterating::APRES>;
+		{ T::NativeSize(p, pc) } -> std::integral;
 
 		requires !requires{ T::Initialize(std::declval<C*>(), pc, pc); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
 		requires !requires{ T::Arithmetic(std::declval<C*>(), pc, pc, ptrdiff_t{}); };
@@ -705,9 +713,13 @@ namespace Hydrogenium::StringPolicy::Iterating
 	{
 		static inline constexpr bool normal_pointer = true;
 
-		static constexpr APRES Initialize(auto&, auto&&...) noexcept
+		static constexpr auto Get(std::ranges::input_range auto&& view, auto RangePolicy, ptrdiff_t size) noexcept
 		{
-			return APRES::NOP;
+			auto abs_begin = RangePolicy.Begin(view);
+			auto abs_end = RangePolicy.End(view);
+			auto logical_end = ArithCpy(abs_begin, abs_begin, abs_end, size);
+
+			return std::make_tuple(abs_begin, abs_begin, std::move(logical_end));
 		}
 
 		static constexpr auto ValueOf(auto&& iter) noexcept
@@ -742,6 +754,11 @@ namespace Hydrogenium::StringPolicy::Iterating
 		{
 			Arithmetic(iter, begin, end, num);
 			return iter;
+		}
+
+		static constexpr ptrdiff_t NativeSize(auto&& iter, auto&& end) noexcept
+		{
+			return end - iter;
 		}
 	};
 
@@ -912,99 +929,117 @@ namespace Hydrogenium::StringPolicy::Iterating
 
 				std::unreachable();
 			}
-		};
-		// End of not required functions
 
-		// Not matter what direction it is, this function always put iter onto the head of UTF sequence.
-		static constexpr APRES Initialize(auto& iter, auto&& begin, auto&& end) noexcept
-		{
-			using CT = CType<decltype(*iter)>;
-
-			using iter_t = std::remove_cvref_t<decltype(iter)>;
-			using bgn_t = std::remove_cvref_t<decltype(begin)>;
-			using ed_t = std::remove_cvref_t<decltype(end)>;
-
-			constexpr bool ALL_NORM_ITER = !ReverseIterator<iter_t> && !ReverseIterator<bgn_t> && !ReverseIterator<ed_t>;
-			constexpr bool ALL_REV_ITER = ReverseIterator<iter_t> && ReverseIterator<bgn_t> && ReverseIterator<ed_t>;
-
-			static_assert(ALL_NORM_ITER || ALL_REV_ITER);
-
-			if (begin == end)
-				return APRES::NOP;
-
-			if constexpr (ALL_NORM_ITER)
+			// Not matter what direction it is, this function always put iter onto the head of UTF sequence. Unless it's 'end'
+			static constexpr APRES Initialize(auto& iter, auto&& begin, auto&& end) noexcept
 			{
-				if (iter == begin)
+				using CT = CType<decltype(*iter)>;
+
+				using iter_t = std::remove_cvref_t<decltype(iter)>;
+				using bgn_t = std::remove_cvref_t<decltype(begin)>;
+				using ed_t = std::remove_cvref_t<decltype(end)>;
+
+				constexpr bool ALL_NORM_ITER = !ReverseIterator<iter_t> && !ReverseIterator<bgn_t> && !ReverseIterator<ed_t>;
+				constexpr bool ALL_REV_ITER = ReverseIterator<iter_t> && ReverseIterator<bgn_t> && ReverseIterator<ed_t>;
+
+				static_assert(ALL_NORM_ITER || ALL_REV_ITER);
+
+				if (begin == end)
+					return APRES::NOP;
+
+				// if iter == end, nothing will be done.
+				// the end iter was assumed to NEVER be able to dereference.
+
+				if constexpr (ALL_NORM_ITER)
 				{
-					auto const cp = CT::CodePointOf(*iter);
+					if (iter == begin)
+					{
+						auto const cp = CT::CodePointOf(*iter);
 
-					if (cp >= CodePoint::MID)
-						return APRES::BAD_MB_POINT;
+						if (cp >= CodePoint::MID)
+							return APRES::BAD_MB_POINT;
 
-					return APRES::BOS;
-				}
+						return APRES::BOS;
+					}
 
-				if (iter == end)
-				{
-					do
+					if (iter == end)
+					{
+						/*do
+						{
+							--iter;
+
+							if (auto const cp = CT::CodePointOf(*iter); cp <= CodePoint::BEGIN_OF_4)
+								break;
+
+						} while (iter > begin);
+
+						return APRES::RECEDED;*/
+						return APRES::NOP;
+					}
+
+					while (CT::CodePointOf(*iter) >= CodePoint::MID)
 					{
 						--iter;
-
-						if (auto const cp = CT::CodePointOf(*iter); cp <= CodePoint::BEGIN_OF_4)
-							break;
-
-					} while (iter > begin);
+					}
 
 					return APRES::RECEDED;
 				}
-
-				while (CT::CodePointOf(*iter) >= CodePoint::MID)
+				else if constexpr (ALL_REV_ITER)
 				{
-					--iter;
-				}
-
-				return APRES::RECEDED;
-			}
-			else if constexpr (ALL_REV_ITER)
-			{
-				if (iter == begin)
-				{
-					if (auto const cp = CT::CodePointOf(*iter); cp != CodePoint::WHOLE && cp != CodePoint::MID)
-						return APRES::BAD_MB_POINT;
-
-					while (iter < end && CT::CodePointOf(*iter) > CodePoint::BEGIN_OF_4)
+					if (iter == begin)
 					{
-						++iter;	// why increment? check the graph at the beginning of this class.
+						if (auto const cp = CT::CodePointOf(*iter); cp != CodePoint::WHOLE && cp != CodePoint::MID)
+							return APRES::BAD_MB_POINT;
+
+						while (iter < end && CT::CodePointOf(*iter) > CodePoint::BEGIN_OF_4)
+						{
+							++iter;	// why increment? check the graph at the beginning of this class.
+						}
+
+						// the return value is stating in related to iterator, not human-language nor UTF encoding.
+						return APRES::ADVANCED;
 					}
 
-					// the return value is stating in related to iterator, not human-language nor UTF encoding.
+					else if (iter == end)
+					{
+						/*do
+						{
+							--iter;
+
+							if (auto const cp = CT::CodePointOf(*iter); cp <= CodePoint::BEGIN_OF_4)
+								break;
+
+						} while (iter > begin);
+
+						return APRES::RECEDED;*/
+						return APRES::NOP;
+					}
+
+					while (CT::CodePointOf(*iter) >= CodePoint::MID)
+					{
+						// we are expecting the head of UTF-8 sequence at 'last' if it is a reverse iterator.
+						++iter;
+					}
+
 					return APRES::ADVANCED;
 				}
 
-				else if (iter == end)
-				{
-					do
-					{
-						--iter;
-
-						if (auto const cp = CT::CodePointOf(*iter); cp <= CodePoint::BEGIN_OF_4)
-							break;
-
-					} while (iter > begin);
-
-					return APRES::RECEDED;
-				}
-
-				while (CT::CodePointOf(*iter) >= CodePoint::MID)
-				{
-					// we are expecting the head of UTF-8 sequence at 'last' if it is a reverse iterator.
-					++iter;
-				}
-
-				return APRES::ADVANCED;
+				std::unreachable();
 			}
+		};
+		// End of not required functions
 
-			std::unreachable();
+		static constexpr auto Get(std::ranges::input_range auto&& view, auto RangePolicy, ptrdiff_t size) noexcept
+		{
+			auto abs_begin = RangePolicy.Begin(view);
+			auto const abs_end = RangePolicy.End(view);
+
+			auto it = abs_begin;
+			detail::Initialize(it, abs_begin, abs_end);
+
+			auto logical_end = ArithCpy(it, abs_begin, abs_end, size);
+
+			return std::make_tuple(std::move(abs_begin), std::move(it), std::move(logical_end));
 		}
 
 		static constexpr auto ValueOf(auto&& iter) noexcept -> fchar_t
@@ -1077,6 +1112,25 @@ namespace Hydrogenium::StringPolicy::Iterating
 		{
 			Arithmetic(iter, begin, end, num);
 			return iter;
+		}
+
+		// 'iter' must pointing to head of UTF stream, or end.
+		static constexpr ptrdiff_t NativeSize(auto iter, auto&& end) noexcept
+		{
+			if (iter == end)
+				return 0;
+
+			using CT = CType<decltype(*iter)>;
+
+			ptrdiff_t ret{ std::to_underlying(CT::CodePointOf(*iter)) };
+			assert(ret <= 4);
+
+			for (; Arithmetic(iter, iter, end, 1) & APRES::MOVED;)
+			{
+				ret += std::to_underlying(CT::CodePointOf(*iter));
+			}
+
+			return ret;
 		}
 	};
 
@@ -1459,6 +1513,39 @@ namespace Hydrogenium::StringPolicy::Result
 
 			return p;
 		}
+
+		[[nodiscard]]
+		constexpr auto operator()(auto&& first, auto&& last, auto IterPolicy) const noexcept
+		{
+			using char_type = std::remove_cvref_t<decltype(*first)>;
+			auto p = new char_type[IterPolicy.NativeSize(first, last) + 1]{};
+			auto i = 0;
+
+			for (auto it = first; it < last; IterPolicy.Arithmetic(it, first, last, 1))
+			{
+				if constexpr (sizeof(char_type) == sizeof(IterPolicy.ValueOf(it)))
+				{
+					p[i++] = IterPolicy.ValueOf(it);
+				}
+
+				// bad, very bad.
+				else
+				{
+					static_assert(std::is_same_v<fchar_t, decltype(IterPolicy.ValueOf(it))>);
+
+					auto const multibytes = CType<char_type>::ToMultiBytes(IterPolicy.ValueOf(it));
+					auto const byte_count = std::to_underlying(CType<char_type>::CodePointOf(multibytes.front()));
+					assert(byte_count <= 4);
+
+					for (auto&& byt : multibytes | std::views::take(byte_count))
+					{
+						p[i++] = byt;
+					}
+				}
+			}
+
+			return p;
+		}
 	};
 	struct as_marshaled_t final
 	{
@@ -1468,6 +1555,38 @@ namespace Hydrogenium::StringPolicy::Result
 			return std::basic_string<typename std::remove_cvref_t<decltype(view)>::value_type>{
 				std::forward<decltype(view)>(view)
 			};
+		}
+
+		[[nodiscard]]
+		constexpr auto operator()(auto&& first, auto&& last, auto IterPolicy) const noexcept
+		{
+			using char_type = std::remove_cvref_t<decltype(*first)>;
+			std::basic_string<char_type> ret{};
+			ret.reserve(IterPolicy.NativeSize(first, last));
+
+			for (auto it = first; it < last; IterPolicy.Arithmetic(it, first, last, 1))
+			{
+				if constexpr (sizeof(char_type) == sizeof(IterPolicy.ValueOf(it)))
+				{
+					ret.push_back(IterPolicy.ValueOf(it));
+				}
+
+				// bad, very bad.
+				else
+				{
+					static_assert(std::is_same_v<fchar_t, decltype(IterPolicy.ValueOf(it))>);
+
+					auto const multibytes = CType<char_type>::ToMultiBytes(IterPolicy.ValueOf(it));
+					auto const byte_count = std::to_underlying(CType<char_type>::CodePointOf(multibytes.front()));
+					assert(byte_count <= 4);
+
+					ret.append_range(
+						multibytes | std::views::take(byte_count)
+					);
+				}
+			}
+
+			return ret;
 		}
 	};
 
@@ -1507,9 +1626,7 @@ namespace Hydrogenium::String
 			// Chr - v, c -> string_view
 			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept -> ctype_info::view_type
 			{
-				auto it = Range.Begin(str);
-				auto const begin = Range.Begin(str),
-					end = IterPolicy.ArithCpy(begin, begin, Range.End(str), std::min(std::ranges::ssize(str), until));
+				auto [begin, it, end] = IterPolicy.Get(str, Range, until);
 
 				for (; it < end; IterPolicy.Arithmetic(it, begin, end, 1))
 				{
@@ -1533,13 +1650,8 @@ namespace Hydrogenium::String
 			// Cmp - v, v -> int
 			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
 			{
-				auto s1 = Range.Begin(lhs), s2 = Range.Begin(rhs);
-				auto const b1 = Range.Begin(lhs), b2 = Range.Begin(rhs);
-				auto const e1 = IterPolicy.ArithCpy(b1, b1, Range.End(lhs), std::min(std::ranges::ssize(lhs), count)),
-					e2 = IterPolicy.ArithCpy(b2, b2, Range.End(rhs), std::min(std::ranges::ssize(rhs), count));
-
-				IterPolicy.Initialize(s1, b1, e1);
-				IterPolicy.Initialize(s2, b2, e2);	// we are using while loop - ptr gets deref before being used.
+				auto [b1, s1, e1] = IterPolicy.Get(lhs, Range, count);
+				auto [b2, s2, e2] = IterPolicy.Get(rhs, Range, count);
 
 				while (
 					s1 < e1 && s2 < e2
@@ -1562,9 +1674,7 @@ namespace Hydrogenium::String
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
 			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
-				auto it = Range.Begin(str);
-				auto const begin = Range.Begin(str),
-					end = IterPolicy.ArithCpy(begin, begin, Range.End(str), std::min(std::ranges::ssize(str), count));
+				auto [begin, it, end] = IterPolicy.Get(str, Range, count);
 
 				size_t n = begin == end ? 0 : 1;	// #UPDATE_AT_CPP23 size type literal
 				for (; IterPolicy.Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED; ++n) {}
@@ -1573,9 +1683,9 @@ namespace Hydrogenium::String
 			}
 
 			// CSpn - v, v -> size_t; Use PBrk instead.
+			// Dup - v -> string; No interal impl needed.
+			// Len - v -> size_t; Use Cnt instead.
 
-			// Dup - v -> string
-			// Len - v -> size_t
 			// Lwr - o -> string
 
 			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
@@ -1584,16 +1694,8 @@ namespace Hydrogenium::String
 				// the src is NOT order-sensitive, it's no more than a library of what to search.
 				// hence no range function put onto src.
 
-				auto s1 = Range.Begin(dest);
-				auto const b1 = Range.Begin(dest),
-					e1 = IterPolicy.ArithCpy(b1, b1, Range.End(dest), std::min(std::ranges::ssize(dest), count));
-
-				auto s2 = src.begin();
-				auto const b2 = src.begin(),
-					e2 = IterPolicy.ArithCpy(b2, b2, src.end(), src.size());
-
-				IterPolicy.Initialize(s1, b1, e1);
-				IterPolicy.Initialize(s2, b2, e2);	// we are using while loop - ptr gets deref before being used.
+				auto [b1, s1, e1] = IterPolicy.Get(dest, Range, count);
+				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, count);
 
 				for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
 				{
@@ -1631,9 +1733,10 @@ namespace Hydrogenium::String
 				}
 			}
 
-			// Rev - o -> string
+			// Rev - o -> string; Use Dup instead.
 			// Spn - v, v -> size_t; Use PBrk instead.
 			// SpnP - v, v -> string_view; Use PBrk instead.
+
 			// Str - v, v -> string_view
 			// Tok - n, v -> string_view
 			// Upr - o -> string
@@ -1697,9 +1800,10 @@ namespace Hydrogenium::String
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
-				return RsltProc.Modify(
-					str | std::views::take(count)
-				);
+				auto [_, it, logical_end] = IterPolicy.Get(str, Range, count);
+
+				// the count param is for size in the native type. Not count of graphemes.
+				return RsltProc.Modify(it, logical_end, IterPolicy);
 			}
 		};
 		static inline constexpr auto Dup = dup_fn_t{};
@@ -1776,6 +1880,42 @@ namespace Hydrogenium
 		using MbsIR = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
 		using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
 		using MbsNIR = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+
+		inline constexpr auto MbsCSpn = Utils<
+			char,
+			Iterating::as_multibytes,
+			Comparing::regular,
+			Counter::cap_at_len,
+			Direction::front_to_back,
+			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+		> ::PBrk;
+
+		inline constexpr auto MbsSpn = Utils<
+			char,
+			Iterating::as_multibytes,
+			Comparing::regular,
+			Counter::cap_at_len,
+			Direction::front_to_back,
+			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+		> ::SpnP;
+
+		inline constexpr auto MbsRCSpn = Utils<
+			char,
+			Iterating::as_multibytes,
+			Comparing::regular,
+			Counter::cap_at_len,
+			Direction::back_to_front,
+			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+		> ::PBrk;
+
+		inline constexpr auto MbsRSpn = Utils<
+			char,
+			Iterating::as_multibytes,
+			Comparing::regular,
+			Counter::cap_at_len,
+			Direction::back_to_front,
+			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
+		> ::SpnP;
 	}
 
 	using detail::strutl_decl::Str;
@@ -1804,6 +1944,11 @@ namespace Hydrogenium
 	using detail::strutl_decl::MbsIR;
 	using detail::strutl_decl::MbsNR;
 	using detail::strutl_decl::MbsNIR;
+
+	using detail::strutl_decl::MbsCSpn;
+	using detail::strutl_decl::MbsSpn;
+	using detail::strutl_decl::MbsRCSpn;
+	using detail::strutl_decl::MbsRSpn;
 }
 
 

@@ -1,6 +1,11 @@
 ﻿#include "Precompiled.hpp"
 #include "UtlString.hpp"
 
+
+
+using namespace Hydrogenium::StringPolicy;
+using namespace Hydrogenium::UnitTest;
+
 namespace Hydrogenium::String::UnitTest
 {
 	// Str series
@@ -44,12 +49,20 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsN::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsNR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D
 }
 
-using namespace Hydrogenium::StringPolicy;
-
-// Dup
+// Dup, Rev
 namespace Hydrogenium::String::UnitTest
 {
+	static_assert(Str::Dup("a0b1c2") == StrI::Dup("a0b1c2"));
+	static_assert(StrR::Dup(ENG_TEXT_FWD) == ENG_TEXT_BWD);
+	static_assert(WcsR::Dup(RMN_WTEXT_BWD) == RMN_WTEXT_FWD);
+	static_assert(Mbs::Cmp(MbsR::Dup(CHN_TEXT_FWD), CHN_TEXT_BWD) == 0);	// #MSVC_BUGGED_compile_time_utf8
 
+	static_assert(StrN::Dup("a0b1c2", 3) == StrNI::Dup("a0b1c2", 3));
+	static_assert(MbsN::Dup(CHN_TEXT_FWD, 0).empty());
+	static_assert(StrN::Cmp(StrNR::Dup(ENG_TEXT_FWD, 5), ENG_TEXT_BWD, 5) == 0);
+	static_assert(WcsN::Cmp(WcsNR::Dup(RMN_WTEXT_BWD, 5), RMN_WTEXT_FWD, 5) == 0);
+	static_assert(MbsN::Cmp(MbsN::Dup(CHN_TEXT_FWD, 5), CHN_TEXT_FWD, 5) == 0);
+	static_assert(MbsN::Cmp(MbsNR::Dup(CHN_TEXT_FWD, 5), CHN_TEXT_BWD, 5) == 0);
 }
 
 // PBrk, SpnP, CSpn, Spn
@@ -68,42 +81,6 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrIR::PBrk("Try not", "tr") == "t");
 	static_assert(StrI::SpnP("Try not", "tr") == "y not");
 	static_assert(StrIR::SpnP("Try not", "tr") == "ot");
-
-	inline constexpr auto MbsCSpn = Utils<
-		char,
-		Iterating::as_multibytes,
-		Comparing::regular,
-		Counter::cap_at_len,
-		Direction::front_to_back,
-		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
-	> ::PBrk;
-
-	inline constexpr auto MbsSpn = Utils<
-		char,
-		Iterating::as_multibytes,
-		Comparing::regular,
-		Counter::cap_at_len,
-		Direction::front_to_back,
-		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
-	> ::SpnP;
-
-	inline constexpr auto MbsRCSpn = Utils<
-		char,
-		Iterating::as_multibytes,
-		Comparing::regular,
-		Counter::cap_at_len,
-		Direction::back_to_front,
-		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
-	> ::PBrk;
-
-	inline constexpr auto MbsRSpn = Utils<
-		char,
-		Iterating::as_multibytes,
-		Comparing::regular,
-		Counter::cap_at_len,
-		Direction::back_to_front,
-		Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
-	> ::SpnP;
 
 	static_assert(MbsRCSpn(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 5);
 	//                        └────────┘  ← searching dir

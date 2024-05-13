@@ -7,10 +7,10 @@ using namespace Hydrogenium::StringPolicy::Iterating;
 namespace Hydrogenium::StringPolicy::UnitTest
 {
 	template <typename Policy>
-	constexpr bool UnitTest_iterating_policy(auto&& bgn, auto&& ed, std::span<char32_t const> results) noexcept
+	constexpr bool UnitTest_iterating_policy(std::ranges::input_range auto&& view, auto RangePolicy, std::span<char32_t const> results) noexcept
 	{
-		auto it = bgn;
-		Policy::Initialize(it, bgn, ed);
+		auto [bgn, it, ed] = Policy::Get(view, RangePolicy, 100);
+
 		if (Policy::ValueOf(it) != results.front())
 			return false;
 
@@ -37,13 +37,13 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		return true;
 	}
 
-	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD, Direction::front_to_back, ENG_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD, Direction::back_to_front, ENG_WORDS_BWD));
 
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD.begin(), CHN_TEXT_FWD.end(), CHN_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD.rbegin(), CHN_TEXT_FWD.rend(), CHN_WORDS_BWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD.begin(), RMN_WTEXT_FWD.end(), RMN_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD.rbegin(), RMN_WTEXT_FWD.rend(), RMN_WORDS_BWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD.begin(), ENG_TEXT_FWD.end(), ENG_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD.rbegin(), ENG_TEXT_FWD.rend(), ENG_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD, Direction::front_to_back, CHN_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD, Direction::back_to_front, CHN_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD, Direction::front_to_back, RMN_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD, Direction::back_to_front, RMN_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD, Direction::front_to_back, ENG_WORDS_FWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD, Direction::back_to_front, ENG_WORDS_BWD));
 }
