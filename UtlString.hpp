@@ -659,11 +659,13 @@ namespace Hydrogenium::StringPolicy
 	};
 
 	template <typename T, typename C>
-	concept CounterPolicy = requires
+	concept CounterPolicy = requires (CType<C>::view_type sv, CType<C>::owner_type* s_ptr)
 	{
+		&T::template pattern_view<MyDummy, C>::operator();
 		&T::template pattern_view_view<MyDummy, C>::operator();
 		&T::template pattern_view_char<MyDummy, C>::operator();
 		&T::template pattern_nullable_view<MyDummy, C>::operator();
+		typename T::template pattern_inplace_modity<MyDummy, C>;
 	};
 
 	template <typename T, typename C>
@@ -1226,13 +1228,16 @@ namespace Hydrogenium::StringPolicy::Comparing
 
 namespace Hydrogenium::StringPolicy::Counter
 {
+	// #MSVC_BUGGED_tailing_return_type_namespace_error
+	// all the return tailing type here are bugged.
+
 	struct cap_at_n_t final
 	{
 		template <typename T, typename C>
 		struct pattern_view_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, ptrdiff_t count) const noexcept
+			constexpr decltype(auto) operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, ptrdiff_t count) const noexcept
 			{
 				return T::Impl(lhs, rhs, count);
 			}
@@ -1242,7 +1247,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view_char
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch, ptrdiff_t last_pos) const noexcept
+			constexpr decltype(auto) operator() (CType<C>::view_type str, CType<C>::param_type ch, ptrdiff_t last_pos) const noexcept
 			{
 				return T::Impl(str, ch, last_pos);
 			}
@@ -1252,7 +1257,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_nullable_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, ptrdiff_t count) const noexcept
+			constexpr decltype(auto) operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, ptrdiff_t count) const noexcept
 			{
 				decltype(str) opt{ std::nullopt };
 
@@ -1267,7 +1272,23 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type str, ptrdiff_t count) const noexcept
+			constexpr decltype(auto) operator() (CType<C>::view_type str, ptrdiff_t count) const noexcept
+			{
+				return T::Impl(str, count);
+			}
+		};
+
+		template <typename T, typename C>
+		struct pattern_inplace_modity
+		{
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CType<C>::view_type str, ptrdiff_t count) const noexcept
+			{
+				return T::Impl(str, count);
+			}
+
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CType<C>::owner_type* str, ptrdiff_t count) const noexcept
 			{
 				return T::Impl(str, count);
 			}
@@ -1282,7 +1303,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type lhs, CType<C>::view_type rhs) const noexcept
+			constexpr decltype(auto) operator() (CType<C>::view_type lhs, CType<C>::view_type rhs) const noexcept
 			{
 				return T::Impl(lhs, rhs, std::numeric_limits<ptrdiff_t>::max());
 			}
@@ -1292,7 +1313,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view_char
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type str, CType<C>::param_type ch) const noexcept
+			constexpr decltype(auto) operator() (CType<C>::view_type str, CType<C>::param_type ch) const noexcept
 			{
 				return T::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
 			}
@@ -1302,7 +1323,7 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_nullable_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token) const noexcept
+			constexpr decltype(auto) operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token) const noexcept
 			{
 				return T::Impl(str, token);
 			}
@@ -1312,7 +1333,23 @@ namespace Hydrogenium::StringPolicy::Counter
 		struct pattern_view
 		{
 			[[nodiscard]]
-			constexpr auto operator() (CType<C>::view_type str) const noexcept
+			constexpr decltype(auto) operator() (CType<C>::view_type str) const noexcept
+			{
+				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
+			}
+		};
+
+		template <typename T, typename C>
+		struct pattern_inplace_modity
+		{
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CType<C>::view_type str) const noexcept
+			{
+				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
+			}
+
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CType<C>::owner_type* str) const noexcept
 			{
 				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
 			}
@@ -1749,6 +1786,7 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept
+				-> decltype(RsltProc.Query(str, str, IterPolicy))
 			{
 				return RsltProc.Query(
 					str,
@@ -1767,6 +1805,7 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
+				-> decltype(RsltProc.Test(0))
 			{
 				return RsltProc.Test(
 					detail::Cmp(lhs, rhs, count)
@@ -1783,6 +1822,7 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+				-> decltype(RsltProc.Counting(size_t{}))
 			{
 				return RsltProc.Counting(
 					detail::Cnt(str, count)
@@ -1799,6 +1839,7 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+				-> decltype(RsltProc.Modify(Range.Begin(str), Range.End(str), IterPolicy))
 			{
 				auto [_, it, logical_end] = IterPolicy.Get(str, Range, count);
 
@@ -1809,6 +1850,25 @@ namespace Hydrogenium::String
 		static inline constexpr auto Dup = dup_fn_t{};
 #pragma endregion Dup
 
+#pragma region Lwr
+		struct lwr_fn_t : invoking_policy_t::template pattern_view<lwr_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_view<lwr_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			{
+
+			}
+
+			static constexpr auto Impl(ctype_info::owner_type* str, ptrdiff_t count) noexcept
+			{
+
+			}
+		};
+		static inline constexpr auto Lwr = lwr_fn_t{};
+#pragma endregion Lwr
+
 #pragma region PBrk
 		struct pbrk_fn_t : invoking_policy_t::template pattern_view_view<pbrk_fn_t, char_type>
 		{
@@ -1816,6 +1876,7 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
+				-> decltype(RsltProc.Query(dest, src, IterPolicy))
 			{
 				return RsltProc.Query(
 					dest,
@@ -1834,6 +1895,7 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
+				-> decltype(RsltProc.Query(dest, src, IterPolicy))
 			{
 				return RsltProc.Query(
 					dest,
