@@ -15,6 +15,7 @@
 #include <concepts>
 #include <functional>
 #include <limits>
+#include <optional>	// Str::Tok()
 #include <random>	// Str::detail::Fry()
 #include <ranges>
 #include <string_view>
@@ -1336,12 +1337,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr decltype(auto) operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, ptrdiff_t count) const noexcept
 			{
-				decltype(str) opt{ std::nullopt };
-
-				if (str)
-					opt.emplace(*str | std::views::take(count));
-
-				return T::Impl(opt, token);
+				return T::Impl(str, token, count);
 			}
 		};
 
@@ -1407,7 +1403,7 @@ namespace Hydrogenium::StringPolicy::Counter
 			[[nodiscard]]
 			constexpr decltype(auto) operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token) const noexcept
 			{
-				return T::Impl(str, token);
+				return T::Impl(str, token, std::numeric_limits<ptrdiff_t>::max());
 			}
 		};
 
@@ -1532,8 +1528,20 @@ namespace Hydrogenium::StringPolicy::Result
 		[[nodiscard]]
 		constexpr auto operator() (auto&& src, auto&& view, auto IterPolicy) const noexcept -> std::ptrdiff_t
 		{
-			if (view.empty())
-				return -1;
+			if (view.empty())	// return strcnt() equivalent.
+			{
+				std::ptrdiff_t counter = src.empty() ? 0 : 1;
+				auto const begin = src.begin(), end = src.end();
+
+				for (auto it = src.begin();
+					IterPolicy.Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED;
+					++counter)
+				{
+					// nothing.
+				}
+
+				return counter;
+			}
 
 			auto const p1 = std::addressof(src.front());
 			auto const p2 = std::addressof(view.front());
@@ -1750,6 +1758,8 @@ namespace Hydrogenium::String
 
 		struct detail final
 		{
+			static inline constexpr auto default_search_len = std::numeric_limits<ptrdiff_t>::max();
+
 			// Chr - v, c -> string_view
 			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept -> ctype_info::view_type
 			{
@@ -1799,7 +1809,7 @@ namespace Hydrogenium::String
 			}
 
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
-			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count = std::numeric_limits<ptrdiff_t>::max()) noexcept
+			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count = default_search_len) noexcept
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -1809,10 +1819,41 @@ namespace Hydrogenium::String
 				return n;
 			}
 
-			// CSpn - v, v -> size_t; Use PBrk instead.
+			// CSpn - v, v -> size_t; Use PBrk instead. This one will count distance from RangePolicy.Begin() instead of from absolute start. 'R' stands for 'relative'.
+			__forceinline static constexpr ptrdiff_t CSpnR(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnMode = false) noexcept
+			{
+				// the src is NOT order-sensitive, it's no more than a set of what to search.
+				// hence no range function put onto src.
+
+				auto [b1, s1, e1] = IterPolicy.Get(dest, RangePolicy, count);
+				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, default_search_len);
+				ptrdiff_t counter = 0;
+
+				for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1), ++counter)
+				{
+					bool found_in_src = false;
+					auto const ch1 = IterPolicy.ValueOf(s1);
+
+					for (s2 = b2; s2 < e2; IterPolicy.Arithmetic(s2, b2, e2, 1))
+					{
+						auto const ch2 = IterPolicy.ValueOf(s2);
+
+						if (Comparator.Eql(ch1, ch2))
+						{
+							found_in_src = true;
+							break;
+						}
+					}
+
+					if (found_in_src == !bSpnMode)
+						break;
+				}
+
+				return counter;
+			}
 
 			// Dup - v -> string; No interal impl needed. This one is for getting a view of first N graphemes.
-			__forceinline static constexpr auto DupV(ctype_info::view_type const& str, ptrdiff_t count) noexcept -> ctype_info::view_type
+			static constexpr auto DupV(ctype_info::view_type const& str, ptrdiff_t count) noexcept -> ctype_info::view_type
 			{
 				using StringPolicy::Iterating::APRES;
 
@@ -1869,13 +1910,13 @@ namespace Hydrogenium::String
 			}
 
 			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
-			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count, bool bSpnPMode) noexcept -> ctype_info::view_type
+			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept -> ctype_info::view_type
 			{
-				// the src is NOT order-sensitive, it's no more than a library of what to search.
+				// the src is NOT order-sensitive, it's no more than a set of what to search.
 				// hence no range function put onto src.
 
 				auto [b1, s1, e1] = IterPolicy.Get(dest, RangePolicy, count);
-				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, std::numeric_limits<ptrdiff_t>::max());
+				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, default_search_len);
 
 				for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
 				{
@@ -1966,7 +2007,54 @@ namespace Hydrogenium::String
 				return { str.end(), str.end() };
 			}
 
-			// Tok - n, v -> string_view
+			// Tok - n, v -> string_view; static variable, hence no constexpr possibility.
+			__forceinline static auto Tok(std::optional<typename ctype_info::view_type> const& str, ctype_info::view_type const& delim, ptrdiff_t until = default_search_len) noexcept -> ctype_info::view_type
+			{
+				static thread_local std::tuple_element_t<0, decltype(IterPolicy.Get(*str, RangePolicy, until))> begin{};
+				static thread_local std::tuple_element_t<1, decltype(IterPolicy.Get(*str, RangePolicy, until))> it{};
+				static thread_local std::tuple_element_t<2, decltype(IterPolicy.Get(*str, RangePolicy, until))> end{};
+
+				auto const fnMakeRange =
+					[&](auto&& it1, auto&& it2, bool do_offset = true) noexcept -> ctype_info::view_type
+					{
+						if constexpr (!RangePolicy.is_reverse)
+						{
+							return { it1, it2 };
+						}
+						else
+						{
+							auto const fwdit1 = ToForwardIter(it1, it1 != end && do_offset);
+							auto const fwdit2 = ToForwardIter(it2, it2 != end && do_offset);
+
+							if (fwdit1 < fwdit2)
+								return { fwdit1, fwdit2 };
+
+							return { fwdit2, fwdit1 };
+						}
+					};
+
+				if (str.has_value())
+				{
+					std::tie(begin, it, end) = IterPolicy.Get(*str, RangePolicy, until);	// in all other calling case, 'until' param will be ignored.
+				}
+
+
+				// I. Move pointer to the next non-delim position.
+				auto const org_before_comp = CSpnR(fnMakeRange(it, end, false), delim, default_search_len, true);
+				IterPolicy.Arithmetic(it, begin, end, org_before_comp);
+
+				if (it >= end)
+					return fnMakeRange(end, end);
+
+				// II. Move pointer to next delim position. And now 'it' serves as end.
+				auto const tokenBegin = it;
+				auto const org_before_comp2 = CSpnR(fnMakeRange(it, end, false), delim);
+				IterPolicy.Arithmetic(it, begin, end, org_before_comp2);
+
+				// buffer is the end in this section as it is going to be assigned as '\0' in original strtok().
+				return fnMakeRange(tokenBegin, it, false);
+			}
+
 			// Upr - o -> string
 		};
 
@@ -2125,6 +2213,25 @@ namespace Hydrogenium::String
 		};
 		static inline constexpr auto Str = str_fn_t{};
 #pragma endregion Str
+
+#pragma region Tok
+		struct tok_fn_t : invoking_policy_t::template pattern_nullable_view<tok_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_nullable_view<tok_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(std::optional<typename ctype_info::view_type> const& str, ctype_info::view_type const& delim, ptrdiff_t until) noexcept
+				-> decltype(RsltProc.Query(delim, delim, IterPolicy))
+			{
+				return RsltProc.Query(
+					str,
+					detail::Tok(str, delim, until),
+					IterPolicy
+				);
+			}
+		};
+		static inline constexpr auto Tok = tok_fn_t{};
+#pragma endregion Tok
 	};
 }
 

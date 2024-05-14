@@ -18,10 +18,10 @@ namespace Hydrogenium::StringPolicy::UnitTest
 	static_assert(std::is_same_v<std::invoke_result_t<as_position_t, string_view&, string_view&&, std::nullptr_t>, std::ptrdiff_t>);
 	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(5), Iterating::as_regular_ptr) == 5 && ASCII_NUMBERS_FWD.substr(5)[0] == ASCII_NUMBERS_FWD[5]);
 	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(5), Iterating::as_regular_ptr) == 5);
-	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, string_view{ "" }, Iterating::as_regular_ptr) == -1);	// error reserved value
+	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, string_view{ "" }, Iterating::as_regular_ptr) == 10);	// no found: return strcnt() equivlent.
 	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(9 * 3), Iterating::as_regular_ptr) == (9 * 3));
 	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(9 * 3), Iterating::as_multibytes) == 9);
-	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(10 * 3), Iterating::as_multibytes) == -1);	// error reserved value
+	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(10 * 3), Iterating::as_multibytes) == 10);	// no found: return strcnt() equivlent.
 
 	static_assert(std::is_same_v<std::invoke_result_t<as_view_t, string_view&, string_view&&, std::nullptr_t>, string_view>);
 	static_assert(as_view_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(9), nullptr) == ASCII_NUMBERS_FWD.substr(9));

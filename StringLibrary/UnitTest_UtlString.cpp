@@ -150,6 +150,12 @@ namespace Hydrogenium::String::UnitTest
 	//                     └───────┘
 	static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
 	//                    └────┘
+	static_assert(MbsR::detail::CSpnR(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 2);
+	//                                            └───┘  ← searching & indexing dir.
+	static_assert(MbsR::detail::CSpnR(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"äöüß") == 5);
+	//                                                           └────┘  ← searching & indexing dir.
+	static_assert(Mbs::detail::CSpnR(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"äöüß") == 1);
+	//                                  └┘                               ← searching & indexing dir.
 }
 
 // Str
@@ -176,6 +182,60 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsNI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());
 }
 
+// Tok
+namespace Hydrogenium::String::UnitTest
+{
+	template <typename T>
+	bool UnitTest_StrTok(std::ranges::input_range auto&& view, auto&& delim, std::ranges::range auto&& ans) noexcept
+	{
+		bool ret = true;
+		auto const loop_count = ans.size() + 1;	// additional one to check the respounce.
+		size_t i = 0;
+
+		for (auto sv = T::Tok(view, delim); i < loop_count; sv = T::Tok(std::nullopt, delim), ++i)
+		{
+			if (i < ans.size())
+			{
+				if (sv == ans[i])
+					continue;
+
+				if constexpr (typeid(view[0]) == typeid(char))
+					fmt::print("{:?} != {:?}, at loop {} of {}\n", sv, ans[i], i, loop_count);
+				else
+					fmt::print(L"{:?} != {:?}, at loop {} of {}\n", sv, ans[i], i, loop_count);
+
+				ret = false;
+			}
+			else
+			{
+				if (sv.empty())
+					continue;
+
+				if constexpr (typeid(view[0]) == typeid(char))
+					fmt::print("{:?} != null, at loop {} of {}\n", sv, i, loop_count);
+				else
+					fmt::print(L"{:?} != null, at loop {} of {}\n", sv, i, loop_count);
+
+				ret = false;
+			}
+		}
+
+		return ret;
+	}
+
+	void UnitTest_StrTok() noexcept
+	{
+		assert(UnitTest_StrTok<Str>("hello, world", " ,\t", std::vector{ "hello", "world" }));
+		assert(UnitTest_StrTok<StrR>("hello, world", " ,\t", std::vector{ "hello", "world" } | std::views::reverse));
+		assert(UnitTest_StrTok<Str>("", " ,\t", std::views::empty<std::string_view>));
+		assert(UnitTest_StrTok<StrR>("", "", std::views::empty<std::string_view>));
+		assert(UnitTest_StrTok<WcsI>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" }));
+		assert(UnitTest_StrTok<WcsIR>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" } | std::views::reverse));
+		assert(UnitTest_StrTok<MbsI>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" }));
+		assert(UnitTest_StrTok<MbsIR>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" } | std::views::reverse));
+	}
+}
+
 
 
 extern void UnitTest_Runtime();
@@ -188,6 +248,7 @@ int main(int, char* []) noexcept
 	using namespace Hydrogenium::UnitTest;
 	using namespace Hydrogenium::String::UnitTest;
 
+	UnitTest_StrTok();	// Run-time only.
 
 	//UnitTest_Runtime();
 }
