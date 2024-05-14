@@ -11,6 +11,7 @@
 #include <concepts>
 #include <functional>
 #include <limits>
+#include <random>
 #include <ranges>
 #include <string_view>
 #include <typeinfo>
@@ -50,6 +51,11 @@ namespace Hydrogenium::UnitTest
 	inline constexpr std::string_view UKR_ALPHABET_LOWER_BWD_U8 = u8"яюьщшчцхфутсрпонмлкйїіизжєедґгвба";
 	inline constexpr std::string_view UKR_ALPHABET_UPPER_FWD_U8 = u8"АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
 	inline constexpr std::string_view UKR_ALPHABET_UPPER_BWD_U8 = u8"ЯЮЬЩШЧЦХФУТСРПОНМЛКЙЇІИЗЖЄЕДҐГВБА";
+
+	inline constexpr std::string_view DEU_ALPHABET_LOWER_FWD_U8 = u8"aäbcdefghijklmnoöpqrsßtuüvwxyz";
+	inline constexpr std::string_view DEU_ALPHABET_LOWER_BWD_U8 = u8"zyxwvüutßsrqpöonmlkjihgfedcbäa";
+	inline constexpr std::string_view DEU_ALPHABET_UPPER_FWD_U8 = u8"AÄBCDEFGHIJKLMNOÖPQRSẞTUÜVWXYZ";
+	inline constexpr std::string_view DEU_ALPHABET_UPPER_BWD_U8 = u8"ZYXWVÜUTẞSRQPÖONMLKJIHGFEDCBÄA";
 }
 
 namespace Hydrogenium
@@ -170,6 +176,8 @@ namespace Hydrogenium
 		using owner_type = std::basic_string<char_type>;
 		using traits_type = ::std::char_traits<char_type>;
 		using multibytes_type = std::conditional_t<is_narrow, std::array<param_type, 4>, std::conditional_t<is_wide, std::array<param_type, 2>, void>>;
+		using mutable_span_t = std::span<char_type>;
+		using const_span_t = std::span<std::add_const_t<char_type>>;
 
 		static inline constexpr eof_type eof = is_narrow ? EOF : WEOF;
 
@@ -1343,6 +1351,11 @@ namespace Hydrogenium::StringPolicy::Counter
 			}
 		};
 
+		// C++ style in place: void fn(string*); accepting as is.
+		// C++ style get copy: string fn(string_view); accepting as is.
+		// C style in place: void fn(char**); forwarding as span<char>
+		// C style get copy: char* fn(const char*); forwarding as string_view
+
 		template <typename T, typename C>
 		struct pattern_inplace_modity
 		{
@@ -1723,7 +1736,7 @@ namespace Hydrogenium::String
 		StringPolicy::IteratingPolicy<char_type> auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
 		StringPolicy::ComparingPolicy<char_type> auto Comparator = StringPolicy::Comparing::regular,
 		StringPolicy::CounterPolicy<char_type> auto InvkPolicy = StringPolicy::Counter::cap_at_len,
-		StringPolicy::DirectionPolicy<char_type> auto Range = StringPolicy::Direction::front_to_back,
+		StringPolicy::DirectionPolicy<char_type> auto RangePolicy = StringPolicy::Direction::front_to_back,
 		StringPolicy::ResultProcessor<char_type> auto RsltProc = StringPolicy::Result::as_it_is
 	>
 	struct Utils final
@@ -1736,7 +1749,7 @@ namespace Hydrogenium::String
 			// Chr - v, c -> string_view
 			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept -> ctype_info::view_type
 			{
-				auto [begin, it, end] = IterPolicy.Get(str, Range, until);
+				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
 
 				for (; it < end; IterPolicy.Arithmetic(it, begin, end, 1))
 				{
@@ -1747,7 +1760,7 @@ namespace Hydrogenium::String
 				if (it == end)
 					return { str.end(), str.end() };
 
-				if constexpr (Range.is_reverse)
+				if constexpr (RangePolicy.is_reverse)
 				{
 					return { ToForwardIter(it), ToForwardIter(begin, false) };
 				}
@@ -1760,8 +1773,8 @@ namespace Hydrogenium::String
 			// Cmp - v, v -> int
 			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
 			{
-				auto [b1, s1, e1] = IterPolicy.Get(lhs, Range, count);
-				auto [b2, s2, e2] = IterPolicy.Get(rhs, Range, count);
+				auto [b1, s1, e1] = IterPolicy.Get(lhs, RangePolicy, count);
+				auto [b2, s2, e2] = IterPolicy.Get(rhs, RangePolicy, count);
 
 				while (
 					s1 < e1 && s2 < e2
@@ -1784,7 +1797,7 @@ namespace Hydrogenium::String
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
 			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
-				auto [begin, it, end] = IterPolicy.Get(str, Range, count);
+				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
 				size_t n = begin == end ? 0 : 1;	// #UPDATE_AT_CPP23 size type literal
 				for (; IterPolicy.Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED; ++n) {}
@@ -1794,13 +1807,33 @@ namespace Hydrogenium::String
 
 			// CSpn - v, v -> size_t; Use PBrk instead.
 			// Dup - v -> string; No interal impl needed.
-			// Fry - o -> string; WTF????
+
+			// Fry - o -> string; WTF???? WHO NEEDS THIS? WHAT'S WRONG WITH YOU?
+			static auto Fry(ctype_info::owner_type* psz) noexcept -> decltype(psz)
+			{
+				using value_type = typename ctype_info::owner_type::value_type;
+				using int_type = std::conditional_t<sizeof(value_type) == 1, int8_t, std::conditional_t<sizeof(value_type) == 2, int16_t, int32_t>>;
+				constexpr auto UTF_MAX = std::min<int32_t>(std::numeric_limits<int_type>::max(), 0x10FFFF);
+
+				thread_local static std::random_device PureRD;
+				thread_local static std::mt19937 gen{ PureRD() };
+				thread_local static std::uniform_int_distribution<int32_t> distrb(1, UTF_MAX);	// avoid '\0' causing C bug.
+
+				// we are just filling random garbage, the order doesn't matter.
+				for (auto& ch : *psz)
+				{
+					ch = distrb(gen);
+				}
+
+				return psz;
+			}
+
 			// Len - v -> size_t; Use Cnt instead.
 
 			// Lwr - o -> string
 			__forceinline static constexpr auto Lwr(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
-				auto [_, it, end] = IterPolicy.Get(str, Range, count);
+				auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
 				constexpr auto to_lower =
 					[](decltype(IterPolicy.ValueOf(it)) ch) noexcept -> decltype(ch)
@@ -1817,7 +1850,7 @@ namespace Hydrogenium::String
 				// the src is NOT order-sensitive, it's no more than a library of what to search.
 				// hence no range function put onto src.
 
-				auto [b1, s1, e1] = IterPolicy.Get(dest, Range, count);
+				auto [b1, s1, e1] = IterPolicy.Get(dest, RangePolicy, count);
 				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, count);
 
 				for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
@@ -1846,7 +1879,7 @@ namespace Hydrogenium::String
 				if (s1 == e1)
 					return { dest.end(), dest.end() };
 
-				if constexpr (Range.is_reverse)
+				if constexpr (RangePolicy.is_reverse)
 				{
 					return { ToForwardIter(s1), ToForwardIter(b1, false) };
 				}
@@ -1926,9 +1959,9 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
-				-> decltype(RsltProc.Modify(Range.Begin(str), Range.End(str), IterPolicy))
+				-> decltype(RsltProc.Modify(RangePolicy.Begin(str), RangePolicy.End(str), IterPolicy))
 			{
-				auto [_, it, logical_end] = IterPolicy.Get(str, Range, count);
+				auto [_, it, logical_end] = IterPolicy.Get(str, RangePolicy, count);
 
 				// the count param is for size in the native type. Not count of graphemes.
 				return RsltProc.Modify(it, logical_end, IterPolicy);
@@ -1938,9 +1971,9 @@ namespace Hydrogenium::String
 #pragma endregion Dup
 
 #pragma region Lwr
-		struct lwr_fn_t : invoking_policy_t::template pattern_view<lwr_fn_t, char_type>
+		struct lwr_fn_t : invoking_policy_t::template pattern_inplace_modity<lwr_fn_t, char_type>
 		{
-			using super = invoking_policy_t::template pattern_view<lwr_fn_t, char_type>;
+			using super = invoking_policy_t::template pattern_inplace_modity<lwr_fn_t, char_type>;
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
@@ -1950,11 +1983,16 @@ namespace Hydrogenium::String
 				return RsltProc.Modify(it, end, IterPolicy, functor);
 			}
 
-			static constexpr auto Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
+			// return type is void, in the case of in_place mode.
+			static constexpr void Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
 			{
 				auto [it, end, functor] = detail::Lwr(*pstr, count);
 
-				return RsltProc.Modify(it, end, IterPolicy, functor);
+				static_assert(
+					typeid(decltype(RsltProc.Modify(it, end, IterPolicy, functor))) == typeid(typename ctype_info::owner_type),
+					"Lwr() method must be used with marshaled returning types."
+				);
+				*pstr = RsltProc.Modify(it, end, IterPolicy, functor);
 			}
 		};
 		static inline constexpr auto Lwr = lwr_fn_t{};

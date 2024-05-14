@@ -181,6 +181,9 @@ namespace Hydrogenium::Unicode
 			case 0x03fa:
 				cp = 0x03fb;
 				break;
+			case U'ẞ':
+				cp = U'ß';
+				break;
 			}
 		}
 
@@ -231,6 +234,9 @@ namespace Hydrogenium::Unicode
 			switch (cp)
 			{
 			default:
+				break;
+			case U'ß':
+				cp = U'ẞ';
 				break;
 			case 0x00ff:		// ÿ
 				cp = 0x0178;	// Ÿ

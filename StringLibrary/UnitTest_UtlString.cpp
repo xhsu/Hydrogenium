@@ -56,7 +56,21 @@ namespace Hydrogenium::String::UnitTest
 #ifdef HYDROGENIUM_UTL_UNICODE
 	static_assert(WcsI::Cmp(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W) == 0);
 	static_assert(MbsI::Cmp(UKR_ALPHABET_LOWER_FWD_U8, UKR_ALPHABET_UPPER_FWD_U8) == 0);
+	static_assert(MbsI::Cmp(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_UPPER_FWD_U8) == 0);
 #endif
+}
+
+// Fry
+namespace Hydrogenium::String::UnitTest
+{
+	void UnitTest_Fry() noexcept
+	{
+		std::string test1(0x10, ' ');
+		std::wstring test2(0x10, L' ');
+
+		Str::detail::Fry(&test1);
+		Wcs::detail::Fry(&test2);
+	}
 }
 
 // Dup, Rev
@@ -87,9 +101,11 @@ namespace Hydrogenium::String::UnitTest
 #ifdef HYDROGENIUM_UTL_UNICODE
 	static_assert(Wcs::Lwr(ELL_ALPHABET_UPPER_FWD_W) == ELL_ALPHABET_LOWER_FWD_W);
 	static_assert(Mbs::Cmp(Mbs::Lwr(UKR_ALPHABET_UPPER_FWD_U8), UKR_ALPHABET_LOWER_FWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
+	static_assert(Mbs::Cmp(Mbs::Lwr(DEU_ALPHABET_UPPER_FWD_U8), DEU_ALPHABET_LOWER_FWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
 
 	static_assert(WcsN::Cmp(WcsNR::Lwr(ELL_ALPHABET_UPPER_FWD_W, 10), ELL_ALPHABET_LOWER_BWD_W, 10) == 0);
 	static_assert(MbsN::Cmp(MbsNR::Lwr(UKR_ALPHABET_UPPER_FWD_U8, 10), UKR_ALPHABET_LOWER_BWD_U8, 10) == 0);
+	static_assert(MbsN::Cmp(MbsNR::Lwr(DEU_ALPHABET_UPPER_FWD_U8, 10), DEU_ALPHABET_LOWER_BWD_U8, 10) == 0);
 #endif
 }
 
@@ -125,9 +141,12 @@ extern void UnitTest_Runtime();
 
 int main(int, char* []) noexcept
 {
+	using namespace std;
 	using namespace Hydrogenium;
+	using namespace Hydrogenium::String;
 	using namespace Hydrogenium::UnitTest;
 	using namespace Hydrogenium::String::UnitTest;
+
 
 	//UnitTest_Runtime();
 }
