@@ -84,7 +84,7 @@ namespace Hydrogenium::UnitTest
 	inline constexpr unsigned char CHSET_IsDigit[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', };
 	inline constexpr unsigned char CHSET_IsXDigit[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'a', 'b', 'c', 'd', 'e', 'f', };
 
-	consteval bool UnitTest_CTypeFunctionWrapper(auto&& pfn, std::span<unsigned char const> chset)
+	constexpr bool UnitTest_CTypeFunctionWrapper(auto&& pfn, std::span<unsigned char const> chset) noexcept
 	{
 		for (unsigned char i = 0; i < 128; ++i)
 		{
@@ -130,10 +130,10 @@ namespace Hydrogenium::UnitTest
 	static_assert(CType<char>::ToFullWidth(u8"𐒰") == U'𐒰');
 
 	using U8MBARR = std::array<unsigned char, 4>;
-	static_assert(CType<char>::ToMultiBytes(U'A') == U8MBARR{ 'A', 0, 0, 0 });
-	static_assert(CType<char>::ToMultiBytes(U'Á') == U8MBARR{ 0xC3, 0x81, 0, 0 });
-	static_assert(CType<char>::ToMultiBytes(U'あ') == U8MBARR{ 0xE3, 0x81, 0x82, 0 });
-	static_assert(CType<char>::ToMultiBytes(U'𐒰') == U8MBARR{ 0xF0, 0x90, 0x92, 0xB0 });
+	static_assert(CType<char>::ToMultiBytes(U'A').first == U8MBARR{ 'A', 0, 0, 0 });
+	static_assert(CType<char>::ToMultiBytes(U'Á').first == U8MBARR{ 0xC3, 0x81, 0, 0 });
+	static_assert(CType<char>::ToMultiBytes(U'あ').first == U8MBARR{ 0xE3, 0x81, 0x82, 0 });
+	static_assert(CType<char>::ToMultiBytes(U'𐒰').first == U8MBARR{ 0xF0, 0x90, 0x92, 0xB0 });
 
 	static_assert(CType<char16_t>::CodePointOf(u"A"[0]) == CodePoint::WHOLE);
 	static_assert(CType<char16_t>::CodePointOf(u"Á"[0]) == CodePoint::WHOLE);
@@ -152,8 +152,8 @@ namespace Hydrogenium::UnitTest
 	}
 
 	using U16MBARR = std::array<char16_t, 2>;
-	static_assert(CType<char16_t>::ToMultiBytes(U'A') == U16MBARR{ u'A', 0 });
-	static_assert(CType<char16_t>::ToMultiBytes(U'Á') == U16MBARR{ u'Á', 0 });
-	static_assert(CType<char16_t>::ToMultiBytes(U'あ') == U16MBARR{ u'あ', 0 });
-	static_assert(CType<char16_t>::ToMultiBytes(U'𐒰') == U16MBARR{ 0xD801, 0xDCB0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'A').first == U16MBARR{ u'A', 0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'Á').first == U16MBARR{ u'Á', 0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'あ').first == U16MBARR{ u'あ', 0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'𐒰').first == U16MBARR{ 0xD801, 0xDCB0 });
 }

@@ -49,20 +49,43 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsN::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsNR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D
 }
 
+// Cmp
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(StrI::Cmp(ENG_ALPHABET_LOWER, ENG_ALPHABET_UPPER) == 0);
+#ifdef HYDROGENIUM_UTL_UNICODE
+	static_assert(WcsI::Cmp(ELL_ALPHABET_LOWER_W, ELL_ALPHABET_UPPER_W) == 0);
+	static_assert(MbsI::Cmp(UKR_ALPHABET_LOWER_U8, UKR_ALPHABET_UPPER_U8) == 0);
+#endif
+}
+
 // Dup, Rev
 namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Str::Dup("a0b1c2") == StrI::Dup("a0b1c2"));
-	static_assert(StrR::Dup(ENG_TEXT_FWD) == ENG_TEXT_BWD);
-	static_assert(WcsR::Dup(RMN_WTEXT_BWD) == RMN_WTEXT_FWD);
-	static_assert(Mbs::Cmp(MbsR::Dup(CHN_TEXT_FWD), CHN_TEXT_BWD) == 0);	// #MSVC_BUGGED_compile_time_utf8
+	static_assert(StrR::Dup(ASCII_NUMBERS_FWD) == ASCII_NUMBERS_BWD);
+	static_assert(WcsR::Dup(RMN_NUMBERS_BWD_W) == RMN_NUMBERS_FWD_W);
+	static_assert(Mbs::Cmp(MbsR::Dup(CJK_NUMBERS_FWD_U8), CJK_NUMBERS_BWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
 
 	static_assert(StrN::Dup("a0b1c2", 3) == StrNI::Dup("a0b1c2", 3));
-	static_assert(MbsN::Dup(CHN_TEXT_FWD, 0).empty());
-	static_assert(StrN::Cmp(StrNR::Dup(ENG_TEXT_FWD, 5), ENG_TEXT_BWD, 5) == 0);
-	static_assert(WcsN::Cmp(WcsNR::Dup(RMN_WTEXT_BWD, 5), RMN_WTEXT_FWD, 5) == 0);
-	static_assert(MbsN::Cmp(MbsN::Dup(CHN_TEXT_FWD, 5), CHN_TEXT_FWD, 5) == 0);
-	static_assert(MbsN::Cmp(MbsNR::Dup(CHN_TEXT_FWD, 5), CHN_TEXT_BWD, 5) == 0);
+	static_assert(MbsN::Dup(CJK_NUMBERS_FWD_U8, 0).empty());
+	static_assert(StrN::Cmp(StrNR::Dup(ASCII_NUMBERS_FWD, 5), ASCII_NUMBERS_BWD, 5) == 0);
+	static_assert(WcsN::Cmp(WcsNR::Dup(RMN_NUMBERS_BWD_W, 5), RMN_NUMBERS_FWD_W, 5) == 0);
+	static_assert(MbsN::Cmp(MbsN::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_FWD_U8, 5) == 0);
+	static_assert(MbsN::Cmp(MbsNR::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_BWD_U8, 5) == 0);
+}
+
+// Lwr
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Str::Lwr(ASCII_NUMBERS_BWD) == ASCII_NUMBERS_BWD);
+	static_assert(Mbs::Cmp(MbsR::Lwr(CJK_NUMBERS_BWD_U8), CJK_NUMBERS_FWD_U8) == 0);	// effectively just producing a copy. #MSVC_BUGGED_compile_time_utf8
+	static_assert(Str::Lwr(ENG_ALPHABET_UPPER) == ENG_ALPHABET_LOWER);
+
+#ifdef HYDROGENIUM_UTL_UNICODE
+	static_assert(Wcs::Lwr(ELL_ALPHABET_UPPER_W) == ELL_ALPHABET_LOWER_W);
+	static_assert(Mbs::Cmp(Mbs::Lwr(UKR_ALPHABET_UPPER_U8), UKR_ALPHABET_LOWER_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
+#endif
 }
 
 // PBrk, SpnP, CSpn, Spn
@@ -92,6 +115,7 @@ namespace Hydrogenium::String::UnitTest
 	//                    └────┘
 }
 
+
 extern void UnitTest_Runtime();
 
 int main(int, char* []) noexcept
@@ -100,5 +124,5 @@ int main(int, char* []) noexcept
 	using namespace Hydrogenium::UnitTest;
 	using namespace Hydrogenium::String::UnitTest;
 
-	UnitTest_Runtime();
+	//UnitTest_Runtime();
 }

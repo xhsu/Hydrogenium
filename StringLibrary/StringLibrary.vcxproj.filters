@@ -46,5 +46,8 @@
     <ClInclude Include="..\Precompiled.hpp">
       <Filter>Modules</Filter>
     </ClInclude>
+    <ClInclude Include="..\UtlUnicode.hpp">
+      <Filter>Modules</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

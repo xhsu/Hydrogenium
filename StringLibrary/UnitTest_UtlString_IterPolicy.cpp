@@ -37,13 +37,13 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		return true;
 	}
 
-	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD, Direction::front_to_back, ENG_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ENG_TEXT_FWD, Direction::back_to_front, ENG_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ASCII_NUMBERS_FWD, Direction::front_to_back, ASCII_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_iterating_policy<as_normal_ptr_t>(ASCII_NUMBERS_FWD, Direction::back_to_front, ASCII_NUMBERS_BWD_U32ARR));
 
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD, Direction::front_to_back, CHN_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CHN_TEXT_FWD, Direction::back_to_front, CHN_WORDS_BWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD, Direction::front_to_back, RMN_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_WTEXT_FWD, Direction::back_to_front, RMN_WORDS_BWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD, Direction::front_to_back, ENG_WORDS_FWD));
-	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ENG_TEXT_FWD, Direction::back_to_front, ENG_WORDS_BWD));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CJK_NUMBERS_FWD_U8, Direction::front_to_back, CJK_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(CJK_NUMBERS_FWD_U8, Direction::back_to_front, CJK_NUMBERS_BWD_U32ARR));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_NUMBERS_FWD_W, Direction::front_to_back, RMN_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(RMN_NUMBERS_FWD_W, Direction::back_to_front, RMN_NUMBERS_BWD_U32ARR));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ASCII_NUMBERS_FWD, Direction::front_to_back, ASCII_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_iterating_policy<as_multibytes_t>(ASCII_NUMBERS_FWD, Direction::back_to_front, ASCII_NUMBERS_BWD_U32ARR));
 }

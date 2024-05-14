@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#define HYDROGENIUM_UTL_STRING 20240510L
+
 #include <cassert>
 #include <cctype>
 #include <cstdint>
@@ -11,25 +13,37 @@
 #include <limits>
 #include <ranges>
 #include <string_view>
+#include <typeinfo>
 #include <utility>
+
+#include "UtlUnicode.hpp"
 
 
 
 namespace Hydrogenium::UnitTest
 {
-	inline constexpr std::string_view ENG_TEXT_FWD = "0123456789";
-	inline constexpr std::string_view ENG_TEXT_BWD = "9876543210";
-	inline constexpr std::string_view CHN_TEXT_FWD = u8"零一二三四五六七八九";
-	inline constexpr std::string_view CHN_TEXT_BWD = u8"九八七六五四三二一零";
-	inline constexpr std::wstring_view RMN_WTEXT_FWD = L"ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ";
-	inline constexpr std::wstring_view RMN_WTEXT_BWD = L"ⅩⅨⅧⅦⅥⅤⅣⅢⅡⅠ";
+	inline constexpr std::string_view ASCII_NUMBERS_FWD = "0123456789";
+	inline constexpr std::string_view ASCII_NUMBERS_BWD = "9876543210";
+	inline constexpr std::string_view CJK_NUMBERS_FWD_U8 = u8"零一二三四五六七八九";
+	inline constexpr std::string_view CJK_NUMBERS_BWD_U8 = u8"九八七六五四三二一零";
+	inline constexpr std::wstring_view RMN_NUMBERS_FWD_W = L"ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ";
+	inline constexpr std::wstring_view RMN_NUMBERS_BWD_W = L"ⅩⅨⅧⅦⅥⅤⅣⅢⅡⅠ";
 
-	inline constexpr char32_t ENG_WORDS_FWD[] = { U'0', U'1', U'2', U'3', U'4', U'5', U'6', U'7', U'8', U'9', };
-	inline constexpr char32_t ENG_WORDS_BWD[] = { U'9', U'8', U'7', U'6', U'5', U'4', U'3', U'2', U'1', U'0', };
-	inline constexpr char32_t CHN_WORDS_FWD[] = { U'零', U'一', U'二', U'三', U'四', U'五', U'六', U'七', U'八', U'九', };
-	inline constexpr char32_t CHN_WORDS_BWD[] = { U'九', U'八', U'七', U'六', U'五', U'四', U'三', U'二', U'一', U'零', };
-	inline constexpr char32_t RMN_WORDS_FWD[] = { U'Ⅰ', U'Ⅱ', U'Ⅲ', U'Ⅳ', U'Ⅴ', U'Ⅵ', U'Ⅶ', U'Ⅷ', U'Ⅸ', U'Ⅹ' };
-	inline constexpr char32_t RMN_WORDS_BWD[] = { U'Ⅹ', U'Ⅸ', U'Ⅷ', U'Ⅶ', U'Ⅵ', U'Ⅴ', U'Ⅳ', U'Ⅲ', U'Ⅱ', U'Ⅰ' };
+	inline constexpr char32_t ASCII_NUMBERS_FWD_U32ARR[] = { U'0', U'1', U'2', U'3', U'4', U'5', U'6', U'7', U'8', U'9', };
+	inline constexpr char32_t ASCII_NUMBERS_BWD_U32ARR[] = { U'9', U'8', U'7', U'6', U'5', U'4', U'3', U'2', U'1', U'0', };
+	inline constexpr char32_t CJK_NUMBERS_FWD_U32ARR[] = { U'零', U'一', U'二', U'三', U'四', U'五', U'六', U'七', U'八', U'九', };
+	inline constexpr char32_t CJK_NUMBERS_BWD_U32ARR[] = { U'九', U'八', U'七', U'六', U'五', U'四', U'三', U'二', U'一', U'零', };
+	inline constexpr char32_t RMN_NUMBERS_FWD_U32ARR[] = { U'Ⅰ', U'Ⅱ', U'Ⅲ', U'Ⅳ', U'Ⅴ', U'Ⅵ', U'Ⅶ', U'Ⅷ', U'Ⅸ', U'Ⅹ' };
+	inline constexpr char32_t RMN_NUMBERS_BWD_U32ARR[] = { U'Ⅹ', U'Ⅸ', U'Ⅷ', U'Ⅶ', U'Ⅵ', U'Ⅴ', U'Ⅳ', U'Ⅲ', U'Ⅱ', U'Ⅰ' };
+
+	inline constexpr std::string_view ENG_ALPHABET_LOWER = "abcdefghijklmnopqrstuvwxyz";
+	inline constexpr std::string_view ENG_ALPHABET_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+	inline constexpr std::wstring_view ELL_ALPHABET_LOWER_W = L"αβγδεζηθικλμνξοπρςστυφχψω";
+	inline constexpr std::wstring_view ELL_ALPHABET_UPPER_W = L"ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡ΢ΣΤΥΦΧΨΩ";	// Reserved character at 0x3A2
+
+	inline constexpr std::string_view UKR_ALPHABET_LOWER_U8 = u8"абвгґдеєжзиіїйклмнопрстуфхцчшщьюя";
+	inline constexpr std::string_view UKR_ALPHABET_UPPER_U8 = u8"АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
 }
 
 namespace Hydrogenium
@@ -266,6 +280,7 @@ namespace Hydrogenium
 		//int iswlower( std::wint_t ch );
 		[[nodiscard]] static constexpr bool IsLower(param_type c) noexcept
 		{
+#ifndef HYDROGENIUM_UTL_UNICODE
 			if (std::is_constant_evaluated() || no_builtin_ctype_support)
 			{
 				return 'a' <= c && c <= 'z';
@@ -277,6 +292,11 @@ namespace Hydrogenium
 				else if constexpr (is_wide)
 					return std::iswlower(c);
 			}
+#else
+			// If it changed after cast it to upper, than it is a lower case.
+			// Handled situations like Japanese Kana, different but not upper-lower relation.
+			return c != ToUpper(c);
+#endif
 		}
 
 		//int isprint(int c);
@@ -346,6 +366,7 @@ namespace Hydrogenium
 		//int iswupper( std::wint_t ch );
 		[[nodiscard]] static constexpr bool IsUpper(param_type c) noexcept
 		{
+#ifndef HYDROGENIUM_UTL_UNICODE
 			if (std::is_constant_evaluated() || no_builtin_ctype_support)
 			{
 				return 'A' <= c && c <= 'Z';
@@ -357,6 +378,11 @@ namespace Hydrogenium
 				else if constexpr (is_wide)
 					return std::iswupper(c);
 			}
+#else
+			// If it changed after cast it to lower, than it is a upper case.
+			// Handled situations like Japanese Kana, different but not upper-lower relation.
+			return c != ToLower(c);
+#endif
 		}
 
 		//int isxdigit(int c);
@@ -383,6 +409,7 @@ namespace Hydrogenium
 		//std::wint_t towlower( std::wint_t ch );
 		[[nodiscard]] static constexpr auto ToLower(param_type c) noexcept -> decltype(c)
 		{
+#ifndef HYDROGENIUM_UTL_UNICODE
 			if (std::is_constant_evaluated() || no_builtin_ctype_support)
 			{
 				if ('A' <= c && c <= 'Z')
@@ -397,12 +424,16 @@ namespace Hydrogenium
 				else if constexpr (is_wide)
 					return static_cast<decltype(c)>(std::towlower(c));
 			}
+#else
+			return static_cast<param_type>(Hydrogenium::Unicode::ToLower_Source1(c));
+#endif
 		}
 
 		//int toupper(int c);
 		//std::wint_t towupper( std::wint_t ch );
 		[[nodiscard]] static constexpr auto ToUpper(param_type c) noexcept -> decltype(c)
 		{
+#ifndef HYDROGENIUM_UTL_UNICODE
 			if (std::is_constant_evaluated() || no_builtin_ctype_support)
 			{
 				if ('a' <= c && c <= 'z')
@@ -417,7 +448,9 @@ namespace Hydrogenium
 				else if constexpr (is_wide)
 					return static_cast<decltype(c)>(std::towupper(c));
 			}
-
+#else
+			return static_cast<param_type>(Hydrogenium::Unicode::ToUpper_Source1(c));
+#endif
 		}
 
 		// Luna's extension
@@ -567,49 +600,70 @@ namespace Hydrogenium
 		}
 
 		// Luna's extension
-		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> multibytes_type requires (is_utf8 || is_utf16)
+		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> std::pair<multibytes_type, int32_t> requires (is_utf8 || is_utf16)
 		{
-			multibytes_type ret{};
+			std::pair<multibytes_type, int32_t> res{};
+			auto& ret = res.first;
+			auto& cnt = res.second;
 
 			if constexpr (is_utf8)
 			{
 				if (wc <= 0x7Fu)
 				{
 					ret[0] = static_cast<param_type>(wc);
+
+					cnt = 1;
 				}
 				else if (wc <= 0x7FFu)
 				{
 					ret[0] = static_cast<param_type>(0xC0u | (wc >> 6));			/* 110xxxxx */
 					ret[1] = static_cast<param_type>(0x80u | (wc & 0x3Fu));			/* 10xxxxxx */
+
+					cnt = 2;
 				}
 				else if (wc <= 0xFFFFu) {
 					ret[0] = static_cast<param_type>(0xE0u | (wc >> 12));			/* 1110xxxx */
 					ret[1] = static_cast<param_type>(0x80u | ((wc >> 6) & 0x3Fu));	/* 10xxxxxx */
 					ret[2] = static_cast<param_type>(0x80u | (wc & 0x3Fu));			/* 10xxxxxx */
+
+					cnt = 3;
 				}
 				else if (wc <= 0x10FFFFu) {
 					ret[0] = static_cast<param_type>(0xF0u | (wc >> 18));			/* 11110xxx */
 					ret[1] = static_cast<param_type>(0x80u | ((wc >> 12) & 0x3Fu));	/* 10xxxxxx */
 					ret[2] = static_cast<param_type>(0x80u | ((wc >> 6) & 0x3Fu));	/* 10xxxxxx */
 					ret[3] = static_cast<param_type>(0x80u | (wc & 0x3Fu));			/* 10xxxxxx */
+
+					cnt = 4;
 				}
+				else
+					cnt = -1;	// out of UTF range
 			}
 			else if constexpr (is_utf16)
 			{
 				if (wc < 0x10000u)
+				{
 					ret[0] = static_cast<param_type>(wc);
+
+					cnt = 1;
+				}
 				else if (wc <= 0x10FFFFu)
 				{
 					ret[0] = static_cast<param_type>(((((uint32_t)wc - 0x10000u) << 12) >> 22) + 0xD800u);
 					ret[1] = static_cast<param_type>(((((uint32_t)wc - 0x10000u) << 22) >> 22) + 0xDC00u);
+
+					cnt = 2;
 				}
+				else
+					cnt = -1;	// out of UTF range
 			}
 			else
 			{
 				assert(false);
+				cnt = -2;
 			}
 
-			return ret;
+			return res;
 		}
 	};
 
@@ -1155,10 +1209,15 @@ namespace Hydrogenium::StringPolicy::Comparing
 			template <typename T, typename U>
 			__forceinline static constexpr void tolower_inplace(T& lhs, U& rhs) noexcept
 			{
+#ifndef HYDROGENIUM_UTL_UNICODE
 				if (CType<T>::IsUpper(lhs))
 					lhs = CType<T>::ToLower(lhs);
 				if (CType<U>::IsUpper(rhs))
 					rhs = CType<U>::ToLower(rhs);
+#else
+				lhs = CType<T>::ToLower(lhs);
+				rhs = CType<U>::ToLower(rhs);
+#endif
 			}
 		};
 
@@ -1551,30 +1610,34 @@ namespace Hydrogenium::StringPolicy::Result
 			return p;
 		}
 
-		[[nodiscard]]
-		constexpr auto operator()(auto&& first, auto&& last, auto IterPolicy) const noexcept
+		template <typename proj_t = std::identity> [[nodiscard]]
+		constexpr auto operator()(auto&& first, auto&& last, auto IterPolicy, proj_t proj = {}) const noexcept
 		{
 			using char_type = std::remove_cvref_t<decltype(*first)>;
+			using value_type = decltype(IterPolicy.ValueOf(first));
+
 			auto p = new char_type[IterPolicy.NativeSize(first, last) + 1]{};
 			auto i = 0;
 
+			// remove cvref comparison
+			static_assert(typeid(std::invoke_result_t<proj_t, value_type>) == typeid(value_type));
+
 			for (auto it = first; it < last; IterPolicy.Arithmetic(it, first, last, 1))
 			{
-				if constexpr (sizeof(char_type) == sizeof(IterPolicy.ValueOf(it)))
+				if constexpr (sizeof(char_type) == sizeof(value_type))
 				{
-					p[i++] = IterPolicy.ValueOf(it);
+					p[i++] = proj(IterPolicy.ValueOf(it));
 				}
 
 				// bad, very bad.
 				else
 				{
-					static_assert(std::is_same_v<fchar_t, decltype(IterPolicy.ValueOf(it))>);
+					static_assert(typeid(fchar_t) == typeid(value_type));
 
-					auto const multibytes = CType<char_type>::ToMultiBytes(IterPolicy.ValueOf(it));
-					auto const byte_count = std::to_underlying(CType<char_type>::CodePointOf(multibytes.front()));
-					assert(byte_count <= 4);
+					auto const [bytes, count] = CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)));
+					assert(count > 0);
 
-					for (auto&& byt : multibytes | std::views::take(byte_count))
+					for (auto&& byt : bytes | std::views::take(count))
 					{
 						p[i++] = byt;
 					}
@@ -1594,31 +1657,35 @@ namespace Hydrogenium::StringPolicy::Result
 			};
 		}
 
-		[[nodiscard]]
-		constexpr auto operator()(auto&& first, auto&& last, auto IterPolicy) const noexcept
+		template <typename proj_t = std::identity> [[nodiscard]]
+		constexpr auto operator()(auto&& first, auto&& last, auto IterPolicy, proj_t proj = {}) const noexcept
 		{
 			using char_type = std::remove_cvref_t<decltype(*first)>;
+			using value_type = decltype(IterPolicy.ValueOf(first));
+
 			std::basic_string<char_type> ret{};
 			ret.reserve(IterPolicy.NativeSize(first, last));
 
+			// remove cvref comparison
+			static_assert(typeid(std::invoke_result_t<proj_t, value_type>) == typeid(value_type));
+
 			for (auto it = first; it < last; IterPolicy.Arithmetic(it, first, last, 1))
 			{
-				if constexpr (sizeof(char_type) == sizeof(IterPolicy.ValueOf(it)))
+				if constexpr (sizeof(char_type) == sizeof(value_type))
 				{
-					ret.push_back(IterPolicy.ValueOf(it));
+					ret.push_back(proj(IterPolicy.ValueOf(it)));
 				}
 
 				// bad, very bad.
 				else
 				{
-					static_assert(std::is_same_v<fchar_t, decltype(IterPolicy.ValueOf(it))>);
+					static_assert(typeid(fchar_t) == typeid(value_type));
 
-					auto const multibytes = CType<char_type>::ToMultiBytes(IterPolicy.ValueOf(it));
-					auto const byte_count = std::to_underlying(CType<char_type>::CodePointOf(multibytes.front()));
-					assert(byte_count <= 4);
+					auto const [bytes, count] = CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)));
+					assert(count > 0);
 
 					ret.append_range(
-						multibytes | std::views::take(byte_count)
+						bytes | std::views::take(count)
 					);
 				}
 			}
@@ -1721,9 +1788,22 @@ namespace Hydrogenium::String
 
 			// CSpn - v, v -> size_t; Use PBrk instead.
 			// Dup - v -> string; No interal impl needed.
+			// Fry - o -> string; WTF????
 			// Len - v -> size_t; Use Cnt instead.
 
 			// Lwr - o -> string
+			__forceinline static constexpr auto Lwr(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			{
+				auto [_, it, end] = IterPolicy.Get(str, Range, count);
+
+				constexpr auto to_lower =
+					[](decltype(IterPolicy.ValueOf(it)) ch) noexcept -> decltype(ch)
+					{
+						return CType<decltype(ch)>::ToLower(ch);
+					};
+
+				return std::make_tuple(std::move(it), std::move(end), to_lower);
+			}
 
 			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
 			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count, bool bSpnPMode) noexcept -> ctype_info::view_type
@@ -1771,6 +1851,7 @@ namespace Hydrogenium::String
 			}
 
 			// Rev - o -> string; Use Dup instead.
+			// Sep - o, v -> string; Use Tok instead.
 			// Spn - v, v -> size_t; Use PBrk instead.
 			// SpnP - v, v -> string_view; Use PBrk instead.
 
@@ -1858,12 +1939,16 @@ namespace Hydrogenium::String
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
+				auto [it, end, functor] = detail::Lwr(str, count);
 
+				return RsltProc.Modify(it, end, IterPolicy, functor);
 			}
 
-			static constexpr auto Impl(ctype_info::owner_type* str, ptrdiff_t count) noexcept
+			static constexpr auto Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
 			{
+				auto [it, end, functor] = detail::Lwr(*pstr, count);
 
+				return RsltProc.Modify(it, end, IterPolicy, functor);
 			}
 		};
 		static inline constexpr auto Lwr = lwr_fn_t{};

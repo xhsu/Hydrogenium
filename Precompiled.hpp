@@ -130,3 +130,4 @@
 #include <fmt/color.h>
 #include <fmt/ranges.h>
 #include <fmt/std.h>
+#include <fmt/xchar.h>
