@@ -1,4 +1,8 @@
-﻿#pragma once
+﻿/*
+	Created at: May 10 2024
+*/
+
+#pragma once
 
 #define HYDROGENIUM_UTL_STRING 20240510L
 
@@ -11,7 +15,7 @@
 #include <concepts>
 #include <functional>
 #include <limits>
-#include <random>
+#include <random>	// Str::detail::Fry()
 #include <ranges>
 #include <string_view>
 #include <typeinfo>
@@ -1795,7 +1799,7 @@ namespace Hydrogenium::String
 			}
 
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
-			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count = std::numeric_limits<ptrdiff_t>::max()) noexcept
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -1806,7 +1810,27 @@ namespace Hydrogenium::String
 			}
 
 			// CSpn - v, v -> size_t; Use PBrk instead.
-			// Dup - v -> string; No interal impl needed.
+
+			// Dup - v -> string; No interal impl needed. This one is for getting a view of first N graphemes.
+			__forceinline static constexpr auto DupV(ctype_info::view_type const& str, ptrdiff_t count) noexcept -> ctype_info::view_type
+			{
+				using StringPolicy::Iterating::APRES;
+
+				// the moving iter is already included in this function. No additional loop needed!
+				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, count);
+
+				if constexpr (!RangePolicy.is_reverse)
+				{
+					return { begin, end };	// in the case of multibyte: begin always pointing to the head of UTF stream, if not reversed.
+				}
+				else
+				{
+					auto const fwit1 = ToForwardIter(end, false);	// we are taking last N characters, so including the 'ending' one just defeat the purpose.
+					auto const fwed1 = ToForwardIter(begin, false);	// in reverse_iter, rbegin is the actual end.
+
+					return { fwit1, fwed1 };
+				}
+			}
 
 			// Fry - o -> string; WTF???? WHO NEEDS THIS? WHAT'S WRONG WITH YOU?
 			static auto Fry(ctype_info::owner_type* psz) noexcept -> decltype(psz)
@@ -1851,7 +1875,7 @@ namespace Hydrogenium::String
 				// hence no range function put onto src.
 
 				auto [b1, s1, e1] = IterPolicy.Get(dest, RangePolicy, count);
-				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, count);
+				auto [b2, s2, e2] = IterPolicy.Get(src, StringPolicy::Direction::front_to_back, std::numeric_limits<ptrdiff_t>::max());
 
 				for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
 				{
@@ -1895,6 +1919,53 @@ namespace Hydrogenium::String
 			// SpnP - v, v -> string_view; Use PBrk instead.
 
 			// Str - v, v -> string_view
+			__forceinline static constexpr auto Str(ctype_info::view_type const& str, ctype_info::view_type const& substr, ptrdiff_t count) noexcept -> ctype_info::view_type
+			{
+				auto const iStrCnt = Cnt(str, count);
+				auto const iSubstrCnt = Cnt(substr);
+
+				if (iStrCnt < iSubstrCnt)	// not going to be able to find anything.
+					return { str.end(), str.end() };
+
+				// Searching direction is nothing to do with comparing direction!!
+				// the substr is going to attempting to match with the forwarding order.
+				// hence no range function put onto src.
+
+				auto [b1, s1, e1] = IterPolicy.Get(str, RangePolicy, count);
+				auto [b2, s2, e2] = IterPolicy.Get(substr, StringPolicy::Direction::front_to_back, std::numeric_limits<ptrdiff_t>::max());
+
+				constexpr auto FwdCmp = &Utils<
+					char_type,
+					IterPolicy,
+					Comparator,
+					InvkPolicy,
+					StringPolicy::Direction::front_to_back,
+					RsltProc
+				>::detail::Cmp;
+
+				if constexpr (!RangePolicy.is_reverse)
+				{
+					for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
+					{
+						if (FwdCmp({ s1, e1 }, { s2, e2 }, iSubstrCnt) == 0)
+							return { s1, e1 };
+					}
+				}
+				else
+				{
+					for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
+					{
+						auto const fwit1 = ToForwardIter(s1);
+						auto const fwed1 = ToForwardIter(b1, false);	// in reverse_iter, rbegin is the actual end.
+
+						if (FwdCmp({ fwit1, fwed1 }, { s2, e2 }, iSubstrCnt) == 0)
+							return { fwit1, fwed1 };
+					}
+				}
+
+				return { str.end(), str.end() };
+			}
+
 			// Tok - n, v -> string_view
 			// Upr - o -> string
 		};
@@ -2035,6 +2106,25 @@ namespace Hydrogenium::String
 		};
 		static inline constexpr auto SpnP = spnp_fn_t{};
 #pragma endregion SpnP
+
+#pragma region Str
+		struct str_fn_t : invoking_policy_t::template pattern_view_view<str_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_view_view<str_fn_t, char_type>;
+			using super::operator();
+
+			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::view_type const& substr, ptrdiff_t until) noexcept
+				-> decltype(RsltProc.Query(str, str, IterPolicy))
+			{
+				return RsltProc.Query(
+					str,
+					detail::Str(str, substr, until),
+					IterPolicy
+				);
+			}
+		};
+		static inline constexpr auto Str = str_fn_t{};
+#pragma endregion Str
 	};
 }
 

@@ -60,19 +60,6 @@ namespace Hydrogenium::String::UnitTest
 #endif
 }
 
-// Fry
-namespace Hydrogenium::String::UnitTest
-{
-	void UnitTest_Fry() noexcept
-	{
-		std::string test1(0x10, ' ');
-		std::wstring test2(0x10, L' ');
-
-		Str::detail::Fry(&test1);
-		Wcs::detail::Fry(&test2);
-	}
-}
-
 // Dup, Rev
 namespace Hydrogenium::String::UnitTest
 {
@@ -87,6 +74,26 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsN::Cmp(WcsNR::Dup(RMN_NUMBERS_BWD_W, 5), RMN_NUMBERS_FWD_W, 5) == 0);
 	static_assert(MbsN::Cmp(MbsN::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_FWD_U8, 5) == 0);
 	static_assert(MbsN::Cmp(MbsNR::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_BWD_U8, 5) == 0);
+
+	// Internal DupV()
+
+	static_assert(StrNR::detail::DupV(ASCII_NUMBERS_FWD, 5) == "56789");	// purpose: take last five graphemes.
+	static_assert(WcsN::detail::DupV(RMN_NUMBERS_FWD_W, 5) == L"ⅠⅡⅢⅣⅤ");	// purpose: take first five graphemes.
+	static_assert(MbsN::detail::DupV(CJK_NUMBERS_FWD_U8, 5) == u8"零一二三四");	// purpose: verify multibyte case.
+	static_assert(MbsNR::detail::DupV(CJK_NUMBERS_FWD_U8, 20) == CJK_NUMBERS_FWD_U8);	// purpose: verify the meaning of 'count' parameter here, as grapheme count, not byte count.
+}
+
+// Fry
+namespace Hydrogenium::String::UnitTest
+{
+	void UnitTest_Fry() noexcept
+	{
+		std::string test1(0x10, ' ');
+		std::wstring test2(0x10, L' ');
+
+		Str::detail::Fry(&test1);
+		Wcs::detail::Fry(&test2);
+	}
 }
 
 // Lwr
@@ -107,6 +114,15 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsN::Cmp(MbsNR::Lwr(UKR_ALPHABET_UPPER_FWD_U8, 10), UKR_ALPHABET_LOWER_BWD_U8, 10) == 0);
 	static_assert(MbsN::Cmp(MbsNR::Lwr(DEU_ALPHABET_UPPER_FWD_U8, 10), DEU_ALPHABET_LOWER_BWD_U8, 10) == 0);
 #endif
+
+	constexpr bool UnitTest_StrLwr() noexcept
+	{
+		std::string str{ DEU_ALPHABET_UPPER_FWD_U8 };
+		MbsR::Lwr(&str);
+
+		return Mbs::Cmp(str, DEU_ALPHABET_LOWER_BWD_U8) == 0;
+	}
+	static_assert(UnitTest_StrLwr());	// purpose: testing in_place usage.
 }
 
 // PBrk, SpnP, CSpn, Spn
@@ -135,6 +151,31 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
 	//                    └────┘
 }
+
+// Str
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Str::Str("", "").empty());
+	static_assert(StrN::Str(ASCII_NUMBERS_FWD, "345", 6) == "345");
+	static_assert(Str::Str(ASCII_NUMBERS_FWD, "345") == ASCII_NUMBERS_FWD.substr(3));
+	static_assert(Str::Str(ASCII_NUMBERS_FWD, "90").empty());	// purpose: this is different from strchr()!
+
+	static_assert(Wcs::Str(L"吃葡萄不吐葡萄皮", L"葡萄") == L"葡萄不吐葡萄皮");
+	static_assert(WcsR::Str(L"吃葡萄不吐葡萄皮", L"葡萄") == L"葡萄皮");
+	static_assert(Mbs::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄") == u8"葡萄不吐葡萄皮");
+	static_assert(MbsR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄") == u8"葡萄皮");
+	static_assert(MbsN::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄");	// purpose: verify the multibytes can be correctly parsed as groups.
+	static_assert(MbsNR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄皮");
+
+	static_assert(WcsR::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_LOWER_BWD_W).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
+	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10)) == ELL_ALPHABET_LOWER_FWD_W.substr(10));
+	static_assert(WcsNI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10), 10).empty());
+
+	static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
+	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::detail::DupV(DEU_ALPHABET_LOWER_FWD_U8, 10));
+	static_assert(MbsNI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());
+}
+
 
 
 extern void UnitTest_Runtime();
