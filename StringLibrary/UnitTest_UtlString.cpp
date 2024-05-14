@@ -52,10 +52,10 @@ namespace Hydrogenium::String::UnitTest
 // Cmp
 namespace Hydrogenium::String::UnitTest
 {
-	static_assert(StrI::Cmp(ENG_ALPHABET_LOWER, ENG_ALPHABET_UPPER) == 0);
+	static_assert(StrI::Cmp(ENG_ALPHABET_LOWER_FWD, ENG_ALPHABET_UPPER_FWD) == 0);
 #ifdef HYDROGENIUM_UTL_UNICODE
-	static_assert(WcsI::Cmp(ELL_ALPHABET_LOWER_W, ELL_ALPHABET_UPPER_W) == 0);
-	static_assert(MbsI::Cmp(UKR_ALPHABET_LOWER_U8, UKR_ALPHABET_UPPER_U8) == 0);
+	static_assert(WcsI::Cmp(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W) == 0);
+	static_assert(MbsI::Cmp(UKR_ALPHABET_LOWER_FWD_U8, UKR_ALPHABET_UPPER_FWD_U8) == 0);
 #endif
 }
 
@@ -80,11 +80,16 @@ namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Str::Lwr(ASCII_NUMBERS_BWD) == ASCII_NUMBERS_BWD);
 	static_assert(Mbs::Cmp(MbsR::Lwr(CJK_NUMBERS_BWD_U8), CJK_NUMBERS_FWD_U8) == 0);	// effectively just producing a copy. #MSVC_BUGGED_compile_time_utf8
-	static_assert(Str::Lwr(ENG_ALPHABET_UPPER) == ENG_ALPHABET_LOWER);
+	static_assert(Str::Lwr(ENG_ALPHABET_UPPER_FWD) == ENG_ALPHABET_LOWER_FWD);
+
+	static_assert(StrN::Cmp(StrNR::Lwr(ENG_ALPHABET_UPPER_FWD, 10), ENG_ALPHABET_LOWER_BWD, 10) == 0);
 
 #ifdef HYDROGENIUM_UTL_UNICODE
-	static_assert(Wcs::Lwr(ELL_ALPHABET_UPPER_W) == ELL_ALPHABET_LOWER_W);
-	static_assert(Mbs::Cmp(Mbs::Lwr(UKR_ALPHABET_UPPER_U8), UKR_ALPHABET_LOWER_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
+	static_assert(Wcs::Lwr(ELL_ALPHABET_UPPER_FWD_W) == ELL_ALPHABET_LOWER_FWD_W);
+	static_assert(Mbs::Cmp(Mbs::Lwr(UKR_ALPHABET_UPPER_FWD_U8), UKR_ALPHABET_LOWER_FWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
+
+	static_assert(WcsN::Cmp(WcsNR::Lwr(ELL_ALPHABET_UPPER_FWD_W, 10), ELL_ALPHABET_LOWER_BWD_W, 10) == 0);
+	static_assert(MbsN::Cmp(MbsNR::Lwr(UKR_ALPHABET_UPPER_FWD_U8, 10), UKR_ALPHABET_LOWER_BWD_U8, 10) == 0);
 #endif
 }
 

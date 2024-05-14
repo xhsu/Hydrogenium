@@ -36,14 +36,20 @@ namespace Hydrogenium::UnitTest
 	inline constexpr char32_t RMN_NUMBERS_FWD_U32ARR[] = { U'Ⅰ', U'Ⅱ', U'Ⅲ', U'Ⅳ', U'Ⅴ', U'Ⅵ', U'Ⅶ', U'Ⅷ', U'Ⅸ', U'Ⅹ' };
 	inline constexpr char32_t RMN_NUMBERS_BWD_U32ARR[] = { U'Ⅹ', U'Ⅸ', U'Ⅷ', U'Ⅶ', U'Ⅵ', U'Ⅴ', U'Ⅳ', U'Ⅲ', U'Ⅱ', U'Ⅰ' };
 
-	inline constexpr std::string_view ENG_ALPHABET_LOWER = "abcdefghijklmnopqrstuvwxyz";
-	inline constexpr std::string_view ENG_ALPHABET_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	inline constexpr std::string_view ENG_ALPHABET_LOWER_FWD = "abcdefghijklmnopqrstuvwxyz";
+	inline constexpr std::string_view ENG_ALPHABET_LOWER_BWD = "zyxwvutsrqponmlkjihgfedcba";
+	inline constexpr std::string_view ENG_ALPHABET_UPPER_FWD = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	inline constexpr std::string_view ENG_ALPHABET_UPPER_BWD = "ZYXWVUTSRQPONMLKJIHGFEDCBA";
 
-	inline constexpr std::wstring_view ELL_ALPHABET_LOWER_W = L"αβγδεζηθικλμνξοπρςστυφχψω";
-	inline constexpr std::wstring_view ELL_ALPHABET_UPPER_W = L"ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡ΢ΣΤΥΦΧΨΩ";	// Reserved character at 0x3A2
+	inline constexpr std::wstring_view ELL_ALPHABET_LOWER_FWD_W = L"αβγδεζηθικλμνξοπρςστυφχψω";
+	inline constexpr std::wstring_view ELL_ALPHABET_LOWER_BWD_W = L"ωψχφυτσςρποξνμλκιθηζεδγβα";
+	inline constexpr std::wstring_view ELL_ALPHABET_UPPER_FWD_W = L"ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡ΢ΣΤΥΦΧΨΩ";	// Reserved character at 0x3A2
+	inline constexpr std::wstring_view ELL_ALPHABET_UPPER_BWD_W = L"ΩΨΧΦΥΤΣ΢ΡΠΟΞΝΜΛΚΙΘΗΖΕΔΓΒΑ";	// Reserved character at 0x3A2
 
-	inline constexpr std::string_view UKR_ALPHABET_LOWER_U8 = u8"абвгґдеєжзиіїйклмнопрстуфхцчшщьюя";
-	inline constexpr std::string_view UKR_ALPHABET_UPPER_U8 = u8"АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
+	inline constexpr std::string_view UKR_ALPHABET_LOWER_FWD_U8 = u8"абвгґдеєжзиіїйклмнопрстуфхцчшщьюя";
+	inline constexpr std::string_view UKR_ALPHABET_LOWER_BWD_U8 = u8"яюьщшчцхфутсрпонмлкйїіизжєедґгвба";
+	inline constexpr std::string_view UKR_ALPHABET_UPPER_FWD_U8 = u8"АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
+	inline constexpr std::string_view UKR_ALPHABET_UPPER_BWD_U8 = u8"ЯЮЬЩШЧЦХФУТСРПОНМЛКЙЇІИЗЖЄЕДҐГВБА";
 }
 
 namespace Hydrogenium
