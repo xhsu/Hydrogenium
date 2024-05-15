@@ -5,6 +5,7 @@
 
 using namespace Hydrogenium::StringPolicy;
 using namespace Hydrogenium::UnitTest;
+using namespace Hydrogenium;
 
 namespace Hydrogenium::String::UnitTest
 {
