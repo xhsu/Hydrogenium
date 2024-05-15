@@ -15,6 +15,35 @@ namespace Hydrogenium::StringPolicy::UnitTest
 	static_assert(as_pointer_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(10), nullptr) == nullptr);
 	static_assert(as_pointer_t{}(nullptr, string_view{ "" }, nullptr) == nullptr);
 
+	// Requirment: Transform the returning iter pos into index number. Which is of course, index-able.
+	template <typename I, typename D>
+	constexpr bool UnitTest_AsPosition(auto&& STR, ptrdiff_t GRAPHEME_COUNT = 10)
+	{
+		constexpr auto functor = as_position_t{};
+		auto const [begin, it, end] = I::Get(STR, D{}, 0xFFFF);
+		auto const [fwd_begin, fwd_it, fwd_end] = I::Get(STR, Direction::front_to_back, 0xFFFF);
+
+		if (auto const pos = functor(begin, end, end, I{}); pos != GRAPHEME_COUNT)
+			return false;
+
+		for (auto i = it; i < end; I::Arithmetic(i, begin, end, 1))
+		{
+			if (auto const pos = functor(begin, end, i, I{}); i < end)
+			{
+				if (I::ValueOf(i) != I::ValueOf(I::ArithCpy(fwd_it, fwd_begin, fwd_end, pos)))	// simulate 'indexing'
+					return false;
+			}
+		}
+
+		return true;
+	}
+	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::forwards_t>(ASCII_NUMBERS_FWD));
+	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(ASCII_NUMBERS_FWD));
+	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::forwards_t>(CJK_NUMBERS_FWD_U8));
+	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(CJK_NUMBERS_FWD_U8));
+	static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::forwards_t>(RMN_NUMBERS_FWD_W));
+	static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
+
 	static_assert(std::is_same_v<std::invoke_result_t<as_position_t, string_view&, string_view&&, std::nullptr_t>, std::ptrdiff_t>);
 	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(5), Iterating::as_regular_ptr) == 5 && ASCII_NUMBERS_FWD.substr(5)[0] == ASCII_NUMBERS_FWD[5]);
 	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(5), Iterating::as_regular_ptr) == 5);
@@ -77,4 +106,5 @@ namespace Hydrogenium::StringPolicy::UnitTest
 	static_assert(UnitTest_Marshaled());
 }
 
+using namespace Hydrogenium;
 using namespace Hydrogenium::StringPolicy::UnitTest;

@@ -162,6 +162,7 @@ namespace Hydrogenium::String::UnitTest
 namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Str::Str("", "").empty());
+	static_assert(Str::Str("", "abc").empty());
 	static_assert(StrN::Str(ASCII_NUMBERS_FWD, "345", 6) == "345");
 	static_assert(Str::Str(ASCII_NUMBERS_FWD, "345") == ASCII_NUMBERS_FWD.substr(3));
 	static_assert(Str::Str(ASCII_NUMBERS_FWD, "90").empty());	// purpose: this is different from strchr()!

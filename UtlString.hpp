@@ -686,6 +686,32 @@ namespace Hydrogenium
 		}
 	};
 
+	constexpr auto BuildStringView(auto&& it1, auto&& it2, auto&& end, bool do_offset) noexcept
+		requires (typeid(*it1) == typeid(*it2) && typeid(*end) == typeid(*it2))
+	{
+		using char_type = std::remove_cvref_t<decltype(*it1)>;
+		using fwd_iter_t = decltype(ToForwardIter(it1));
+
+		fwd_iter_t fwit1{}, fwit2{};
+
+		if constexpr (requires {it1 != end; })
+			fwit1 = ToForwardIter(it1, it1 != end && do_offset);
+		else
+			fwit1 = ToForwardIter(it1, do_offset);
+
+		if constexpr (requires {it2 != end; })
+			fwit2 = ToForwardIter(it2, it2 != end && do_offset);
+		else
+			fwit2 = ToForwardIter(it2, do_offset);
+
+
+
+		if (fwit1 < fwit2)
+			return typename CType<char_type>::view_type{ fwit1, fwit2 };
+
+		return typename CType<char_type>::view_type{ fwit2, fwit1 };
+	}
+
 	// Unit testing at: UnitTest_UtlString_CType.cpp
 }
 
@@ -825,7 +851,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 			std::unreachable();
 		}
 
-		static constexpr auto ArithCpy(auto iter, auto&& begin, auto&& end, ptrdiff_t num) noexcept -> decltype(iter)
+		[[nodiscard]] static constexpr auto ArithCpy(auto iter, auto&& begin, auto&& end, ptrdiff_t num) noexcept -> decltype(iter)
 		{
 			Arithmetic(iter, begin, end, num);
 			return iter;
@@ -905,18 +931,18 @@ namespace Hydrogenium::StringPolicy::Iterating
 				}
 				else if constexpr (ALL_REV_ITER)
 				{
-					do
-					{
-						++iter;
-					} while (iter < end && CT::CodePointOf(*iter) >= CodePoint::MID);
-
 					if (iter >= end)
 					{
 						iter = end;
 						return APRES::EOS;
 					}
 
-					return APRES::ADVANCED;
+					do
+					{
+						++iter;
+					} while (iter < end && CT::CodePointOf(*iter) >= CodePoint::MID);
+
+					return iter >= end ? APRES::EOS : APRES::ADVANCED;
 				}
 
 				std::unreachable();
@@ -972,7 +998,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 							--iter;
 						} while (iter > begin && CT::CodePointOf(*iter) >= CodePoint::MID);
 
-						return APRES::RECEDED;
+						return iter == begin ? APRES::BOS : APRES::RECEDED;
 					}
 
 					auto const cp = CT::CodePointOf(*iter);
@@ -1183,6 +1209,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 			std::unreachable();
 		}
 
+		[[nodiscard]]
 		static constexpr auto ArithCpy(auto iter, auto&& begin, auto&& end, ptrdiff_t num) noexcept -> decltype(iter)
 		{
 			Arithmetic(iter, begin, end, num);
@@ -1522,6 +1549,16 @@ namespace Hydrogenium::StringPolicy::Result
 
 			return std::addressof(view.front());
 		}
+
+		[[nodiscard]]
+		constexpr auto operator() (auto&& /*abs_begin*/, auto&& abs_end, auto&& result_loc, auto&& /*IterPolicy*/) const noexcept
+			-> decltype(std::addressof(*result_loc))
+		{
+			if (result_loc == abs_end)
+				return nullptr;
+
+			return std::addressof(*result_loc);
+		}
 	};
 	struct as_position_t final
 	{
@@ -1567,6 +1604,45 @@ namespace Hydrogenium::StringPolicy::Result
 				return counter;
 			}
 		}
+
+		// abs_begin must be initialized by IterPolicy. Serve as point result.
+		[[nodiscard]]
+		constexpr auto operator() (auto&& abs_begin, auto&& abs_end, auto&& result_loc, auto&& IterPolicy) const noexcept
+			-> std::ptrdiff_t
+		{
+			// cvref ignored.
+			static_assert(typeid(abs_begin) == typeid(abs_end) && typeid(abs_end) == typeid(result_loc));
+
+			using StringPolicy::Iterating::APRES;
+
+			auto fwd_abs_begin = ToForwardIter(abs_begin, false);
+			auto fwd_abs_end = ToForwardIter(abs_end, false);
+			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != abs_end);
+
+			if (fwd_abs_begin > fwd_abs_end)	// begin should always less than end.
+				std::swap(fwd_abs_begin, fwd_abs_end);
+
+			if (result_loc == abs_end)	// no found!
+				fwd_res_loc = fwd_abs_end;
+
+			if constexpr (IterPolicy.normal_pointer)
+			{
+				// program is ill-formed if view_begin is not coming from abs_begin.
+				return fwd_res_loc - fwd_abs_begin;
+			}
+			else
+			{
+				std::ptrdiff_t counter = fwd_abs_begin == fwd_res_loc ? 0 : 1;
+				for (auto it = fwd_abs_begin;	// no range policy involved. the return value is always forwarding direction.
+					IterPolicy.Arithmetic(it, fwd_abs_begin, fwd_res_loc, 1) & APRES::MOVED;
+					++counter)
+				{
+					// nothing.
+				}
+
+				return counter;
+			}
+		}
 	};
 	struct as_view_t final
 	{
@@ -1574,6 +1650,28 @@ namespace Hydrogenium::StringPolicy::Result
 		constexpr auto operator() (auto&& /*src*/, auto&& view, auto&& /*IterPolicy*/) const noexcept -> std::remove_cvref_t<decltype(view)>
 		{
 			return view;
+		}
+
+		// abs_begin must be initialized by IterPolicy. Return a view from result_loc to fwd_true_end
+		[[nodiscard]]
+		constexpr auto operator() (auto&& abs_begin, auto&& abs_end, auto&& result_loc, auto&& IterPolicy) const noexcept	// #MSVC_BUGGED_tailing_return_type_namespace_error
+		{
+			// cvref ignored.
+			static_assert(typeid(abs_begin) == typeid(abs_end) && typeid(abs_end) == typeid(result_loc));
+
+			using StringPolicy::Iterating::APRES;
+
+			auto fwd_abs_begin = ToForwardIter(abs_begin, false);
+			auto fwd_abs_end = ToForwardIter(abs_end, false);
+			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != abs_end);
+
+			if (fwd_abs_begin > fwd_abs_end)	// begin should always less than end.
+				std::swap(fwd_abs_begin, fwd_abs_end);
+
+			if (result_loc == abs_end)	// no found!
+				fwd_res_loc = fwd_abs_end;
+
+			return typename CType<decltype(*result_loc)>::view_type{ fwd_res_loc, fwd_abs_end };
 		}
 	};
 
@@ -1760,29 +1858,7 @@ namespace Hydrogenium::String
 		{
 			static inline constexpr auto default_search_len = std::numeric_limits<ptrdiff_t>::max();
 
-			// Chr - v, c -> string_view
-			__forceinline static constexpr auto Chr(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept -> ctype_info::view_type
-			{
-				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
-
-				for (; it < end; IterPolicy.Arithmetic(it, begin, end, 1))
-				{
-					if (Comparator.Eql(IterPolicy.ValueOf(it), ch))
-						break;
-				}
-
-				if (it == end)
-					return { str.end(), str.end() };
-
-				if constexpr (RangePolicy.is_reverse)
-				{
-					return { ToForwardIter(it), ToForwardIter(begin, false) };
-				}
-				else
-				{
-					return { it, end };
-				}
-			}
+			// Chr - v, c -> string_view; No internal impl needed.
 
 			// Cmp - v, v -> int
 			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
@@ -1820,7 +1896,7 @@ namespace Hydrogenium::String
 			}
 
 			// CSpn - v, v -> size_t; Use PBrk instead. This one will count distance from RangePolicy.Begin() instead of from absolute start. 'R' stands for 'relative'.
-			__forceinline static constexpr ptrdiff_t CSpnR(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnMode = false) noexcept
+			static constexpr ptrdiff_t CSpnR(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnMode = false) noexcept
 			{
 				// the src is NOT order-sensitive, it's no more than a set of what to search.
 				// hence no range function put onto src.
@@ -1958,54 +2034,7 @@ namespace Hydrogenium::String
 			// Sep - o, v -> string; Use Tok instead.
 			// Spn - v, v -> size_t; Use PBrk instead.
 			// SpnP - v, v -> string_view; Use PBrk instead.
-
-			// Str - v, v -> string_view
-			__forceinline static constexpr auto Str(ctype_info::view_type const& str, ctype_info::view_type const& substr, ptrdiff_t count) noexcept -> ctype_info::view_type
-			{
-				auto const iStrCnt = Cnt(str, count);
-				auto const iSubstrCnt = Cnt(substr);
-
-				if (iStrCnt < iSubstrCnt)	// not going to be able to find anything.
-					return { str.end(), str.end() };
-
-				// Searching direction is nothing to do with comparing direction!!
-				// the substr is going to attempting to match with the forwarding order.
-				// hence no range function put onto src.
-
-				auto [b1, s1, e1] = IterPolicy.Get(str, RangePolicy, count);
-				auto [b2, s2, e2] = IterPolicy.Get(substr, StringPolicy::Direction::front_to_back, std::numeric_limits<ptrdiff_t>::max());
-
-				constexpr auto FwdCmp = &Utils<
-					char_type,
-					IterPolicy,
-					Comparator,
-					InvkPolicy,
-					StringPolicy::Direction::front_to_back,
-					RsltProc
-				>::detail::Cmp;
-
-				if constexpr (!RangePolicy.is_reverse)
-				{
-					for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
-					{
-						if (FwdCmp({ s1, e1 }, { s2, e2 }, iSubstrCnt) == 0)
-							return { s1, e1 };
-					}
-				}
-				else
-				{
-					for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
-					{
-						auto const fwit1 = ToForwardIter(s1);
-						auto const fwed1 = ToForwardIter(b1, false);	// in reverse_iter, rbegin is the actual end.
-
-						if (FwdCmp({ fwit1, fwed1 }, { s2, e2 }, iSubstrCnt) == 0)
-							return { fwit1, fwed1 };
-					}
-				}
-
-				return { str.end(), str.end() };
-			}
+			// Str - v, v -> string_view; No internal impl needed.
 
 			// Tok - n, v -> string_view; static variable, hence no constexpr possibility.
 			__forceinline static auto Tok(std::optional<typename ctype_info::view_type> const& str, ctype_info::view_type const& delim, ptrdiff_t until = default_search_len) noexcept -> ctype_info::view_type
@@ -2065,13 +2094,17 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept
-				-> decltype(RsltProc.Query(str, str, IterPolicy))
+				-> decltype(RsltProc.Query(RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.Begin(str), IterPolicy))
 			{
-				return RsltProc.Query(
-					str,
-					detail::Chr(str, ch, until),
-					IterPolicy
-				);
+				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
+
+				for (; it < end; IterPolicy.Arithmetic(it, begin, end, 1))
+				{
+					if (Comparator.Eql(IterPolicy.ValueOf(it), ch))
+						break;
+				}
+
+				return RsltProc.Query(begin, end, it, IterPolicy);
 			}
 		};
 		static inline constexpr auto Chr = chr_fn_t{};
@@ -2202,13 +2235,45 @@ namespace Hydrogenium::String
 			using super::operator();
 
 			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::view_type const& substr, ptrdiff_t until) noexcept
-				-> decltype(RsltProc.Query(str, str, IterPolicy))
+				-> decltype(RsltProc.Query(RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.Begin(str), IterPolicy))
 			{
-				return RsltProc.Query(
-					str,
-					detail::Str(str, substr, until),
-					IterPolicy
-				);
+				// Searching direction is nothing to do with comparing direction!!
+				// the substr is going to attempting to match with the forwarding order.
+				// hence no range function put onto src.
+
+				auto [b1, s1, e1] = IterPolicy.Get(str, RangePolicy, until);
+				auto const iSubstrCnt = detail::Cnt(substr);
+
+				constexpr auto FwdCmp = &Utils<
+					char_type,
+					IterPolicy,
+					Comparator,
+					InvkPolicy,
+					StringPolicy::Direction::front_to_back,
+					RsltProc
+				>::detail::Cmp;
+
+				if constexpr (!RangePolicy.is_reverse)
+				{
+					for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
+					{
+						if (FwdCmp({ s1, e1 }, substr, iSubstrCnt) == 0)
+							break;
+					}
+				}
+				else
+				{
+					for (; s1 < e1; IterPolicy.Arithmetic(s1, b1, e1, 1))
+					{
+						auto const fwit1 = ToForwardIter(s1);
+						auto const fwed1 = ToForwardIter(b1, false);	// in reverse_iter, rbegin is the actual end.
+
+						if (FwdCmp({ fwit1, fwed1 }, substr, iSubstrCnt) == 0)
+							break;
+					}
+				}
+
+				return RsltProc.Query(b1, e1, s1, IterPolicy);
 			}
 		};
 		static inline constexpr auto Str = str_fn_t{};
