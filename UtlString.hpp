@@ -22,6 +22,17 @@
 #include <typeinfo>
 #include <utility>
 
+#if __has_include(<generator>)	// #UPDATE_AT_CPP23 generator
+#include <generator>
+#define GENERATOR_TY ::std::generator
+#elif __has_include(<experimental/generator>)
+#include <experimental/generator>
+#define GENERATOR_TY ::std::experimental::generator
+#elif __has_include(<cppcoro/generator.hpp>)
+#include <cppcoro/generator.hpp>
+#define GENERATOR_TY ::cppcoro::generator
+#endif
+
 #include "UtlUnicode.hpp"
 
 
@@ -1509,36 +1520,7 @@ namespace Hydrogenium::StringPolicy::Direction
 
 namespace Hydrogenium::StringPolicy::Result
 {
-	struct as_it_is_t final
-	{
-		// Cmp
-		constexpr auto operator() (std::same_as<int> auto val) const noexcept -> decltype(val)
-		{
-			return val;
-		}
-
-		// Len, Cnt, Spn, CSpn
-		constexpr auto operator() (std::same_as<size_t> auto val) const noexcept -> decltype(val)
-		{
-			return val;
-		}
-
-		// Chr, PBrk, Str, Tok
-		template <typename C>
-		constexpr auto operator() (std::basic_string_view<C, std::char_traits<C>> val) const noexcept -> decltype(val)
-		{
-			return val;
-		}
-
-		// Dup, Lwr, Rev, Upr
-		template <typename C>
-		constexpr auto operator() (std::basic_string<C, std::char_traits<C>, std::allocator<C>>* ptr) const noexcept -> decltype(ptr)
-		{
-			return ptr;
-		}
-	};
-
-	// Spn, CSpn(PBrk), Chr, Tok
+	// Chr, SpnP(Spn), PBrk(CSpn), Str, Tok
 	struct as_pointer_t final
 	{
 		[[nodiscard]]
@@ -1646,12 +1628,14 @@ namespace Hydrogenium::StringPolicy::Result
 	};
 	struct as_view_t final
 	{
+		// For Tok() only
 		[[nodiscard]]
 		constexpr auto operator() (auto&& /*src*/, auto&& view, auto&& /*IterPolicy*/) const noexcept -> std::remove_cvref_t<decltype(view)>
 		{
 			return view;
 		}
 
+		// For the rest Query functors.
 		// abs_begin must be initialized by IterPolicy. Return a view from result_loc to fwd_true_end
 		[[nodiscard]]
 		constexpr auto operator() (auto&& abs_begin, auto&& abs_end, auto&& result_loc, auto&& IterPolicy) const noexcept	// #MSVC_BUGGED_tailing_return_type_namespace_error
@@ -1722,7 +1706,7 @@ namespace Hydrogenium::StringPolicy::Result
 		}
 	};
 
-	// Dup, Lwr, Rev, Upr
+	// Dup(Rev), Lwr, Upr
 	struct as_unmanaged_t final
 	{
 		[[nodiscard]]
@@ -1822,6 +1806,12 @@ namespace Hydrogenium::StringPolicy::Result
 			return ret;
 		}
 	};
+
+	// Tok
+	struct as_generator_t final	// #UPDATE_AT_CPP23 generator
+	{
+	};
+	struct as_vector_t final {};
 
 	template <typename Q, typename T, typename C, typename M>
 	struct postprocessor_t final
@@ -2036,52 +2026,24 @@ namespace Hydrogenium::String
 			// SpnP - v, v -> string_view; Use PBrk instead.
 			// Str - v, v -> string_view; No internal impl needed.
 
-			// Tok - n, v -> string_view; static variable, hence no constexpr possibility.
-			__forceinline static auto Tok(std::optional<typename ctype_info::view_type> const& str, ctype_info::view_type const& delim, ptrdiff_t until = default_search_len) noexcept -> ctype_info::view_type
+			// Tok - n, v -> string_view; The second argument filled in will be altered!
+			__forceinline static constexpr auto Tok(auto&& begin, auto& it, auto&& end, ctype_info::view_type const& delim) noexcept
+				-> decltype(BuildStringView(begin, it, end, false))
 			{
-				static thread_local std::tuple_element_t<0, decltype(IterPolicy.Get(*str, RangePolicy, until))> begin{};
-				static thread_local std::tuple_element_t<1, decltype(IterPolicy.Get(*str, RangePolicy, until))> it{};
-				static thread_local std::tuple_element_t<2, decltype(IterPolicy.Get(*str, RangePolicy, until))> end{};
-
-				auto const fnMakeRange =
-					[&](auto&& it1, auto&& it2, bool do_offset = true) noexcept -> ctype_info::view_type
-					{
-						if constexpr (!RangePolicy.is_reverse)
-						{
-							return { it1, it2 };
-						}
-						else
-						{
-							auto const fwdit1 = ToForwardIter(it1, it1 != end && do_offset);
-							auto const fwdit2 = ToForwardIter(it2, it2 != end && do_offset);
-
-							if (fwdit1 < fwdit2)
-								return { fwdit1, fwdit2 };
-
-							return { fwdit2, fwdit1 };
-						}
-					};
-
-				if (str.has_value())
-				{
-					std::tie(begin, it, end) = IterPolicy.Get(*str, RangePolicy, until);	// in all other calling case, 'until' param will be ignored.
-				}
-
-
 				// I. Move pointer to the next non-delim position.
-				auto const org_before_comp = CSpnR(fnMakeRange(it, end, false), delim, default_search_len, true);
+				auto const org_before_comp = CSpnR(BuildStringView(it, end, end, false), delim, default_search_len, true);
 				IterPolicy.Arithmetic(it, begin, end, org_before_comp);
 
 				if (it >= end)
-					return fnMakeRange(end, end);
+					return BuildStringView(end, end, end, false);
 
 				// II. Move pointer to next delim position. And now 'it' serves as end.
 				auto const tokenBegin = it;
-				auto const org_before_comp2 = CSpnR(fnMakeRange(it, end, false), delim);
+				auto const org_before_comp2 = CSpnR(BuildStringView(it, end, end, false), delim);
 				IterPolicy.Arithmetic(it, begin, end, org_before_comp2);
 
 				// buffer is the end in this section as it is going to be assigned as '\0' in original strtok().
-				return fnMakeRange(tokenBegin, it, false);
+				return BuildStringView(tokenBegin, it, end, false);
 			}
 
 			// Upr - o -> string
@@ -2285,14 +2247,57 @@ namespace Hydrogenium::String
 			using super = invoking_policy_t::template pattern_nullable_view<tok_fn_t, char_type>;
 			using super::operator();
 
-			static constexpr auto Impl(std::optional<typename ctype_info::view_type> const& str, ctype_info::view_type const& delim, ptrdiff_t until) noexcept
-				-> decltype(RsltProc.Query(delim, delim, IterPolicy))
+			static /*constexpr*/ auto Impl(
+				std::optional<typename ctype_info::view_type> const& str,
+				ctype_info::view_type const& delim,
+				ptrdiff_t until
+			) noexcept -> decltype(RsltProc.Query(*str, delim, IterPolicy))
 			{
+				static thread_local std::tuple_element_t<0, decltype(IterPolicy.Get(*str, RangePolicy, until))> begin{};
+				static thread_local std::tuple_element_t<1, decltype(IterPolicy.Get(*str, RangePolicy, until))> it{};
+				static thread_local std::tuple_element_t<2, decltype(IterPolicy.Get(*str, RangePolicy, until))> end{};
+
+				if (str.has_value())
+					std::tie(begin, it, end) = IterPolicy.Get(*str, RangePolicy, until);	// in all other calling case, 'until' param will be ignored.
+
 				return RsltProc.Query(
 					str,
-					detail::Tok(str, delim, until),
+					detail::Tok(begin, it, end, delim),
 					IterPolicy
 				);
+			}
+
+			static /*constexpr*/ auto Impl(StringPolicy::Result::as_generator_t,
+				ctype_info::view_type const& str,
+				ctype_info::view_type const& delim,
+				ptrdiff_t until
+			) noexcept -> GENERATOR_TY<typename ctype_info::view_type>
+			{
+				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
+
+				for (auto view = detail::Tok(begin, it, end, delim); !view.empty(); view = detail::Tok(begin, it, end, delim))
+				{
+					co_yield view;
+				}
+
+				co_return;
+			}
+
+			static constexpr auto Impl(StringPolicy::Result::as_vector_t,
+				ctype_info::view_type const& str,
+				ctype_info::view_type const& delim,
+				ptrdiff_t until
+			) noexcept -> std::vector<typename ctype_info::view_type>
+			{
+				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
+				std::vector<typename ctype_info::view_type> ret{};
+
+				for (auto view = detail::Tok(begin, it, end, delim); !view.empty(); view = detail::Tok(begin, it, end, delim))
+				{
+					ret.emplace_back(std::move(view));
+				}
+
+				return ret;
 			}
 		};
 		static inline constexpr auto Tok = tok_fn_t{};

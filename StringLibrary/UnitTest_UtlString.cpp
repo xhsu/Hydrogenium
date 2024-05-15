@@ -187,7 +187,7 @@ namespace Hydrogenium::String::UnitTest
 namespace Hydrogenium::String::UnitTest
 {
 	template <typename T>
-	bool UnitTest_StrTok(std::ranges::input_range auto&& view, auto&& delim, std::ranges::range auto&& ans) noexcept
+	inline bool UnitTest_StrTok_ConsecutiveCall(std::ranges::input_range auto&& view, auto&& delim, std::ranges::range auto&& ans) noexcept
 	{
 		bool ret = true;
 		auto const loop_count = ans.size() + 1;	// additional one to check the respounce.
@@ -224,16 +224,39 @@ namespace Hydrogenium::String::UnitTest
 		return ret;
 	}
 
+	template <typename T>
+	inline bool UnitTest_StrTok_RangeOfViews(std::ranges::input_range auto&& view, auto&& delim, std::ranges::range auto&& ans) noexcept
+	{
+		using namespace Hydrogenium::StringPolicy::Result;
+
+		if (!std::ranges::equal(T::tok_fn_t::Impl(as_vector_t{}, view, delim, 0xFFFF), ans))
+			return false;
+
+		if (!std::ranges::equal(T::tok_fn_t::Impl(as_generator_t{}, view, delim, 0xFFFF), ans))
+			return false;
+
+		return true;
+	}
+
+	template <typename T>
+	inline bool UnitTest_StrTok_AllStyles(std::ranges::input_range auto&& view, auto&& delim, std::ranges::range auto&& ans) noexcept
+	{
+		return
+			UnitTest_StrTok_ConsecutiveCall<T>(view, delim, ans)
+			&& UnitTest_StrTok_RangeOfViews<T>(view, delim, ans);
+	}
+
 	void UnitTest_StrTok() noexcept
 	{
-		assert(UnitTest_StrTok<Str>("hello, world", " ,\t", std::vector{ "hello", "world" }));
-		assert(UnitTest_StrTok<StrR>("hello, world", " ,\t", std::vector{ "hello", "world" } | std::views::reverse));
-		assert(UnitTest_StrTok<Str>("", " ,\t", std::views::empty<std::string_view>));
-		assert(UnitTest_StrTok<StrR>("", "", std::views::empty<std::string_view>));
-		assert(UnitTest_StrTok<WcsI>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" }));
-		assert(UnitTest_StrTok<WcsIR>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" } | std::views::reverse));
-		assert(UnitTest_StrTok<MbsI>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" }));
-		assert(UnitTest_StrTok<MbsIR>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" } | std::views::reverse));
+		assert(UnitTest_StrTok_AllStyles<Str>("hello, world", " ,\t", std::vector{ "hello", "world" }));
+		assert(UnitTest_StrTok_AllStyles<StrR>("hello, world", " ,\t", std::vector{ "hello", "world" } | std::views::reverse));
+		assert(UnitTest_StrTok_AllStyles<Str>("", " ,\t", std::views::empty<std::string_view>));
+		assert(UnitTest_StrTok_AllStyles<StrR>("", "", std::views::empty<std::string_view>));
+		assert(UnitTest_StrTok_AllStyles<WcsI>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" }));
+		assert(UnitTest_StrTok_AllStyles<WcsIR>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" } | std::views::reverse));
+		assert(UnitTest_StrTok_AllStyles<MbsI>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" }));
+		assert(UnitTest_StrTok_AllStyles<MbsIR>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" } | std::views::reverse));
+		assert(Str::Tok(std::nullopt, "").empty());	// purpose: test how the residue from different calls handled.
 	}
 }
 

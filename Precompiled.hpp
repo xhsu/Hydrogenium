@@ -124,6 +124,9 @@
 #include <cwchar>
 #include <cwctype>
 
+// #UPDATE_AT_CPP23 generator
+#include <experimental/generator>
+
 #pragma warning(pop)
 
 // {fmt} lib
