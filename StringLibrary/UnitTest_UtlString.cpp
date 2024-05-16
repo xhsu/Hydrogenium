@@ -15,12 +15,12 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrI::Cmp("abc", "DEF") < 0 && Str::Cmp("abc", "DEF") > 0);
 	static_assert(StrI::Cmp("GHI", "def") > 0 && Str::Cmp("GHI", "def") < 0);
 	static_assert(Str::Cmp(u8"你好", u8"你好") == 0 && Str::Cmp(u8"你好", u8"你好嗎") < 0);
-	static_assert(StrNR::Cmp("dynamic_cast", "static_cast", 7) == 0 && StrNR::Cmp("dynamic_cast", "static_cast", 8) < 0);	// just like ends_with
+	static_assert(StrR::Cmp("dynamic_cast", "static_cast", 7) == 0 && StrR::Cmp("dynamic_cast", "static_cast", 8) < 0);	// just like ends_with. Purpose: test 'N' version.
 
 	static_assert(Str::Chr("Try not", 't') == "t" && StrI::Chr("Try not", 'T') == "Try not");
-	static_assert(StrN::Chr("Try not", 't', 4).empty() && StrNI::Chr("Try not", 't', 4) == "Try ");	// #NO_URGENT this is not good. the return of StrNI series should kept the original length.
+	static_assert(Str::Chr("Try not", 't', 4).empty() && StrI::Chr("Try not", 't', 4) == "Try ");	// #NO_URGENT this is not good. the return of StrNI series should kept the original length. Purpose: test 'N' version.
 	static_assert(StrR::Chr("Try not", 'T') == "Try not" && StrIR::Chr("Try not", 'T') == "t");
-	static_assert(StrNR::Chr("Try not", 'T', 4).empty() && StrNIR::Chr("Try not", 'T', 4) == "t");
+	static_assert(StrR::Chr("Try not", 'T', 4).empty() && StrIR::Chr("Try not", 'T', 4) == "t"); // Purpose: test 'N' version.
 
 	// Wcs series
 
@@ -28,17 +28,17 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsI::Cmp(L"abc", L"DEF") < 0 && Wcs::Cmp(L"abc", L"DEF") > 0);
 	static_assert(WcsI::Cmp(L"GHI", L"def") > 0 && Wcs::Cmp(L"GHI", L"def") < 0);
 	static_assert(Wcs::Cmp(L"你好", L"你好") == 0 && Wcs::Cmp(L"你好", L"你好嗎") < 0);
-	static_assert(WcsN::Cmp(L"你好", L"你好嗎", 2) == 0 && WcsN::Cmp(L"你好", L"你好嗎", 3) < 0);
+	static_assert(Wcs::Cmp(L"你好", L"你好嗎", 2) == 0 && Wcs::Cmp(L"你好", L"你好嗎", 3) < 0);	// Purpose: test 'N' version.
 
 	static_assert(Wcs::Chr(L"Try not", L't') == L"t" && WcsI::Chr(L"Try not", L'T') == L"Try not");
-	static_assert(WcsN::Chr(L"Try not", L't', 4).empty() && WcsNI::Chr(L"Try not", L't', 4) == L"Try ");
+	static_assert(Wcs::Chr(L"Try not", L't', 4).empty() && WcsI::Chr(L"Try not", L't', 4) == L"Try ");	// Purpose: test 'N' version.
 
 	// Mbs series
 
 	static_assert(Mbs::Chr(u8"你好", '\xE5').empty() && Str::Chr(u8"你好", '\xE5') == u8"好");	// u8"好" == 0xE5 0xA5 0xBD
 
-	static_assert(MbsN::Cmp(u8"你好", u8"你好嗎", 2) == 0 && MbsN::Cmp(u8"你好", u8"你好嗎", 3) < 0);
-	static_assert(MbsN::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsNR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D
+	static_assert(Mbs::Cmp(u8"你好", u8"你好嗎", 2) == 0 && Mbs::Cmp(u8"你好", u8"你好嗎", 3) < 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D. Purpose: test 'N' version.
 }
 
 // Cmp
@@ -61,14 +61,14 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Cnt(u8"Ираклий") == 7);
 	static_assert(Mbs::Cnt(u8"ヘラクレイオス") == 7);
 	static_assert(Mbs::Cnt(u8"希拉克略") == 4);
-	static_assert(MbsN::Cnt(u8"Heráclio", 5) == 5);
-	static_assert(MbsN::Cnt(u8"Іраклій", 0x100) == 7);
+	static_assert(Mbs::Cnt(u8"Heráclio", 5) == 5);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cnt(u8"Іраклій", 0x100) == 7);	// Purpose: test 'N' version.
 
 	static_assert(Str::Cnt(ASCII_NUMBERS_FWD) == StrR::Cnt(ASCII_NUMBERS_BWD));
 	static_assert(Wcs::Cnt(RMN_NUMBERS_FWD_W) == WcsR::Cnt(RMN_NUMBERS_BWD_W));
 	static_assert(Mbs::Cnt(CJK_NUMBERS_FWD_U8) == MbsR::Cnt(CJK_NUMBERS_BWD_U8));
 	static_assert(Mbs::Cnt(DEU_ALPHABET_UPPER_FWD_U8) == MbsR::Cnt(DEU_ALPHABET_LOWER_FWD_U8));
-	static_assert(MbsN::Cnt(DEU_ALPHABET_UPPER_BWD_U8, 10) == MbsNR::Cnt(DEU_ALPHABET_LOWER_BWD_U8, 10));
+	static_assert(Mbs::Cnt(DEU_ALPHABET_UPPER_BWD_U8, 10) == MbsR::Cnt(DEU_ALPHABET_LOWER_BWD_U8, 10));	// Purpose: test 'N' version.
 }
 
 // Dup, Rev
@@ -79,31 +79,35 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsR::Dup(RMN_NUMBERS_BWD_W) == RMN_NUMBERS_FWD_W);
 	static_assert(Mbs::Cmp(MbsR::Dup(CJK_NUMBERS_FWD_U8), CJK_NUMBERS_BWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
 
-	static_assert(StrN::Dup("a0b1c2", 3) == StrNI::Dup("a0b1c2", 3));
-	static_assert(MbsN::Dup(CJK_NUMBERS_FWD_U8, 0).empty());
-	static_assert(StrN::Cmp(StrNR::Dup(ASCII_NUMBERS_FWD, 5), ASCII_NUMBERS_BWD, 5) == 0);
-	static_assert(WcsN::Cmp(WcsNR::Dup(RMN_NUMBERS_BWD_W, 5), RMN_NUMBERS_FWD_W, 5) == 0);
-	static_assert(MbsN::Cmp(MbsN::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_FWD_U8, 5) == 0);
-	static_assert(MbsN::Cmp(MbsNR::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_BWD_U8, 5) == 0);
+	static_assert(Str::Dup("a0b1c2", 3) == StrI::Dup("a0b1c2", 3));	// Purpose: test 'N' version.
+	static_assert(Mbs::Dup(CJK_NUMBERS_FWD_U8, 0).empty());	// Purpose: test 'N' version.
+	static_assert(Str::Cmp(StrR::Dup(ASCII_NUMBERS_FWD, 5), ASCII_NUMBERS_BWD, 5) == 0);	// Purpose: test 'N' version.
+	static_assert(Wcs::Cmp(WcsR::Dup(RMN_NUMBERS_BWD_W, 5), RMN_NUMBERS_FWD_W, 5) == 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(Mbs::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_FWD_U8, 5) == 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(MbsR::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_BWD_U8, 5) == 0);	// Purpose: test 'N' version.
 
-	// Internal DupV()
+	// Internal DupV(), mostly for 'N' version.
 
-	static_assert(StrNR::detail::DupV(ASCII_NUMBERS_FWD, 5) == "56789");	// purpose: take last five graphemes.
-	static_assert(WcsN::detail::DupV(RMN_NUMBERS_FWD_W, 5) == L"ⅠⅡⅢⅣⅤ");	// purpose: take first five graphemes.
-	static_assert(MbsN::detail::DupV(CJK_NUMBERS_FWD_U8, 5) == u8"零一二三四");	// purpose: verify multibyte case.
-	static_assert(MbsNR::detail::DupV(CJK_NUMBERS_FWD_U8, 20) == CJK_NUMBERS_FWD_U8);	// purpose: verify the meaning of 'count' parameter here, as grapheme count, not byte count.
+	static_assert(StrR::detail::DupV(ASCII_NUMBERS_FWD, 5) == "56789");	// purpose: take last five graphemes.
+	static_assert(Wcs::detail::DupV(RMN_NUMBERS_FWD_W, 5) == L"ⅠⅡⅢⅣⅤ");	// purpose: take first five graphemes.
+	static_assert(Mbs::detail::DupV(CJK_NUMBERS_FWD_U8, 5) == u8"零一二三四");	// purpose: verify multibyte case.
+	static_assert(MbsR::detail::DupV(CJK_NUMBERS_FWD_U8, 20) == CJK_NUMBERS_FWD_U8);	// purpose: verify the meaning of 'count' parameter here, as grapheme count, not byte count.
 }
 
 // Fry
 namespace Hydrogenium::String::UnitTest
 {
-	void UnitTest_Fry() noexcept
+	void UnitTest_StrFry() noexcept
 	{
-		std::string test1(0x10, ' ');
+		std::string test1(0x20, ' ');
 		std::wstring test2(0x10, L' ');
 
-		Str::detail::Fry(&test1);
+		Str::detail::Fry(&test1, 0x10);
 		Wcs::detail::Fry(&test2);
+
+		for (auto&& c : test1 | std::views::drop(0x10))
+			if (c != ' ')
+				assert(false);
 	}
 }
 
@@ -114,16 +118,16 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Cmp(MbsR::Lwr(CJK_NUMBERS_BWD_U8), CJK_NUMBERS_FWD_U8) == 0);	// effectively just producing a copy. #MSVC_BUGGED_compile_time_utf8
 	static_assert(Str::Lwr(ENG_ALPHABET_UPPER_FWD) == ENG_ALPHABET_LOWER_FWD);
 
-	static_assert(StrN::Cmp(StrNR::Lwr(ENG_ALPHABET_UPPER_FWD, 10), ENG_ALPHABET_LOWER_BWD, 10) == 0);
+	static_assert(Str::Cmp(StrR::Lwr(ENG_ALPHABET_UPPER_FWD, 10), ENG_ALPHABET_LOWER_BWD, 10) == 0);	// Purpose: test 'N' version.
 
 #ifdef HYDROGENIUM_UTL_UNICODE
 	static_assert(Wcs::Lwr(ELL_ALPHABET_UPPER_FWD_W) == ELL_ALPHABET_LOWER_FWD_W);
 	static_assert(Mbs::Cmp(Mbs::Lwr(UKR_ALPHABET_UPPER_FWD_U8), UKR_ALPHABET_LOWER_FWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
 	static_assert(Mbs::Cmp(Mbs::Lwr(DEU_ALPHABET_UPPER_FWD_U8), DEU_ALPHABET_LOWER_FWD_U8) == 0);	// #MSVC_BUGGED_compile_time_utf8
 
-	static_assert(WcsN::Cmp(WcsNR::Lwr(ELL_ALPHABET_UPPER_FWD_W, 10), ELL_ALPHABET_LOWER_BWD_W, 10) == 0);
-	static_assert(MbsN::Cmp(MbsNR::Lwr(UKR_ALPHABET_UPPER_FWD_U8, 10), UKR_ALPHABET_LOWER_BWD_U8, 10) == 0);
-	static_assert(MbsN::Cmp(MbsNR::Lwr(DEU_ALPHABET_UPPER_FWD_U8, 10), DEU_ALPHABET_LOWER_BWD_U8, 10) == 0);
+	static_assert(Wcs::Cmp(WcsR::Lwr(ELL_ALPHABET_UPPER_FWD_W, 10), ELL_ALPHABET_LOWER_BWD_W, 10) == 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(MbsR::Lwr(UKR_ALPHABET_UPPER_FWD_U8, 10), UKR_ALPHABET_LOWER_BWD_U8, 10) == 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(MbsR::Lwr(DEU_ALPHABET_UPPER_FWD_U8, 10), DEU_ALPHABET_LOWER_BWD_U8, 10) == 0);	// Purpose: test 'N' version.
 
 	constexpr bool UnitTest_StrLwr() noexcept
 	{
@@ -140,13 +144,13 @@ namespace Hydrogenium::String::UnitTest
 namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Wcs::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡") == L"葡萄不吐葡萄皮");
-	static_assert(WcsN::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡", 1).empty());
+	static_assert(Wcs::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡", 1).empty());	// Purpose: test 'N' version.
 	static_assert(Mbs::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡") == u8"葡萄不吐葡萄皮");
-	static_assert(MbsN::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡", 1).empty());
+	static_assert(Mbs::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡", 1).empty());	// Purpose: test 'N' version.
 	static_assert(WcsR::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡") == L"葡萄皮");
-	static_assert(WcsNR::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡", 2).empty());
+	static_assert(WcsR::PBrk(L"吃葡萄不吐葡萄皮", L"吐葡", 2).empty());	// Purpose: test 'N' version.
 	static_assert(MbsR::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡") == u8"葡萄皮");
-	static_assert(MbsNR::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡", 2).empty());
+	static_assert(MbsR::PBrk(u8"吃葡萄不吐葡萄皮", u8"吐葡", 2).empty());	// Purpose: test 'N' version.
 
 	static_assert(StrI::PBrk("Try not", "tr") == "Try not");
 	static_assert(StrIR::PBrk("Try not", "tr") == "t");
@@ -174,7 +178,7 @@ namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Str::Str("", "").empty());
 	static_assert(Str::Str("", "abc").empty());
-	static_assert(StrN::Str(ASCII_NUMBERS_FWD, "345", 6) == "345");
+	static_assert(Str::Str(ASCII_NUMBERS_FWD, "345", 6) == "345");	// Purpose: test 'N' version.
 	static_assert(Str::Str(ASCII_NUMBERS_FWD, "345") == ASCII_NUMBERS_FWD.substr(3));
 	static_assert(Str::Str(ASCII_NUMBERS_FWD, "90").empty());	// purpose: this is different from strchr()!
 
@@ -182,16 +186,16 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsR::Str(L"吃葡萄不吐葡萄皮", L"葡萄") == L"葡萄皮");
 	static_assert(Mbs::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄") == u8"葡萄不吐葡萄皮");
 	static_assert(MbsR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄") == u8"葡萄皮");
-	static_assert(MbsN::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄");	// purpose: verify the multibytes can be correctly parsed as groups.
-	static_assert(MbsNR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄皮");
+	static_assert(Mbs::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄");	// purpose: verify the multibytes can be correctly parsed as groups.
+	static_assert(MbsR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄皮");	// Purpose: test 'N' version.
 
 	static_assert(WcsR::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_LOWER_BWD_W).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
 	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10)) == ELL_ALPHABET_LOWER_FWD_W.substr(10));
-	static_assert(WcsNI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10), 10).empty());
+	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10), 10).empty());	// Purpose: test 'N' version.
 
 	static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
 	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::detail::DupV(DEU_ALPHABET_LOWER_FWD_U8, 10));
-	static_assert(MbsNI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());
+	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
 }
 
 // Tok
@@ -240,10 +244,10 @@ namespace Hydrogenium::String::UnitTest
 	{
 		using namespace Hydrogenium::StringPolicy::Result;
 
-		if (!std::ranges::equal(T::tok_fn_t::Impl(as_vector_t{}, view, delim, 0xFFFF), ans))
+		if (!std::ranges::equal(T::Tok(as_vector_t{}, view, delim, 0xFFFF), ans))
 			return false;
 
-		if (!std::ranges::equal(T::tok_fn_t::Impl(as_generator_t{}, view, delim, 0xFFFF), ans))
+		if (!std::ranges::equal(T::Tok(as_generator_t{}, view, delim, 0xFFFF), ans))
 			return false;
 
 		return true;
@@ -275,16 +279,16 @@ namespace Hydrogenium::String::UnitTest
 namespace Hydrogenium::String::UnitTest
 {
 	static_assert(StrR::Upr(ENG_ALPHABET_LOWER_FWD) == ENG_ALPHABET_UPPER_BWD);
-	static_assert(StrN::Cmp(StrNR::Upr(ENG_ALPHABET_LOWER_FWD, 10), ENG_ALPHABET_UPPER_BWD, 10) == 0);
+	static_assert(Str::Cmp(StrR::Upr(ENG_ALPHABET_LOWER_FWD, 10), ENG_ALPHABET_UPPER_BWD, 10) == 0);	// Purpose: test 'N' version.
 
 #ifdef HYDROGENIUM_UTL_UNICODE
 	static_assert(Mbs::Cmp(MbsR::Upr(UKR_ALPHABET_LOWER_FWD_U8), UKR_ALPHABET_UPPER_BWD_U8) == 0); // #MSVC_BUGGED_compile_time_utf8
 	static_assert(Mbs::Cmp(MbsR::Upr(DEU_ALPHABET_LOWER_FWD_U8), DEU_ALPHABET_UPPER_BWD_U8) == 0);
 	static_assert(WcsR::Upr(ELL_ALPHABET_LOWER_FWD_W) == ELL_ALPHABET_UPPER_BWD_W);
 
-	static_assert(WcsN::Cmp(WcsNR::Upr(ELL_ALPHABET_LOWER_FWD_W, 10), ELL_ALPHABET_UPPER_BWD_W, 10) == 0);
-	static_assert(MbsN::Cmp(MbsNR::Upr(UKR_ALPHABET_LOWER_FWD_U8, 10), UKR_ALPHABET_UPPER_BWD_U8, 10) == 0);
-	static_assert(MbsN::Cmp(MbsNR::Upr(DEU_ALPHABET_LOWER_FWD_U8, 10), DEU_ALPHABET_UPPER_BWD_U8, 10) == 0);
+	static_assert(Wcs::Cmp(WcsR::Upr(ELL_ALPHABET_LOWER_FWD_W, 10), ELL_ALPHABET_UPPER_BWD_W, 10) == 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(MbsR::Upr(UKR_ALPHABET_LOWER_FWD_U8, 10), UKR_ALPHABET_UPPER_BWD_U8, 10) == 0);	// Purpose: test 'N' version.
+	static_assert(Mbs::Cmp(MbsR::Upr(DEU_ALPHABET_LOWER_FWD_U8, 10), DEU_ALPHABET_UPPER_BWD_U8, 10) == 0);	// Purpose: test 'N' version.
 
 	constexpr bool UnitTest_StrUpr() noexcept
 	{
@@ -306,6 +310,7 @@ extern void UnitTest_Runtime();
 
 int main(int, char* []) noexcept
 {
+	UnitTest_StrFry();	// Run-time only.
 	UnitTest_StrTok();	// Run-time only.
 
 	UnitTest_Runtime();

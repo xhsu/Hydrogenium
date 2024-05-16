@@ -100,7 +100,7 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		bool const bResult =
 			ASCII_NUMBERS_FWD.starts_with(cpy1)
 			&& RMN_NUMBERS_BWD_W.starts_with(cpy2)
-			&& MbsN::Cmp(cpy3, CJK_NUMBERS_BWD_U8, 5) == 0
+			&& Mbs::Cmp(cpy3, CJK_NUMBERS_BWD_U8, 5) == 0
 			;
 
 		return bResult;

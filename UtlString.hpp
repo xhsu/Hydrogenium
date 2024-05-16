@@ -764,22 +764,6 @@ namespace Hydrogenium::StringPolicy
 		{ T{}.Eql(c, c) } -> std::same_as<bool>;
 	};
 
-	struct MyDummy
-	{
-		static constexpr auto Impl(auto&&...) noexcept {}
-		constexpr auto operator() (auto&&... args) const noexcept { return Impl(std::forward<decltype(args)>(args)...); }
-	};
-
-	template <typename T, typename C>
-	concept CounterPolicy = requires (CType<C>::view_type sv, CType<C>::owner_type* s_ptr)
-	{
-		&T::template pattern_view<MyDummy, C>::operator();
-		&T::template pattern_view_view<MyDummy, C>::operator();
-		&T::template pattern_view_char<MyDummy, C>::operator();
-		&T::template pattern_nullable_view<MyDummy, C>::operator();
-		typename T::template pattern_inplace_modity<MyDummy, C>;
-	};
-
 	template <typename T, typename C>
 	concept DirectionPolicy = requires (CType<C>::view_type view)
 	{
@@ -1344,142 +1328,6 @@ namespace Hydrogenium::StringPolicy::Comparing
 	static_assert(ComparingPolicy<regular_t, char>);
 }
 
-namespace Hydrogenium::StringPolicy::Counter
-{
-	// #MSVC_BUGGED_tailing_return_type_namespace_error
-	// all the return tailing type here are bugged.
-
-	struct cap_at_n_t final
-	{
-		template <typename T, typename C>
-		struct pattern_view_view
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type lhs, CType<C>::view_type rhs, ptrdiff_t count) const noexcept
-			{
-				return T::Impl(lhs, rhs, count);
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_view_char
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type str, CType<C>::param_type ch, ptrdiff_t last_pos) const noexcept
-			{
-				return T::Impl(str, ch, last_pos);
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_nullable_view
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token, ptrdiff_t count) const noexcept
-			{
-				return T::Impl(str, token, count);
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_view
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type str, ptrdiff_t count) const noexcept
-			{
-				return T::Impl(str, count);
-			}
-		};
-
-		// C++ style in place: void fn(string*); accepting as is.
-		// C++ style get copy: string fn(string_view); accepting as is.
-		// C style in place: void fn(char**); forwarding as span<char>
-		// C style get copy: char* fn(const char*); forwarding as string_view
-
-		template <typename T, typename C>
-		struct pattern_inplace_modity
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type str, ptrdiff_t count) const noexcept
-			{
-				return T::Impl(str, count);
-			}
-
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::owner_type* str, ptrdiff_t count) const noexcept
-			{
-				return T::Impl(str, count);
-			}
-		};
-	};
-
-	inline constexpr auto cap_at_n = cap_at_n_t{};
-
-	struct cap_at_len_t final
-	{
-		template <typename T, typename C>
-		struct pattern_view_view
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type lhs, CType<C>::view_type rhs) const noexcept
-			{
-				return T::Impl(lhs, rhs, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_view_char
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type str, CType<C>::param_type ch) const noexcept
-			{
-				return T::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_nullable_view
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (std::optional<typename CType<C>::view_type> str, CType<C>::view_type token) const noexcept
-			{
-				return T::Impl(str, token, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_view
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type str) const noexcept
-			{
-				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename T, typename C>
-		struct pattern_inplace_modity
-		{
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::view_type str) const noexcept
-			{
-				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
-			}
-
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CType<C>::owner_type* str) const noexcept
-			{
-				return T::Impl(str, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-	};
-
-	inline constexpr auto cap_at_len = cap_at_len_t{};
-
-	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_len_t, char>);
-	static_assert(CounterPolicy<StringPolicy::Counter::cap_at_n_t, wchar_t>);
-}
-
 namespace Hydrogenium::StringPolicy::Direction
 {
 	struct forwards_t final
@@ -1696,6 +1544,7 @@ namespace Hydrogenium::StringPolicy::Result
 		[[nodiscard]]
 		constexpr auto operator() (std::same_as<size_t> auto n) const noexcept -> std::make_signed_t<size_t>
 		{
+			n = std::min(n, (size_t)std::numeric_limits<std::make_signed_t<size_t>>::max());
 			return static_cast<std::make_signed_t<size_t>>(n);
 		}
 	};
@@ -1824,7 +1673,7 @@ namespace Hydrogenium::StringPolicy::Result
 		inline static constexpr M Modify = M{};
 	};
 
-	inline constexpr auto as_it_is = postprocessor_t<as_view_t, as_lexic_t, as_unsigned_t, as_marshaled_t>{};
+	inline constexpr auto as_it_is = postprocessor_t<as_view_t, as_lexic_t, as_signed_t, as_marshaled_t>{};
 	static_assert(ResultProcessor<decltype(as_it_is), char>);
 
 	inline constexpr auto to_c_style = postprocessor_t<as_pointer_t, as_lexic_t, as_unsigned_t, as_unmanaged_t>{};
@@ -1850,7 +1699,7 @@ namespace Hydrogenium::String::Functors::Components
 		}
 
 		// Just keep compiler happy.
-		constexpr void operator() () const noexcept = delete;
+		void operator()(...) const noexcept = delete;
 	};
 
 	template <typename CFinal, template <typename, typename> class TFirst, template <typename, typename> class... TRests>
@@ -1889,164 +1738,6 @@ namespace Hydrogenium::String::Functors::Components
 	{
 		using policy_cmp = StringPolicy::Comparing::regular_t;
 		static_assert(!requires{ typename Base::policy_cmp; }, "Only one comparing policy allowed!");
-	};
-
-	// Calling Signiture #UPDATE_AT_CPP23 static operator()
-
-	struct callsig_cap_at_n final
-	{
-		template <typename CIncompleteType, typename Base>
-		struct view_view : Base
-		{
-			using invk_sig = view_view;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			// This is the ONLY way to access type definition within the final type.
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type lhs, CFinal::view_type rhs, ptrdiff_t count) const noexcept
-			{
-				return CFinal::Impl(lhs, rhs, count);
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct view : Base
-		{
-			using invk_sig = view;
-			using Base::operator();
-			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			// This is the ONLY way to access type definition within the final type.
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type view, ptrdiff_t count) const noexcept
-			{
-				return CFinal::Impl(view, count);
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct view_char : Base
-		{
-			using invk_sig = view_char;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			// This is the ONLY way to access type definition within the final type.
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::char_type ch, ptrdiff_t count) const noexcept
-			{
-				return CFinal::Impl(str, ch, count);
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct nullable_view : Base
-		{
-			using invk_sig = nullable_view;
-			using Base::operator();
-			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			// This is the ONLY way to access type definition within the final type.
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (std::optional<typename CFinal::view_type> psz, CFinal::view_type view, ptrdiff_t count) const noexcept
-			{
-				return CFinal::Impl(psz, view, count);
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct ptr : Base
-		{
-			using invk_sig = ptr;
-			using Base::operator();
-			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			// This is the ONLY way to access type definition within the final type.
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::owner_type* psz, ptrdiff_t count) const noexcept
-			{
-				return CFinal::Impl(psz, count);
-			}
-		};
-	};
-
-	struct callsig_cap_at_len final
-	{
-		template <typename CIncompleteType, typename Base>
-		struct view_view : Base
-		{
-			using invk_sig = view_view;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type lhs, CFinal::view_type rhs) const noexcept
-			{
-				return CFinal::Impl(lhs, rhs, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct view : Base
-		{
-			using invk_sig = view;
-			using Base::operator();
-			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type view) const noexcept
-			{
-				return CFinal::Impl(view, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct view_char : Base
-		{
-			using invk_sig = view_char;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::ctype_info::param_type ch) const noexcept
-			{
-				return CFinal::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct nullable_view : Base
-		{
-			using invk_sig = nullable_view;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (std::optional<typename CFinal::view_type> psz, CFinal::view_type view) const noexcept
-			{
-				return CFinal::Impl(psz, view, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
-
-		template <typename CIncompleteType, typename Base>
-		struct ptr : Base
-		{
-			using invk_sig = ptr;
-			using Base::operator();
-			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-			template <typename CFinal = CIncompleteType>
-			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::owner_type* psz) const noexcept
-			{
-				return CFinal::Impl(psz, std::numeric_limits<ptrdiff_t>::max());
-			}
-		};
 	};
 
 	// Direction
@@ -2249,47 +1940,29 @@ namespace Hydrogenium::String
 		typename char_type = char,
 		StringPolicy::IteratingPolicy<char_type> auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
 		StringPolicy::ComparingPolicy<char_type> auto Comparator = StringPolicy::Comparing::regular,
-		StringPolicy::CounterPolicy<char_type> auto InvkPolicy = StringPolicy::Counter::cap_at_len,
 		StringPolicy::DirectionPolicy<char_type> auto RangePolicy = StringPolicy::Direction::front_to_back,
 		StringPolicy::ResultProcessor<char_type> auto RsltProc = StringPolicy::Result::as_it_is
 	>
 	struct Utils final
 	{
 		using ctype_info = CType<char_type>;
-		using invoking_policy_t = std::remove_cvref_t<decltype(InvkPolicy)>;
+		using nullable_type = std::optional<typename ctype_info::view_type>;
+		using owner_type = ctype_info::owner_type;
+		using owner_iter = decltype(RangePolicy.Begin(owner_type{}));
+		using param_type = ctype_info::param_type;
+		using value_type = decltype(IterPolicy.ValueOf(owner_iter{}));
+		using view_type = ctype_info::view_type;
+		using view_iter = decltype(RangePolicy.Begin(view_type{}));
 
 		struct detail final
 		{
 			static inline constexpr auto default_search_len = std::numeric_limits<ptrdiff_t>::max();
 
 			// Chr - v, c -> string_view; No internal impl needed.
-
-			// Cmp - v, v -> int
-			__forceinline static constexpr int Cmp(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
-			{
-				auto [b1, s1, e1] = IterPolicy.Get(lhs, RangePolicy, count);
-				auto [b2, s2, e2] = IterPolicy.Get(rhs, RangePolicy, count);
-
-				while (
-					s1 < e1 && s2 < e2
-					&& Comparator.Eql(IterPolicy.ValueOf(s1), IterPolicy.ValueOf(s2))
-					)
-				{
-					IterPolicy.Arithmetic(s1, b1, e1, 1);
-					IterPolicy.Arithmetic(s2, b2, e2, 1);
-				}
-
-				using value_type = decltype(IterPolicy.ValueOf(s1));
-
-				// Preventing deducing as something like 'int32_t'
-				value_type const c1 = s1 == e1 ? '\0' : IterPolicy.ValueOf(s1);
-				value_type const c2 = s2 == e2 ? '\0' : IterPolicy.ValueOf(s2);
-
-				return Comparator.Cmp(c1, c2);
-			}
+			// Cmp - v, v -> int; No internal impl needed.
 
 			// Cnt - v -> size_t; Counting graphemes in a char[] range.
-			__forceinline static constexpr size_t Cnt(ctype_info::view_type const& str, ptrdiff_t count = default_search_len) noexcept
+			__forceinline static constexpr size_t Cnt(view_type const& str, ptrdiff_t count = default_search_len) noexcept
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -2300,7 +1973,7 @@ namespace Hydrogenium::String
 			}
 
 			// CSpn - v, v -> size_t; Use PBrk instead. This one will count distance from RangePolicy.Begin() instead of from absolute start. 'R' stands for 'relative'.
-			static constexpr ptrdiff_t CSpnR(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnMode = false) noexcept
+			static constexpr ptrdiff_t CSpnR(view_type const& dest, view_type const& src, ptrdiff_t count = default_search_len, bool bSpnMode = false) noexcept
 			{
 				// the src is NOT order-sensitive, it's no more than a set of what to search.
 				// hence no range function put onto src.
@@ -2333,7 +2006,7 @@ namespace Hydrogenium::String
 			}
 
 			// Dup - v -> string; No interal impl needed. This one is for getting a view of first N graphemes.
-			static constexpr auto DupV(ctype_info::view_type const& str, ptrdiff_t count) noexcept -> ctype_info::view_type
+			static constexpr auto DupV(view_type const& str, ptrdiff_t count) noexcept -> ctype_info::view_type
 			{
 				using StringPolicy::Iterating::APRES;
 
@@ -2354,10 +2027,9 @@ namespace Hydrogenium::String
 			}
 
 			// Fry - o -> string; WTF???? WHO NEEDS THIS? WHAT'S WRONG WITH YOU?
-			static auto Fry(ctype_info::owner_type* psz) noexcept -> decltype(psz)
+			static auto Fry(owner_type* psz, ptrdiff_t until = default_search_len) noexcept -> decltype(psz)
 			{
-				using value_type = typename ctype_info::owner_type::value_type;
-				using int_type = std::conditional_t<sizeof(value_type) == 1, int8_t, std::conditional_t<sizeof(value_type) == 2, int16_t, int32_t>>;
+				using int_type = std::conditional_t<sizeof(char_type) == 1, int8_t, std::conditional_t<sizeof(char_type) == 2, int16_t, int32_t>>;
 				constexpr auto UTF_MAX = std::min<int32_t>(std::numeric_limits<int_type>::max(), 0x10FFFF);
 
 				thread_local static std::random_device PureRD;
@@ -2365,7 +2037,7 @@ namespace Hydrogenium::String
 				thread_local static std::uniform_int_distribution<int32_t> distrb(1, UTF_MAX);	// avoid '\0' causing C bug.
 
 				// we are just filling random garbage, the order doesn't matter.
-				for (auto& ch : *psz)
+				for (auto& ch : *psz | std::views::take(until))
 				{
 					ch = distrb(gen);
 				}
@@ -2376,7 +2048,7 @@ namespace Hydrogenium::String
 			// Len - v -> size_t; Use Cnt instead.
 
 			// Lwr - o -> string
-			__forceinline static constexpr auto Lwr(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			__forceinline static constexpr auto Lwr(view_type const& str, ptrdiff_t count) noexcept
 			{
 				auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -2390,7 +2062,7 @@ namespace Hydrogenium::String
 			}
 
 			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
-			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept
+			__forceinline static constexpr auto PBrk(view_type const& dest, view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept
 			{
 				// the src is NOT order-sensitive, it's no more than a set of what to search.
 				// hence no range function put onto src.
@@ -2431,7 +2103,7 @@ namespace Hydrogenium::String
 			// Str - v, v -> string_view; No internal impl needed.
 
 			// Tok - n, v -> string_view; The second argument filled in will be altered!
-			__forceinline static constexpr auto Tok(auto&& begin, auto& it, auto&& end, ctype_info::view_type const& delim) noexcept
+			__forceinline static constexpr auto Tok(auto&& begin, auto& it, auto&& end, view_type const& delim) noexcept
 				-> decltype(BuildStringView(begin, it, end, false))
 			{
 				// I. Move pointer to the next non-delim position.
@@ -2450,8 +2122,8 @@ namespace Hydrogenium::String
 				return BuildStringView(tokenBegin, it, end, false);
 			}
 
-			// Upr - o -> string; For some reason compiler will complain about 'accessing released memory' if no helper function present.
-			__forceinline static constexpr auto Upr(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			// Upr - o -> string; For some reason compiler will complain about 'accessing released memory' if not convert to it's view form.
+			__forceinline static constexpr auto Upr(view_type const& str, ptrdiff_t count) noexcept
 			{
 				auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -2466,12 +2138,9 @@ namespace Hydrogenium::String
 		};
 
 #pragma region Chr
-		struct chr_fn_t : invoking_policy_t::template pattern_view_char<chr_fn_t, char_type>
+		struct chr_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view_char<chr_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept
+			constexpr auto operator()(view_type const& str, param_type ch, ptrdiff_t until = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Query(RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.Begin(str), IterPolicy))
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
@@ -2489,16 +2158,29 @@ namespace Hydrogenium::String
 #pragma endregion Chr
 
 #pragma region Cmp
-		struct cmp_fn_t : invoking_policy_t::template pattern_view_view<cmp_fn_t, char_type>
+		struct cmp_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view_view<cmp_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& lhs, view_type const& rhs, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Test(0))
 			{
+				auto [b1, s1, e1] = IterPolicy.Get(lhs, RangePolicy, count);
+				auto [b2, s2, e2] = IterPolicy.Get(rhs, RangePolicy, count);
+
+				while (
+					s1 < e1 && s2 < e2
+					&& Comparator.Eql(IterPolicy.ValueOf(s1), IterPolicy.ValueOf(s2))
+					)
+				{
+					IterPolicy.Arithmetic(s1, b1, e1, 1);
+					IterPolicy.Arithmetic(s2, b2, e2, 1);
+				}
+
+				// Preventing deducing as something like 'int32_t'
+				value_type const c1 = s1 == e1 ? '\0' : IterPolicy.ValueOf(s1);
+				value_type const c2 = s2 == e2 ? '\0' : IterPolicy.ValueOf(s2);
+
 				return RsltProc.Test(
-					detail::Cmp(lhs, rhs, count)
+					Comparator.Cmp(c1, c2)
 				);
 			}
 		};
@@ -2506,12 +2188,9 @@ namespace Hydrogenium::String
 #pragma endregion Cmp
 
 #pragma region Cnt
-		struct cnt_fn_t : invoking_policy_t::template pattern_view<cnt_fn_t, char_type>
+		struct cnt_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view<cnt_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Counting(size_t{}))
 			{
 				return RsltProc.Counting(
@@ -2523,12 +2202,9 @@ namespace Hydrogenium::String
 #pragma endregion Cnt
 
 #pragma region Dup
-		struct dup_fn_t : invoking_policy_t::template pattern_view<dup_fn_t, char_type>
+		struct dup_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view<dup_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Modify(RangePolicy.Begin(str), RangePolicy.End(str), IterPolicy))
 			{
 				auto [_, it, logical_end] = IterPolicy.Get(str, RangePolicy, count);
@@ -2541,15 +2217,9 @@ namespace Hydrogenium::String
 #pragma endregion Dup
 
 #pragma region Lwr
-		struct lwr_fn_t : invoking_policy_t::template pattern_inplace_modity<lwr_fn_t, char_type>
+		struct lwr_fn_t
 		{
-			using super = invoking_policy_t::template pattern_inplace_modity<lwr_fn_t, char_type>;
-			using super::operator();
-
-			using iter_type = decltype(RangePolicy.Begin(typename ctype_info::view_type{}));
-			using value_type = decltype(IterPolicy.ValueOf(iter_type{}));
-
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
 			auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -2557,14 +2227,14 @@ namespace Hydrogenium::String
 			}
 
 			// return type is void, in the case of in_place mode.
-			static constexpr void Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
+			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
 				// For some reason, it must look like this can the compiler happy about 'accessing released memory'.
 
 				auto [it, end, functor] = detail::Lwr(*pstr, count);
 
 				static_assert(
-					typeid(RsltProc.Modify(it, end, IterPolicy, functor)) == typeid(typename ctype_info::owner_type),
+					typeid(RsltProc.Modify(it, end, IterPolicy, functor)) == typeid(owner_type),
 					"Lwr() method must be used with marshaled returning types."
 				);
 				*pstr = RsltProc.Modify(it, end, IterPolicy, functor);
@@ -2574,12 +2244,9 @@ namespace Hydrogenium::String
 #pragma endregion Lwr
 
 #pragma region PBrk
-		struct pbrk_fn_t : invoking_policy_t::template pattern_view_view<pbrk_fn_t, char_type>
+		struct pbrk_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view_view<pbrk_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& dest, view_type const& src, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Query(dest, src, IterPolicy))
 			{
 				auto [begin, end, it] = detail::PBrk(dest, src, count, false);
@@ -2594,12 +2261,9 @@ namespace Hydrogenium::String
 #pragma endregion PBrk
 
 #pragma region SpnP
-		struct spnp_fn_t : invoking_policy_t::template pattern_view_view<spnp_fn_t, char_type>
+		struct spnp_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view_view<spnp_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& dest, view_type const& src, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Query(dest, src, IterPolicy))
 			{
 				auto [begin, end, it] = detail::PBrk(dest, src, count, true);
@@ -2614,12 +2278,9 @@ namespace Hydrogenium::String
 #pragma endregion SpnP
 
 #pragma region Str
-		struct str_fn_t : invoking_policy_t::template pattern_view_view<str_fn_t, char_type>
+		struct str_fn_t
 		{
-			using super = invoking_policy_t::template pattern_view_view<str_fn_t, char_type>;
-			using super::operator();
-
-			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::view_type const& substr, ptrdiff_t until) noexcept
+			constexpr auto operator()(view_type const& str, view_type const& substr, ptrdiff_t until = detail::default_search_len) const noexcept
 				-> decltype(RsltProc.Query(RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.Begin(str), IterPolicy))
 			{
 				// Searching direction is nothing to do with comparing direction!!
@@ -2629,14 +2290,13 @@ namespace Hydrogenium::String
 				auto [b1, s1, e1] = IterPolicy.Get(str, RangePolicy, until);
 				auto const iSubstrCnt = detail::Cnt(substr);
 
-				constexpr auto FwdCmp = &Utils<
+				constexpr auto FwdCmp = Utils<
 					char_type,
 					IterPolicy,
 					Comparator,
-					InvkPolicy,
 					StringPolicy::Direction::front_to_back,
-					RsltProc
-				>::detail::Cmp;
+					StringPolicy::Result::as_it_is	// To guarantee a lexicographical result.
+				>::Cmp;
 
 				if constexpr (!RangePolicy.is_reverse)
 				{
@@ -2665,16 +2325,10 @@ namespace Hydrogenium::String
 #pragma endregion Str
 
 #pragma region Tok
-		struct tok_fn_t : invoking_policy_t::template pattern_nullable_view<tok_fn_t, char_type>
+		struct tok_fn_t
 		{
-			using super = invoking_policy_t::template pattern_nullable_view<tok_fn_t, char_type>;
-			using super::operator();
-
-			static /*constexpr*/ auto Impl(
-				std::optional<typename ctype_info::view_type> const& str,
-				ctype_info::view_type const& delim,
-				ptrdiff_t until
-			) noexcept -> decltype(RsltProc.Query(*str, delim, IterPolicy))
+			auto operator()(nullable_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
+				-> decltype(RsltProc.Query(*str, delim, IterPolicy))
 			{
 				static thread_local std::tuple_element_t<0, decltype(IterPolicy.Get(*str, RangePolicy, until))> begin{};
 				static thread_local std::tuple_element_t<1, decltype(IterPolicy.Get(*str, RangePolicy, until))> it{};
@@ -2690,11 +2344,8 @@ namespace Hydrogenium::String
 				);
 			}
 
-			static /*constexpr*/ auto Impl(StringPolicy::Result::as_generator_t,
-				ctype_info::view_type const& str,
-				ctype_info::view_type const& delim,
-				ptrdiff_t until
-			) noexcept -> GENERATOR_TY<typename ctype_info::view_type>
+			auto operator()(StringPolicy::Result::as_generator_t, view_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
+				-> GENERATOR_TY<view_type>
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
 
@@ -2706,14 +2357,11 @@ namespace Hydrogenium::String
 				co_return;
 			}
 
-			static constexpr auto Impl(StringPolicy::Result::as_vector_t,
-				ctype_info::view_type const& str,
-				ctype_info::view_type const& delim,
-				ptrdiff_t until
-			) noexcept -> std::vector<typename ctype_info::view_type>
+			constexpr auto operator()(StringPolicy::Result::as_vector_t, view_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
+				-> std::vector<view_type>
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
-				std::vector<typename ctype_info::view_type> ret{};
+				std::vector<view_type> ret{};
 
 				for (auto view = detail::Tok(begin, it, end, delim); !view.empty(); view = detail::Tok(begin, it, end, delim))
 				{
@@ -2727,15 +2375,9 @@ namespace Hydrogenium::String
 #pragma endregion Tok
 
 #pragma region Upr
-		struct upr_fn_t : invoking_policy_t::template pattern_inplace_modity<upr_fn_t, char_type>
+		struct upr_fn_t
 		{
-			using super = invoking_policy_t::template pattern_inplace_modity<upr_fn_t, char_type>;
-			using super::operator();
-
-			using iter_type = decltype(RangePolicy.Begin(typename ctype_info::view_type{}));
-			using value_type = decltype(IterPolicy.ValueOf(iter_type{}));
-
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
 				auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
@@ -2743,7 +2385,7 @@ namespace Hydrogenium::String
 			}
 
 			// return type is void, in the case of in_place mode.
-			static constexpr void Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
+			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
 				// For some reason, it must look like this can the compiler happy about 'accessing released memory'.
 
@@ -2768,38 +2410,25 @@ namespace Hydrogenium
 		using namespace String;
 		using namespace StringPolicy;
 
-		using Str		= Utils<>;
-		using StrI		= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored>;
-		using StrN		= Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
-		using StrNI		= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
-		using StrR		= Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
-		using StrIR		= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
-		using StrNR		= Utils<char, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
-		using StrNIR	= Utils<char, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+		using Str	= Utils<>;
+		using StrI	= Utils<char,		Iterating::as_regular_ptr,	Comparing::case_ignored>;
+		using StrR	= Utils<char,		Iterating::as_regular_ptr,	Comparing::regular,			Direction::back_to_front>;
+		using StrIR	= Utils<char,		Iterating::as_regular_ptr,	Comparing::case_ignored,	Direction::back_to_front>;
 
-		using Wcs = Utils<wchar_t>;
-		using WcsI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored>;
-		using WcsN = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n>;
-		using WcsNI = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n>;
-		using WcsR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
-		using WcsIR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
-		using WcsNR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
-		using WcsNIR = Utils<wchar_t, Iterating::as_regular_ptr, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+		using Wcs	= Utils<wchar_t>;
+		using WcsI	= Utils<wchar_t,	Iterating::as_regular_ptr,	Comparing::case_ignored>;
+		using WcsR	= Utils<wchar_t,	Iterating::as_regular_ptr,	Comparing::regular,			Direction::back_to_front>;
+		using WcsIR	= Utils<wchar_t,	Iterating::as_regular_ptr,	Comparing::case_ignored,	Direction::back_to_front>;
 
-		using Mbs = Utils<char, Iterating::as_multibytes>;
-		using MbsI = Utils<char, Iterating::as_multibytes, Comparing::case_ignored>;
-		using MbsN = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n>;
-		using MbsNI = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_n>;
-		using MbsR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_len, Direction::back_to_front>;
-		using MbsIR = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_len, Direction::back_to_front>;
-		using MbsNR = Utils<char, Iterating::as_multibytes, Comparing::regular, Counter::cap_at_n, Direction::back_to_front>;
-		using MbsNIR = Utils<char, Iterating::as_multibytes, Comparing::case_ignored, Counter::cap_at_n, Direction::back_to_front>;
+		using Mbs	= Utils<char,		Iterating::as_multibytes>;
+		using MbsI	= Utils<char,		Iterating::as_multibytes,	Comparing::case_ignored>;
+		using MbsR	= Utils<char,		Iterating::as_multibytes,	Comparing::regular,			Direction::back_to_front>;
+		using MbsIR	= Utils<char,		Iterating::as_multibytes,	Comparing::case_ignored,	Direction::back_to_front>;
 
 		inline constexpr auto MbsCSpn = Utils<
 			char,
 			Iterating::as_multibytes,
 			Comparing::regular,
-			Counter::cap_at_len,
 			Direction::front_to_back,
 			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
 		> ::PBrk;
@@ -2808,7 +2437,6 @@ namespace Hydrogenium
 			char,
 			Iterating::as_multibytes,
 			Comparing::regular,
-			Counter::cap_at_len,
 			Direction::front_to_back,
 			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
 		> ::SpnP;
@@ -2817,7 +2445,6 @@ namespace Hydrogenium
 			char,
 			Iterating::as_multibytes,
 			Comparing::regular,
-			Counter::cap_at_len,
 			Direction::back_to_front,
 			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
 		> ::PBrk;
@@ -2826,7 +2453,6 @@ namespace Hydrogenium
 			char,
 			Iterating::as_multibytes,
 			Comparing::regular,
-			Counter::cap_at_len,
 			Direction::back_to_front,
 			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
 		> ::SpnP;
@@ -2834,30 +2460,18 @@ namespace Hydrogenium
 
 	using detail::strutl_decl::Str;
 	using detail::strutl_decl::StrI;
-	using detail::strutl_decl::StrN;
-	using detail::strutl_decl::StrNI;
 	using detail::strutl_decl::StrR;
 	using detail::strutl_decl::StrIR;
-	using detail::strutl_decl::StrNR;
-	using detail::strutl_decl::StrNIR;
 
 	using detail::strutl_decl::Wcs;
 	using detail::strutl_decl::WcsI;
-	using detail::strutl_decl::WcsN;
-	using detail::strutl_decl::WcsNI;
 	using detail::strutl_decl::WcsR;
 	using detail::strutl_decl::WcsIR;
-	using detail::strutl_decl::WcsNR;
-	using detail::strutl_decl::WcsNIR;
 
 	using detail::strutl_decl::Mbs;
 	using detail::strutl_decl::MbsI;
-	using detail::strutl_decl::MbsN;
-	using detail::strutl_decl::MbsNI;
 	using detail::strutl_decl::MbsR;
 	using detail::strutl_decl::MbsIR;
-	using detail::strutl_decl::MbsNR;
-	using detail::strutl_decl::MbsNIR;
 
 	using detail::strutl_decl::MbsCSpn;
 	using detail::strutl_decl::MbsSpn;
