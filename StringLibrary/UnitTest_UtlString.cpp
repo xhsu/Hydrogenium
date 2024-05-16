@@ -282,5 +282,5 @@ int main(int, char* []) noexcept
 {
 	UnitTest_StrTok();	// Run-time only.
 
-	//UnitTest_Runtime();
+	UnitTest_Runtime();
 }

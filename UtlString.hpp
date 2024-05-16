@@ -1812,6 +1812,8 @@ namespace Hydrogenium::StringPolicy::Result
 	// Tok
 	struct as_generator_t final {};	// #UPDATE_AT_CPP23 generator
 	struct as_vector_t final {};
+	inline constexpr auto as_generator = as_generator_t{};
+	inline constexpr auto as_vector = as_vector_t{};
 
 	template <typename Q, typename T, typename C, typename M>
 	struct postprocessor_t final
@@ -1846,13 +1848,16 @@ namespace Hydrogenium::String::Functors::Components
 
 			return true;
 		}
+
+		// Just keep compiler happy.
+		constexpr void operator() () const noexcept = delete;
 	};
 
 	template <typename CFinal, template <typename, typename> class TFirst, template <typename, typename> class... TRests>
-	struct Linker : TFirst<CFinal, Linker<CFinal, TRests...>> {};
+	struct Linker : TFirst<CFinal, Linker<CFinal, TRests...>> { using TFirst<CFinal, Linker<CFinal, TRests...>>::operator(); };
 
 	template <typename CFinal, template <typename, typename> class TFirst>
-	struct Linker<CFinal, TFirst> : TFirst<CFinal, base_comp_t> {};
+	struct Linker<CFinal, TFirst> : TFirst<CFinal, base_comp_t> { using TFirst<CFinal, base_comp_t>::operator(); };
 
 	// Iterating
 
@@ -1909,7 +1914,8 @@ namespace Hydrogenium::String::Functors::Components
 		struct view : Base
 		{
 			using invk_sig = view;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			using Base::operator();
+			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
 			// This is the ONLY way to access type definition within the final type.
 			template <typename CFinal = CIncompleteType>
@@ -1939,7 +1945,8 @@ namespace Hydrogenium::String::Functors::Components
 		struct nullable_view : Base
 		{
 			using invk_sig = nullable_view;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			using Base::operator();
+			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
 			// This is the ONLY way to access type definition within the final type.
 			template <typename CFinal = CIncompleteType>
@@ -1954,7 +1961,8 @@ namespace Hydrogenium::String::Functors::Components
 		struct ptr : Base
 		{
 			using invk_sig = ptr;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			using Base::operator();
+			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
 			// This is the ONLY way to access type definition within the final type.
 			template <typename CFinal = CIncompleteType>
@@ -1986,7 +1994,8 @@ namespace Hydrogenium::String::Functors::Components
 		struct view : Base
 		{
 			using invk_sig = view;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			using Base::operator();
+			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
 			template <typename CFinal = CIncompleteType>
 			[[nodiscard]]
@@ -2004,7 +2013,7 @@ namespace Hydrogenium::String::Functors::Components
 
 			template <typename CFinal = CIncompleteType>
 			[[nodiscard]]
-			constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::char_type ch) const noexcept
+			constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::ctype_info::param_type ch) const noexcept
 			{
 				return CFinal::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
 			}
@@ -2028,7 +2037,8 @@ namespace Hydrogenium::String::Functors::Components
 		struct ptr : Base
 		{
 			using invk_sig = ptr;
-			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			using Base::operator();
+			//static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
 			template <typename CFinal = CIncompleteType>
 			[[nodiscard]]
@@ -2075,7 +2085,7 @@ namespace Hydrogenium::String::Functors::Components
 		[[nodiscard]]
 		__forceinline static constexpr decltype(auto) Transform(auto&& arg0) noexcept
 		{
-			return std::forward<decltype(arg0)>(arg0);
+			return std::move(arg0);
 		}
 
 		// Dup(Rev), Lwr, Upr => Unsupported.
@@ -2197,9 +2207,13 @@ namespace Hydrogenium::String::Functors::Components
 		using policy_ret = ret_as_unmanaged;
 		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
 
+		// Keep this two as auto&&
+		// The input can be iter of std::string
+
 		template <typename proj_t = std::identity, typename CFinal = CIncompleteType>
 		[[nodiscard]]
-		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& first, CFinal::iter_type const& last, proj_t proj = {}) noexcept
+		__forceinline static constexpr decltype(auto) Transform(auto&& first, auto&& last, proj_t proj = {}) noexcept
+			requires(typeid(*first) == typeid(*last) && typeid(*last) == typeid(CFinal::char_type))
 		{
 			return StringPolicy::Result::as_unmanaged_t{}(first, last, typename CFinal::policy_iter{}, proj);
 		}
@@ -2211,9 +2225,13 @@ namespace Hydrogenium::String::Functors::Components
 		using policy_ret = ret_as_marshaled;
 		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
 
+		// Keep this two as auto&&
+		// The input can be iter of std::string
+
 		template <typename proj_t = std::identity, typename CFinal = CIncompleteType>
 		[[nodiscard]]
-		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& first, CFinal::iter_type const& last, proj_t proj = {}) noexcept
+		__forceinline static constexpr decltype(auto) Transform(auto&& first, auto&& last, proj_t proj = {}) noexcept
+			requires(typeid(*first) == typeid(*last) && typeid(*last) == typeid(CFinal::char_type))
 		{
 			return StringPolicy::Result::as_marshaled_t{}(first, last, typename CFinal::policy_iter{}, proj);
 		}
