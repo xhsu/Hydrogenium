@@ -1833,7 +1833,20 @@ namespace Hydrogenium::StringPolicy::Result
 
 namespace Hydrogenium::String::Functors::Components
 {
-	struct base_comp_t {};
+	struct base_comp_t
+	{
+		template <typename CFinal>
+		static consteval bool VerifyComponents()
+		{
+			static_assert(requires{ typename CFinal::policy_iter; }, "Requires an iterator policy component.");
+			static_assert(requires{ typename CFinal::policy_cmp; }, "Requires an comparator policy component.");
+			static_assert(requires{ typename CFinal::invk_sig; }, "Requires an invoking policy component.");
+			static_assert(requires{ typename CFinal::policy_dir; }, "Requires an searching direction policy component.");
+			static_assert(requires{ typename CFinal::policy_ret; }, "Requires an return transforming policy component.");
+
+			return true;
+		}
+	};
 
 	template <typename CFinal, template <typename, typename> class TFirst, template <typename, typename> class... TRests>
 	struct Linker : TFirst<CFinal, Linker<CFinal, TRests...>> {};
@@ -2037,6 +2050,44 @@ namespace Hydrogenium::String::Functors::Components
 	};
 
 	// Result #CONTINUE_FROM_HERE
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_it_is : Base
+	{
+		using policy_ret = ret_as_it_is;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		// Chr, SpnP(Spn), PBrk(CSpn), Str, Tok
+		template <typename CFinal = CIncompleteType>
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& /*abs_begin*/, CFinal::iter_type const& /*abs_end*/, CFinal::iter_type const& result_loc) noexcept
+		{
+			return result_loc;
+		}
+
+		// Cmp
+		[[nodiscard]]
+		__forceinline static constexpr int Transform(std::same_as<int> auto val) noexcept
+		{
+			return val;
+		}
+
+		// Cnt(Len)
+		[[nodiscard]]
+		__forceinline static constexpr size_t Transform(std::same_as<size_t> auto val) noexcept
+		{
+			return val;
+		}
+
+		// Dup(Rev), Lwr, Upr => Unsupported.
+
+		// Tok
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(auto&& view) noexcept
+		{
+			return std::forward<decltype(view)>(view);
+		}
+	};
 }
 
 namespace Hydrogenium::String
@@ -2186,7 +2237,7 @@ namespace Hydrogenium::String
 			}
 
 			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
-			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept -> ctype_info::view_type
+			__forceinline static constexpr auto PBrk(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept
 			{
 				// the src is NOT order-sensitive, it's no more than a set of what to search.
 				// hence no range function put onto src.
@@ -2217,17 +2268,7 @@ namespace Hydrogenium::String
 				// why can't I use goto in constexpr?!
 			//LAB_POST_FINDING:;
 
-				if (s1 == e1)
-					return { dest.end(), dest.end() };
-
-				if constexpr (RangePolicy.is_reverse)
-				{
-					return { ToForwardIter(s1), ToForwardIter(b1, false) };
-				}
-				else
-				{
-					return { s1, e1 };
-				}
+				return std::make_tuple(std::move(b1), std::move(e1), std::move(s1));
 			}
 
 			// Rev - o -> string; Use Dup instead.
@@ -2371,9 +2412,10 @@ namespace Hydrogenium::String
 			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
 				-> decltype(RsltProc.Query(dest, src, IterPolicy))
 			{
+				auto [begin, end, it] = detail::PBrk(dest, src, count, false);
+
 				return RsltProc.Query(
-					dest,
-					detail::PBrk(dest, src, count, false),
+					begin, end, it,
 					IterPolicy
 				);
 			}
@@ -2390,9 +2432,10 @@ namespace Hydrogenium::String
 			static constexpr auto Impl(ctype_info::view_type const& dest, ctype_info::view_type const& src, ptrdiff_t count) noexcept
 				-> decltype(RsltProc.Query(dest, src, IterPolicy))
 			{
+				auto [begin, end, it] = detail::PBrk(dest, src, count, true);
+
 				return RsltProc.Query(
-					dest,
-					detail::PBrk(dest, src, count, true),
+					begin, end, it,
 					IterPolicy
 				);
 			}
@@ -2618,6 +2661,10 @@ namespace Hydrogenium
 	using detail::strutl_decl::MbsRCSpn;
 	using detail::strutl_decl::MbsRSpn;
 }
+
+#ifdef GENERATOR_TY
+#undef GENERATOR_TY
+#endif
 
 
 
