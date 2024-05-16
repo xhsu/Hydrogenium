@@ -15,7 +15,7 @@ namespace Hydrogenium::Laboratory
 		template <typename, typename> class TComparator = Functors::Components::cmp_default,
 		template <typename, typename> class TDirection = Functors::Components::dir_forward,
 		template <typename, typename> class TIterator = Functors::Components::iter_default,
-		typename CInvokingCollection = Functors::Components::callsig_cap_at_len,
+
 		template <typename, typename> class TCountRes = Functors::Components::ret_as_it_is,
 		template <typename, typename> class TModifyRes = Functors::Components::ret_as_marshaled,
 		template <typename, typename> class TQueryRes = Functors::Components::ret_as_it_is,
@@ -121,12 +121,12 @@ namespace Hydrogenium::Laboratory
 
 
 #pragma region Chr
-		struct chr_fn_t : Linker<chr_fn_t, TIterator, TComparator, CInvokingCollection::template view_char, TDirection, TQueryRes>
+		struct chr_fn_t : Linker<chr_fn_t, TIterator, TComparator, TDirection, TQueryRes>
 		{
-			using super = Linker<chr_fn_t, TIterator, TComparator, CInvokingCollection::template view_char, TDirection, TQueryRes>;
+			using super = Linker<chr_fn_t, TIterator, TComparator, TDirection, TQueryRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(view_type const& str, ctype_info::param_type ch, ptrdiff_t until) noexcept
+			constexpr auto operator()(view_type const& str, ctype_info::param_type ch, ptrdiff_t until = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(policy_dir::Begin(str), policy_dir::End(str), policy_dir::Begin(str)))
 			{
 				auto [begin, it, end]
@@ -145,12 +145,12 @@ namespace Hydrogenium::Laboratory
 #pragma endregion Chr
 
 #pragma region Cmp
-		struct cmp_fn_t : Linker<cmp_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TTestRes>
+		struct cmp_fn_t : Linker<cmp_fn_t, TIterator, TComparator, TDirection, TTestRes>
 		{
-			using super = Linker<cmp_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TTestRes>;
+			using super = Linker<cmp_fn_t, TIterator, TComparator, TDirection, TTestRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(ctype_info::view_type const& lhs, ctype_info::view_type const& rhs, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& lhs, view_type const& rhs, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(0))
 			{
 				auto [b1, s1, e1] = policy_iter::Get(lhs, policy_dir{}, count);
@@ -176,12 +176,12 @@ namespace Hydrogenium::Laboratory
 #pragma endregion Cmp
 
 #pragma region Cnt
-		struct cnt_fn_t : Linker<cnt_fn_t, TIterator, TComparator, CInvokingCollection::template view, TDirection, TCountRes>
+		struct cnt_fn_t : Linker<cnt_fn_t, TIterator, TComparator, TDirection, TCountRes>
 		{
-			using super = Linker<cnt_fn_t, TIterator, TComparator, CInvokingCollection::template view, TDirection, TCountRes>;
+			using super = Linker<cnt_fn_t, TIterator, TComparator, TDirection, TCountRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(size_t{}))
 			{
 				auto [begin, it, end] = policy_iter::Get(str, policy_dir{}, count);
@@ -196,12 +196,12 @@ namespace Hydrogenium::Laboratory
 #pragma endregion Cnt
 
 #pragma region Dup
-		struct dup_fn_t : Linker<dup_fn_t, TIterator, TComparator, CInvokingCollection::template view, TDirection, TModifyRes>
+		struct dup_fn_t : Linker<dup_fn_t, TIterator, TComparator, TDirection, TModifyRes>
 		{
-			using super = Linker<dup_fn_t, TIterator, TComparator, CInvokingCollection::template view, TDirection, TModifyRes>;
+			using super = Linker<dup_fn_t, TIterator, TComparator, TDirection, TModifyRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(policy_dir::Begin(str), policy_dir::End(str)))
 			{
 				auto [_, it, logical_end] = policy_iter::Get(str, policy_dir{}, count);
@@ -214,12 +214,12 @@ namespace Hydrogenium::Laboratory
 #pragma endregion Dup
 
 #pragma region Lwr
-		struct lwr_fn_t : Linker<lwr_fn_t, TIterator, TComparator, CInvokingCollection::template view, CInvokingCollection::template ptr, TDirection, TModifyRes>
+		struct lwr_fn_t : Linker<lwr_fn_t, TIterator, TComparator, TDirection, TModifyRes>
 		{
-			using super = Linker<lwr_fn_t, TIterator, TComparator, CInvokingCollection::template view, CInvokingCollection::template ptr, TDirection, TModifyRes>;
+			using super = Linker<lwr_fn_t, TIterator, TComparator, TDirection, TModifyRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(policy_dir::Begin(str), policy_dir::End(str), &CType<value_type>::ToLower))
 			{
 				auto [_, it, end] = policy_iter::Get(str, policy_dir{}, count);
@@ -228,12 +228,12 @@ namespace Hydrogenium::Laboratory
 			}
 
 			// return type is void, in the case of in_place mode.
-			static constexpr void Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
+			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
 				auto [_, it, end] = policy_iter::Get(*pstr, policy_dir{}, count);
 
 				static_assert(
-					typeid(decltype(policy_ret::Transform(it, end, &CType<value_type>::ToLower))) == typeid(typename ctype_info::owner_type),
+					typeid(policy_ret::Transform(it, end, &CType<value_type>::ToLower)) == typeid(typename ctype_info::owner_type),
 					"Lwr() method must be used with marshaled returning types."
 				);
 
@@ -244,12 +244,12 @@ namespace Hydrogenium::Laboratory
 #pragma endregion Lwr
 
 #pragma region PBrk
-		struct pbrk_fn_t : Linker<pbrk_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TQueryRes>
+		struct pbrk_fn_t : Linker<pbrk_fn_t, TIterator, TComparator, TDirection, TQueryRes>
 		{
-			using super = Linker<pbrk_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TQueryRes>;
+			using super = Linker<pbrk_fn_t, TIterator, TComparator, TDirection, TQueryRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::view_type const& charset, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, view_type const& charset, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(policy_dir::Begin(str), policy_dir::End(str), policy_dir::Begin(str)))
 			{
 				auto [begin, end, it] = detail::template PBrk<pbrk_fn_t, false>(str, charset, count);
@@ -261,12 +261,12 @@ namespace Hydrogenium::Laboratory
 #pragma endregion PBrk
 
 #pragma region SpnP
-		struct spnp_fn_t : Linker<spnp_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TQueryRes>
+		struct spnp_fn_t : Linker<spnp_fn_t, TIterator, TComparator, TDirection, TQueryRes>
 		{
-			using super = Linker<spnp_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TQueryRes>;
+			using super = Linker<spnp_fn_t, TIterator, TComparator, TDirection, TQueryRes>;
 			INHERIT_TYPEDEFS;
 
-			static constexpr auto Impl(ctype_info::view_type const& str, ctype_info::view_type const& charset, ptrdiff_t count) noexcept
+			constexpr auto operator()(view_type const& str, view_type const& charset, ptrdiff_t count = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(policy_dir::Begin(str), policy_dir::End(str), policy_dir::Begin(str)))
 			{
 				auto [begin, end, it] = detail::template PBrk<spnp_fn_t, true>(str, charset, count);
@@ -278,9 +278,9 @@ namespace Hydrogenium::Laboratory
 #pragma endregion SpnP
 
 #pragma region Str
-		struct str_fn_t : Linker<str_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TQueryRes>
+		struct str_fn_t : Linker<str_fn_t, TIterator, TComparator, TDirection, TQueryRes>
 		{
-			using super = Linker<str_fn_t, TIterator, TComparator, CInvokingCollection::template view_view, TDirection, TQueryRes>;
+			using super = Linker<str_fn_t, TIterator, TComparator, TDirection, TQueryRes>;
 			INHERIT_TYPEDEFS;
 
 			using HelperUtl = Utils<
@@ -288,7 +288,7 @@ namespace Hydrogenium::Laboratory
 				TComparator,
 				Functors::Components::dir_forward,
 				TIterator,
-				Functors::Components::callsig_cap_at_n,
+
 				TCountRes,
 				TModifyRes,
 				TQueryRes,
@@ -296,7 +296,7 @@ namespace Hydrogenium::Laboratory
 				Functors::Components::ret_as_it_is
 			>;
 
-			static constexpr auto Impl(view_type const& str, view_type const& substr, ptrdiff_t until) noexcept
+			constexpr auto operator()(view_type const& str, view_type const& substr, ptrdiff_t until = detail::default_search_len) const noexcept
 				-> decltype(policy_ret::Transform(policy_dir::Begin(str), policy_dir::End(str), policy_dir::Begin(str)))
 			{
 				// Searching direction is nothing to do with comparing direction!!

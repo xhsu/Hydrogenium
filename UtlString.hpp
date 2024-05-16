@@ -2450,7 +2450,19 @@ namespace Hydrogenium::String
 				return BuildStringView(tokenBegin, it, end, false);
 			}
 
-			// Upr - o -> string
+			// Upr - o -> string; For some reason compiler will complain about 'accessing released memory' if no helper function present.
+			__forceinline static constexpr auto Upr(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			{
+				auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
+
+				constexpr auto to_upper =
+					[](decltype(IterPolicy.ValueOf(it)) ch) noexcept -> decltype(ch)
+					{
+						return CType<decltype(ch)>::ToUpper(ch);
+					};
+
+				return std::make_tuple(std::move(it), std::move(end), to_upper);
+			}
 		};
 
 #pragma region Chr
@@ -2534,20 +2546,25 @@ namespace Hydrogenium::String
 			using super = invoking_policy_t::template pattern_inplace_modity<lwr_fn_t, char_type>;
 			using super::operator();
 
+			using iter_type = decltype(RangePolicy.Begin(typename ctype_info::view_type{}));
+			using value_type = decltype(IterPolicy.ValueOf(iter_type{}));
+
 			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
 			{
-				auto [it, end, functor] = detail::Lwr(str, count);
+			auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
 
-				return RsltProc.Modify(it, end, IterPolicy, functor);
+				return RsltProc.Modify(it, end, IterPolicy, &CType<value_type>::ToLower);
 			}
 
 			// return type is void, in the case of in_place mode.
 			static constexpr void Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
 			{
+				// For some reason, it must look like this can the compiler happy about 'accessing released memory'.
+
 				auto [it, end, functor] = detail::Lwr(*pstr, count);
 
 				static_assert(
-					typeid(decltype(RsltProc.Modify(it, end, IterPolicy, functor))) == typeid(typename ctype_info::owner_type),
+					typeid(RsltProc.Modify(it, end, IterPolicy, functor)) == typeid(typename ctype_info::owner_type),
 					"Lwr() method must be used with marshaled returning types."
 				);
 				*pstr = RsltProc.Modify(it, end, IterPolicy, functor);
@@ -2708,6 +2725,39 @@ namespace Hydrogenium::String
 		};
 		static inline constexpr auto Tok = tok_fn_t{};
 #pragma endregion Tok
+
+#pragma region Upr
+		struct upr_fn_t : invoking_policy_t::template pattern_inplace_modity<upr_fn_t, char_type>
+		{
+			using super = invoking_policy_t::template pattern_inplace_modity<upr_fn_t, char_type>;
+			using super::operator();
+
+			using iter_type = decltype(RangePolicy.Begin(typename ctype_info::view_type{}));
+			using value_type = decltype(IterPolicy.ValueOf(iter_type{}));
+
+			static constexpr auto Impl(ctype_info::view_type const& str, ptrdiff_t count) noexcept
+			{
+				auto [_, it, end] = IterPolicy.Get(str, RangePolicy, count);
+
+				return RsltProc.Modify(it, end, IterPolicy, &CType<value_type>::ToUpper);
+			}
+
+			// return type is void, in the case of in_place mode.
+			static constexpr void Impl(ctype_info::owner_type* pstr, ptrdiff_t count) noexcept
+			{
+				// For some reason, it must look like this can the compiler happy about 'accessing released memory'.
+
+				auto [it, end, functor] = detail::Upr(*pstr, count);
+
+				static_assert(
+					typeid(RsltProc.Modify(it, end, IterPolicy, functor)) == typeid(typename ctype_info::owner_type),
+					"Upr() method must be used with marshaled returning types."
+				);
+				*pstr = RsltProc.Modify(it, end, IterPolicy, functor);
+			}
+		};
+		static inline constexpr auto Upr = upr_fn_t{};
+#pragma endregion Upr
 	};
 }
 

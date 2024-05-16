@@ -124,7 +124,6 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsN::Cmp(WcsNR::Lwr(ELL_ALPHABET_UPPER_FWD_W, 10), ELL_ALPHABET_LOWER_BWD_W, 10) == 0);
 	static_assert(MbsN::Cmp(MbsNR::Lwr(UKR_ALPHABET_UPPER_FWD_U8, 10), UKR_ALPHABET_LOWER_BWD_U8, 10) == 0);
 	static_assert(MbsN::Cmp(MbsNR::Lwr(DEU_ALPHABET_UPPER_FWD_U8, 10), DEU_ALPHABET_LOWER_BWD_U8, 10) == 0);
-#endif
 
 	constexpr bool UnitTest_StrLwr() noexcept
 	{
@@ -134,6 +133,7 @@ namespace Hydrogenium::String::UnitTest
 		return Mbs::Cmp(str, DEU_ALPHABET_LOWER_BWD_U8) == 0;
 	}
 	static_assert(UnitTest_StrLwr());	// purpose: testing in_place usage.
+#endif
 }
 
 // PBrk, SpnP, CSpn, Spn
@@ -269,6 +269,32 @@ namespace Hydrogenium::String::UnitTest
 		assert(UnitTest_StrTok_AllStyles<MbsIR>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" } | std::views::reverse));
 		assert(Str::Tok(std::nullopt, "").empty());	// purpose: test how the residue from different calls handled.
 	}
+}
+
+// Upr
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(StrR::Upr(ENG_ALPHABET_LOWER_FWD) == ENG_ALPHABET_UPPER_BWD);
+	static_assert(StrN::Cmp(StrNR::Upr(ENG_ALPHABET_LOWER_FWD, 10), ENG_ALPHABET_UPPER_BWD, 10) == 0);
+
+#ifdef HYDROGENIUM_UTL_UNICODE
+	static_assert(Mbs::Cmp(MbsR::Upr(UKR_ALPHABET_LOWER_FWD_U8), UKR_ALPHABET_UPPER_BWD_U8) == 0); // #MSVC_BUGGED_compile_time_utf8
+	static_assert(Mbs::Cmp(MbsR::Upr(DEU_ALPHABET_LOWER_FWD_U8), DEU_ALPHABET_UPPER_BWD_U8) == 0);
+	static_assert(WcsR::Upr(ELL_ALPHABET_LOWER_FWD_W) == ELL_ALPHABET_UPPER_BWD_W);
+
+	static_assert(WcsN::Cmp(WcsNR::Upr(ELL_ALPHABET_LOWER_FWD_W, 10), ELL_ALPHABET_UPPER_BWD_W, 10) == 0);
+	static_assert(MbsN::Cmp(MbsNR::Upr(UKR_ALPHABET_LOWER_FWD_U8, 10), UKR_ALPHABET_UPPER_BWD_U8, 10) == 0);
+	static_assert(MbsN::Cmp(MbsNR::Upr(DEU_ALPHABET_LOWER_FWD_U8, 10), DEU_ALPHABET_UPPER_BWD_U8, 10) == 0);
+
+	constexpr bool UnitTest_StrUpr() noexcept
+	{
+		std::string str{ DEU_ALPHABET_LOWER_FWD_U8 };
+		MbsR::Upr(&str);
+
+		return Mbs::Cmp(str, DEU_ALPHABET_UPPER_BWD_U8) == 0;
+	}
+	static_assert(UnitTest_StrUpr());	// purpose: testing in_place usage.
+#endif
 }
 
 
