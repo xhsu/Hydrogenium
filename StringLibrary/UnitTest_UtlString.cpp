@@ -3,7 +3,7 @@
 
 
 
-using namespace Hydrogenium::StringPolicy;
+using namespace Hydrogenium::String;
 using namespace Hydrogenium::UnitTest;
 using namespace Hydrogenium;
 
@@ -263,16 +263,13 @@ namespace Hydrogenium::String::UnitTest
 
 
 
+using namespace std;
+using namespace Hydrogenium::String::UnitTest;
+
 extern void UnitTest_Runtime();
 
 int main(int, char* []) noexcept
 {
-	using namespace std;
-	using namespace Hydrogenium;
-	using namespace Hydrogenium::String;
-	using namespace Hydrogenium::UnitTest;
-	using namespace Hydrogenium::String::UnitTest;
-
 	UnitTest_StrTok();	// Run-time only.
 
 	//UnitTest_Runtime();
