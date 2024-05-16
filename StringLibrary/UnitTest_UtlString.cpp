@@ -35,15 +35,6 @@ namespace Hydrogenium::String::UnitTest
 
 	// Mbs series
 
-	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
-	static_assert(Mbs::Cnt(u8"Ἡράκλειος") == 9);
-	static_assert(Mbs::Cnt(u8"Héraclius") == 9);
-	static_assert(Mbs::Cnt(u8"Ираклий") == 7);
-	static_assert(Mbs::Cnt(u8"ヘラクレイオス") == 7);
-	static_assert(Mbs::Cnt(u8"希拉克略") == 4);
-	static_assert(MbsN::Cnt(u8"Heráclio", 5) == 5);
-	static_assert(MbsN::Cnt(u8"Іраклій", 0x100) == 7);
-
 	static_assert(Mbs::Chr(u8"你好", '\xE5').empty() && Str::Chr(u8"你好", '\xE5') == u8"好");	// u8"好" == 0xE5 0xA5 0xBD
 
 	static_assert(MbsN::Cmp(u8"你好", u8"你好嗎", 2) == 0 && MbsN::Cmp(u8"你好", u8"你好嗎", 3) < 0);
@@ -59,6 +50,25 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsI::Cmp(UKR_ALPHABET_LOWER_FWD_U8, UKR_ALPHABET_UPPER_FWD_U8) == 0);
 	static_assert(MbsI::Cmp(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_UPPER_FWD_U8) == 0);
 #endif
+}
+
+// Cnt
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
+	static_assert(Mbs::Cnt(u8"Ἡράκλειος") == 9);
+	static_assert(Mbs::Cnt(u8"Héraclius") == 9);
+	static_assert(Mbs::Cnt(u8"Ираклий") == 7);
+	static_assert(Mbs::Cnt(u8"ヘラクレイオス") == 7);
+	static_assert(Mbs::Cnt(u8"希拉克略") == 4);
+	static_assert(MbsN::Cnt(u8"Heráclio", 5) == 5);
+	static_assert(MbsN::Cnt(u8"Іраклій", 0x100) == 7);
+
+	static_assert(Str::Cnt(ASCII_NUMBERS_FWD) == StrR::Cnt(ASCII_NUMBERS_BWD));
+	static_assert(Wcs::Cnt(RMN_NUMBERS_FWD_W) == WcsR::Cnt(RMN_NUMBERS_BWD_W));
+	static_assert(Mbs::Cnt(CJK_NUMBERS_FWD_U8) == MbsR::Cnt(CJK_NUMBERS_BWD_U8));
+	static_assert(Mbs::Cnt(DEU_ALPHABET_UPPER_FWD_U8) == MbsR::Cnt(DEU_ALPHABET_LOWER_FWD_U8));
+	static_assert(MbsN::Cnt(DEU_ALPHABET_UPPER_BWD_U8, 10) == MbsNR::Cnt(DEU_ALPHABET_LOWER_BWD_U8, 10));
 }
 
 // Dup, Rev
