@@ -1810,9 +1810,7 @@ namespace Hydrogenium::StringPolicy::Result
 	};
 
 	// Tok
-	struct as_generator_t final	// #UPDATE_AT_CPP23 generator
-	{
-	};
+	struct as_generator_t final {};	// #UPDATE_AT_CPP23 generator
 	struct as_vector_t final {};
 
 	template <typename Q, typename T, typename C, typename M>
@@ -1835,6 +1833,8 @@ namespace Hydrogenium::String::Functors::Components
 {
 	struct base_comp_t
 	{
+		// Only for non-dependented name, quick diagnosis.
+		// https://en.cppreference.com/w/cpp/language/dependent_name
 		template <typename CFinal>
 		static consteval bool VerifyComponents()
 		{
@@ -1888,149 +1888,155 @@ namespace Hydrogenium::String::Functors::Components
 
 	// Calling Signiture #UPDATE_AT_CPP23 static operator()
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_view_view_size : Base
+	struct callsig_cap_at_n final
 	{
-		using invk_sig = callsig_view_view_size;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-		// This is the ONLY way to access type definition within the final type.
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::view_type lhs, CFinal::view_type rhs, ptrdiff_t count) const noexcept
+		template <typename CIncompleteType, typename Base>
+		struct view_view : Base
 		{
-			return CFinal::Impl(lhs, rhs, count);
-		}
+			using invk_sig = view_view;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+
+			// This is the ONLY way to access type definition within the final type.
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::view_type lhs, CFinal::view_type rhs, ptrdiff_t count) const noexcept
+			{
+				return CFinal::Impl(lhs, rhs, count);
+			}
+		};
+
+		template <typename CIncompleteType, typename Base>
+		struct view : Base
+		{
+			using invk_sig = view;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+
+			// This is the ONLY way to access type definition within the final type.
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::view_type view, ptrdiff_t count) const noexcept
+			{
+				return CFinal::Impl(view, count);
+			}
+		};
+
+		template <typename CIncompleteType, typename Base>
+		struct view_char : Base
+		{
+			using invk_sig = view_char;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+
+			// This is the ONLY way to access type definition within the final type.
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::char_type ch, ptrdiff_t count) const noexcept
+			{
+				return CFinal::Impl(str, ch, count);
+			}
+		};
+
+		template <typename CIncompleteType, typename Base>
+		struct nullable_view : Base
+		{
+			using invk_sig = nullable_view;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+
+			// This is the ONLY way to access type definition within the final type.
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (std::optional<typename CFinal::view_type> psz, CFinal::view_type view, ptrdiff_t count) const noexcept
+			{
+				return CFinal::Impl(psz, view, count);
+			}
+		};
+
+		template <typename CIncompleteType, typename Base>
+		struct ptr : Base
+		{
+			using invk_sig = ptr;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+
+			// This is the ONLY way to access type definition within the final type.
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::owner_type* psz, ptrdiff_t count) const noexcept
+			{
+				return CFinal::Impl(psz, count);
+			}
+		};
 	};
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_view_view : Base
+	struct callsig_cap_at_len final
 	{
-		using invk_sig = callsig_view_view;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::view_type lhs, CFinal::view_type rhs) const noexcept
+		template <typename CIncompleteType, typename Base>
+		struct view_view : Base
 		{
-			return CFinal::Impl(lhs, rhs, std::numeric_limits<ptrdiff_t>::max());
-		}
-	};
+			using invk_sig = view_view;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_view_size : Base
-	{
-		using invk_sig = callsig_view_size;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::view_type lhs, CFinal::view_type rhs) const noexcept
+			{
+				return CFinal::Impl(lhs, rhs, std::numeric_limits<ptrdiff_t>::max());
+			}
+		};
 
-		// This is the ONLY way to access type definition within the final type.
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::view_type view, ptrdiff_t count) const noexcept
+		template <typename CIncompleteType, typename Base>
+		struct view : Base
 		{
-			return CFinal::Impl(view, count);
-		}
-	};
+			using invk_sig = view;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_view : Base
-	{
-		using invk_sig = callsig_view;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::view_type view) const noexcept
+			{
+				return CFinal::Impl(view, std::numeric_limits<ptrdiff_t>::max());
+			}
+		};
 
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::view_type view) const noexcept
+		template <typename CIncompleteType, typename Base>
+		struct view_char : Base
 		{
-			return CFinal::Impl(view, std::numeric_limits<ptrdiff_t>::max());
-		}
-	};
+			using invk_sig = view_char;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_view_char_size : Base
-	{
-		using invk_sig = callsig_view_char_size;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::char_type ch) const noexcept
+			{
+				return CFinal::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
+			}
+		};
 
-		// This is the ONLY way to access type definition within the final type.
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::char_type ch, ptrdiff_t count) const noexcept
+		template <typename CIncompleteType, typename Base>
+		struct nullable_view : Base
 		{
-			return CFinal::Impl(str, ch, count);
-		}
-	};
+			using invk_sig = nullable_view;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_view_char : Base
-	{
-		using invk_sig = callsig_view_char;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (std::optional<typename CFinal::view_type> psz, CFinal::view_type view) const noexcept
+			{
+				return CFinal::Impl(psz, view, std::numeric_limits<ptrdiff_t>::max());
+			}
+		};
 
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::view_type str, CFinal::char_type ch) const noexcept
+		template <typename CIncompleteType, typename Base>
+		struct ptr : Base
 		{
-			return CFinal::Impl(str, ch, std::numeric_limits<ptrdiff_t>::max());
-		}
-	};
+			using invk_sig = ptr;
+			static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
 
-	template <typename CIncompleteType, typename Base>
-	struct callsig_nullable_view_size : Base
-	{
-		using invk_sig = callsig_nullable_view_size;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-		// This is the ONLY way to access type definition within the final type.
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (std::optional<typename CFinal::view_type> psz, CFinal::view_type view, ptrdiff_t count) const noexcept
-		{
-			return CFinal::Impl(psz, view, count);
-		}
-	};
-
-	template <typename CIncompleteType, typename Base>
-	struct callsig_nullable_view : Base
-	{
-		using invk_sig = callsig_nullable_view;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (std::optional<typename CFinal::view_type> psz, CFinal::view_type view) const noexcept
-		{
-			return CFinal::Impl(psz, view, std::numeric_limits<ptrdiff_t>::max());
-		}
-	};
-
-	template <typename CIncompleteType, typename Base>
-	struct callsig_ptr_size : Base
-	{
-		using invk_sig = callsig_ptr_size;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-		// This is the ONLY way to access type definition within the final type.
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::owner_type* psz, ptrdiff_t count) const noexcept
-		{
-			return CFinal::Impl(psz, count);
-		}
-	};
-
-	template <typename CIncompleteType, typename Base>
-	struct callsig_ptr : Base
-	{
-		using invk_sig = callsig_ptr;
-		static_assert(!requires{ typename Base::invk_sig; }, "Only one calling signiture allowed!");
-
-		template <typename CFinal = CIncompleteType>
-		[[nodiscard]]
-		constexpr decltype(auto) operator() (CFinal::owner_type* psz) const noexcept
-		{
-			return CFinal::Impl(psz, std::numeric_limits<ptrdiff_t>::max());
-		}
+			template <typename CFinal = CIncompleteType>
+			[[nodiscard]]
+			constexpr decltype(auto) operator() (CFinal::owner_type* psz) const noexcept
+			{
+				return CFinal::Impl(psz, std::numeric_limits<ptrdiff_t>::max());
+			}
+		};
 	};
 
 	// Direction
