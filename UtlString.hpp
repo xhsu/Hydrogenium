@@ -2065,29 +2065,158 @@ namespace Hydrogenium::String::Functors::Components
 			return result_loc;
 		}
 
-		// Cmp
+		// Cmp, Cnt(Len), Tok
 		[[nodiscard]]
-		__forceinline static constexpr int Transform(std::same_as<int> auto val) noexcept
+		__forceinline static constexpr decltype(auto) Transform(auto&& arg0) noexcept
 		{
-			return val;
-		}
-
-		// Cnt(Len)
-		[[nodiscard]]
-		__forceinline static constexpr size_t Transform(std::same_as<size_t> auto val) noexcept
-		{
-			return val;
+			return std::forward<decltype(arg0)>(arg0);
 		}
 
 		// Dup(Rev), Lwr, Upr => Unsupported.
+	};
 
-		// Tok
+	// Chr, SpnP(Spn), PBrk(CSpn), Str
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_pointer : Base
+	{
+		using policy_ret = ret_as_pointer;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		template <typename CFinal = CIncompleteType>
 		[[nodiscard]]
-		__forceinline static constexpr decltype(auto) Transform(auto&& view) noexcept
+		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& abs_begin, CFinal::iter_type const& abs_end, CFinal::iter_type const& result_loc) noexcept
 		{
-			return std::forward<decltype(view)>(view);
+			return StringPolicy::Result::as_pointer_t{}(abs_begin, abs_end, result_loc);
 		}
 	};
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_abs_pos : Base
+	{
+		using policy_ret = ret_as_abs_pos;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		template <typename CFinal = CIncompleteType>
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& abs_begin, CFinal::iter_type const& abs_end, CFinal::iter_type const& result_loc) noexcept
+		{
+			return StringPolicy::Result::as_position_t{}(abs_begin, abs_end, result_loc);
+		}
+	};
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_rel_pos : Base
+	{
+		using policy_ret = ret_as_rel_pos;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		template <typename CFinal = CIncompleteType>
+		[[nodiscard]]
+		static constexpr decltype(auto) Transform(CFinal::iter_type const& abs_begin, CFinal::iter_type const& abs_end, CFinal::iter_type const& result_loc) noexcept
+		{
+			using StringPolicy::Iterating::APRES;
+
+			if constexpr (CFinal::policy_iter::normal_pointer)
+			{
+				// program is ill-formed if view_begin is not coming from abs_begin.
+				return result_loc - abs_begin;
+			}
+			else
+			{
+				std::ptrdiff_t counter{};
+				auto const DiscardView = BuildStringView(abs_begin, result_loc, abs_end, false);
+				auto [begin, it, end]
+					= CFinal::policy_iter::Get(DiscardView, typename CFinal::policy_dir{}, std::numeric_limits<ptrdiff_t>::max());
+
+				for (; it < end; ++counter, CFinal::policy_iter::Arithmetic(it, begin, end, 1))
+				{
+					// nothing.
+				}
+
+				return counter;
+			}
+		}
+	};
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_view : Base
+	{
+		using policy_ret = ret_as_view;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		template <typename CFinal = CIncompleteType>
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& abs_begin, CFinal::iter_type const& abs_end, CFinal::iter_type const& result_loc) noexcept
+		{
+			return StringPolicy::Result::as_view_t{}(abs_begin, abs_end, result_loc);
+		}
+	};
+
+	// Cmp
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_stl_ordering : Base
+	{
+		using policy_ret = ret_as_stl_ordering;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(std::same_as<int> auto val) noexcept
+		{
+			return StringPolicy::Result::as_stl_ordering_t{}(val);
+		}
+	};
+
+	// Cnt(Len) #UPDATE_AT_CPP26 sat_cast
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_signed : Base
+	{
+		using policy_ret = ret_as_signed;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(std::same_as<size_t> auto val) noexcept
+		{
+			return StringPolicy::Result::as_signed_t{}(val);
+		}
+	};
+
+	// Dup(Rev), Lwr, Upr
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_unmanaged : Base
+	{
+		using policy_ret = ret_as_unmanaged;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		template <typename proj_t = std::identity, typename CFinal = CIncompleteType>
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& first, CFinal::iter_type const& last, proj_t proj = {}) noexcept
+		{
+			return StringPolicy::Result::as_unmanaged_t{}(first, last, typename CFinal::policy_iter{}, proj);
+		}
+	};
+
+	template <typename CIncompleteType, typename Base>
+	struct ret_as_marshaled : Base
+	{
+		using policy_ret = ret_as_marshaled;
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
+
+		template <typename proj_t = std::identity, typename CFinal = CIncompleteType>
+		[[nodiscard]]
+		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& first, CFinal::iter_type const& last, proj_t proj = {}) noexcept
+		{
+			return StringPolicy::Result::as_marshaled_t{}(first, last, typename CFinal::policy_iter{}, proj);
+		}
+	};
+
+	// Tok
+
+	// I don't think it is doable.
+	// It's of lazy and active difference.
 }
 
 namespace Hydrogenium::String

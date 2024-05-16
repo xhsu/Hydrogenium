@@ -1,9 +1,11 @@
 ﻿#include "Precompiled.hpp"
 #include "UtlString.hpp"
 
-using namespace Hydrogenium::UnitTest;
-using namespace Hydrogenium::StringPolicy;
+using namespace Hydrogenium::String::Functors::Components;
+using namespace Hydrogenium::String::Functors;
 using namespace Hydrogenium::StringPolicy::Result;
+using namespace Hydrogenium::StringPolicy;
+using namespace Hydrogenium::UnitTest;
 
 using std::string_view;
 
@@ -104,6 +106,36 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		return bResult;
 	}
 	static_assert(UnitTest_Marshaled());
+
+	template <typename I, typename D>
+	static constexpr bool UnitTest_RelativePos(auto&& str, ptrdiff_t GRAPHEME_COUNT = 10) noexcept
+	{
+		struct fake_base {};
+
+		struct fake_functor
+		{
+			using policy_dir = D;
+			using policy_iter = I;
+
+			using view_type = CType<decltype(str[0])>::view_type;
+			using iter_type = decltype(D::Begin(str));
+		};
+
+		constexpr ret_as_rel_pos<fake_functor, fake_base> functor{};
+
+		auto [begin, it, end] = I::Get(str, D{}, 0xFFFF);
+
+		for (ptrdiff_t i = 0; i < GRAPHEME_COUNT; ++i)
+			if (auto const rel = functor.Transform(begin, end, I::ArithCpy(it, begin, end, i)); rel != i)
+				return false;
+
+		return true;
+	}
+	static_assert(UnitTest_RelativePos<Iterating::as_normal_ptr_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
+	static_assert(UnitTest_RelativePos<Iterating::as_normal_ptr_t, Direction::forwards_t>(RMN_NUMBERS_FWD_W));
+	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
+	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::forwards_t>(CJK_NUMBERS_FWD_U8));
+	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::backwards_t>(CJK_NUMBERS_FWD_U8));
 }
 
 using namespace Hydrogenium;
