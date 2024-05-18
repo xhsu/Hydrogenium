@@ -76,6 +76,7 @@ namespace Hydrogenium::UnitTest
 	inline constexpr std::string_view DEU_ALPHABET_UPPER_BWD_U8 = u8"ZYXWVÜUTẞSRQPÖONMLKJIHGFEDCBÄA";
 }
 
+// Misc, Part I
 namespace Hydrogenium
 {
 	template <typename T>
@@ -163,6 +164,7 @@ namespace Hydrogenium
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
 
+// CType
 namespace Hydrogenium
 {
 	enum struct CodePoint : uint_fast8_t
@@ -718,6 +720,12 @@ namespace Hydrogenium
 		}
 	};
 
+	// Unit testing at: UnitTest_UtlString_CType.cpp
+}
+
+// Misc, Part II
+namespace Hydrogenium
+{
 	constexpr auto BuildStringView(auto&& it1, auto&& it2, auto&& end, bool do_offset) noexcept
 		requires (typeid(*it1) == typeid(*it2) && typeid(*end) == typeid(*it2))
 	{
@@ -744,7 +752,16 @@ namespace Hydrogenium
 		return typename CType<char_type>::view_type{ fwit2, fwit1 };
 	}
 
-	// Unit testing at: UnitTest_UtlString_CType.cpp
+	constexpr void MoveRevIterToUtfStartPos(ReverseIterator auto& it) noexcept
+	{
+		static_assert(!MultiWrappedRevIter<std::remove_cvref_t<decltype(it)>>, "Unwrap this multi-layer iterator first!");
+
+		using CT = CType<decltype(*it)>;
+
+		for (; CT::CodePointOf(*it) > CodePoint::BEGIN_OF_4; ++it) {}
+	}
+
+	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
 
 namespace Hydrogenium::StringPolicy
@@ -1423,107 +1440,11 @@ namespace Hydrogenium::StringPolicy::Direction
 
 namespace Hydrogenium::StringPolicy::Result
 {
-	/*
-In middle, forward
-	index == 5
-	0123456789*
-	└────┘
-
-	position == 5
-	0123456789*
-	└────┘
-
-	view == 56789
-	0123456789*
-		 └───┴
-
-In middle, forward, capped
-	index == 5
-		 *
-	0123456789*
-	└────┘
-
-		 *
-	position == 5
-	0123456789*
-	└────┘
-
-		 *
-	view == 5
-	0123456789*
-		 ┴
-
-In middle, backward
-	index == 5
-	*0123456789
-	 └────┘
-
-	position == 4
-	*0123456789
-		  └───┘
-
-	view == 56789
-	*0123456789
-		  └───┴
-
-In middle, backward, capped
-	index == 5
-		  *
-	*0123456789
-	 └────┘
-
-	position == 4
-		  *
-	*0123456789
-		  └───┘
-
-	view == 56789
-		  *
-	*0123456789
-		  └───┴
-
-No found, forward
-	index == 10
-	0123456789*
-	└─────────┘
-
-	position == 10
-	0123456789*
-	└─────────┘
-
-	view == null
-	0123456789*
-			  ┴
-
-No found, backward
-	index == 10
-	*0123456789
-	└─────────┘
-
-	position == 10
-	*0123456789
-	└─────────┘
-
-	view == null
-	*0123456789
-	┴
-
-┌─┐
-│ ┼
-└─┘
-
-├─┤
-
-┬
-│
-┴
-	*/
-
 	// Chr, SpnP(Spn), PBrk(CSpn), Str
 	struct as_pointer_t final
 	{
 		[[nodiscard]]
-		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) const noexcept
+		static constexpr auto Transform(auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) noexcept
 			-> decltype(std::addressof(*result_loc))
 		{
 			if (result_loc == rel_end)
@@ -1532,9 +1453,23 @@ No found, backward
 			return std::addressof(*result_loc);
 		}
 
+		[[nodiscard]]
+		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) const noexcept
+			-> decltype(Transform(nullptr, nullptr, nullptr, result_loc, rel_end, nullptr))
+		{
+			return Transform(
+				nullptr,
+				nullptr,
+				nullptr,
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				nullptr
+			);
+		}
+
 		static constexpr auto UnitTestInvoke(auto&& result_loc, auto&& rel_end) noexcept
 		{
-			return as_pointer_t{}(
+			return Transform(
 				nullptr,
 				nullptr,
 				nullptr,
@@ -1544,8 +1479,87 @@ No found, backward
 			);
 		}
 	};
-	struct as_position_t final
+	struct as_indexing_t final	// compatible with STL functions
 	{
+		[[nodiscard]]
+		static constexpr auto Transform(auto&& abs_begin, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) noexcept
+			-> std::ptrdiff_t
+		{
+			if (result_loc == rel_end)
+				return std::numeric_limits<ptrdiff_t>::max();
+
+			auto const fwd_result_loc = ToForwardIter(result_loc, result_loc != rel_end);
+
+			return fwd_result_loc - abs_begin;
+		}
+
+		[[nodiscard]]
+		constexpr auto operator() (auto&& abs_begin, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) const noexcept
+			-> decltype(Transform(abs_begin, nullptr, nullptr, result_loc, rel_end, nullptr))
+		{
+			return Transform(
+				std::forward<decltype(abs_begin)>(abs_begin),
+				nullptr,
+				nullptr,
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				nullptr
+			);
+		}
+
+		static constexpr auto UnitTestInvoke(auto&& abs_begin, auto&& result_loc, auto&& rel_end) noexcept
+		{
+			return Transform(
+				std::forward<decltype(abs_begin)>(abs_begin),
+				nullptr,
+				nullptr,
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				nullptr
+			);
+		}
+	};
+	struct as_position_t final	// compatible with indexing function from this library.
+	{
+		[[nodiscard]]
+		static constexpr auto Transform(auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
+		{
+			constexpr bool bIsReverseIter = ReverseIterator<std::remove_cvref_t<decltype(result_loc)>>;
+
+			if constexpr (IterPolicy.normal_pointer)
+			{
+				// program is ill-formed if view_begin is not coming from abs_begin.
+				return result_loc - rel_begin;
+			}
+			else
+			{
+				ptrdiff_t count{};
+				auto it = rel_begin;
+
+				// In the reverse iter case, the rel_begin doesn't necessary being a startpos of UTF-Stream.
+				if constexpr (bIsReverseIter)
+					MoveRevIterToUtfStartPos(it);
+
+				for (;
+					it < result_loc;	// counting position from first all to found pos.
+					IterPolicy.Arithmetic(it, rel_begin, rel_end, 1),
+					++count)
+				{
+					// nothing to do.
+				}
+
+				// Returning negative number representing 'indexing backwards', as in python.
+				if constexpr (bIsReverseIter)
+				{
+					// starting counting from -1, upto -(length+1)
+					++count;
+					count = -count;
+				}
+
+				return count;
+			}
+		}
+
 		// abs_begin must be initialized by IterPolicy. Serve as point result.
 		[[nodiscard]]
 		constexpr auto operator() (auto&& abs_begin, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) const noexcept

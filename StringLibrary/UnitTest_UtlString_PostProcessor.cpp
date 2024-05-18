@@ -6,8 +6,147 @@ using namespace Hydrogenium::String::Functors;
 using namespace Hydrogenium::StringPolicy::Result;
 using namespace Hydrogenium::StringPolicy;
 using namespace Hydrogenium::UnitTest;
+using namespace Hydrogenium;
 
 using std::string_view;
+
+/*
+In middle, forward
+	index == 5
+	0123456789*
+	└────┘
+
+	position == 5
+	0123456789*
+	└────┘
+
+	view == 56789
+	0123456789*
+		 └───┴
+*/
+static constexpr bool UnitTest_RelPos(std::string_view const& str = CJK_NUMBERS_FWD_U8) noexcept
+{
+	auto const abs_begin = str.begin(), abs_end = str.end();
+	auto const [rel_begin, it_, rel_end] =
+		Iterating::as_multibytes_t::Get(str, Direction::front_to_back, 0xFF);
+
+	ptrdiff_t n = 0;
+	for (auto it = it_; it < rel_end;
+		Iterating::as_multibytes.Arithmetic(it, rel_begin, rel_end, 1), ++n)
+	{
+		auto r = as_position_t::Transform(
+			abs_begin, abs_end,
+			rel_begin, it, rel_end,
+			Iterating::as_multibytes
+		);
+
+		if (r != n)
+			return false;
+	}
+
+	// Reverse test
+
+	auto const [rel_rbegin, rit_, rel_rend] =
+		Iterating::as_multibytes.Get(str, Direction::back_to_front, 0xFF);
+
+	n = -1;
+	for (auto it = rit_; it < rel_rend;
+		Iterating::as_multibytes.Arithmetic(it, rel_rbegin, rel_rend, 1), --n)
+	{
+		auto r = as_position_t::Transform(
+			abs_begin, abs_end,
+			rel_rbegin, it, rel_rend,
+			Iterating::as_multibytes
+		);
+
+		if (r != n)
+			return false;
+	}
+
+	return true;
+}
+/*
+In middle, forward, capped
+	index == 5
+		 *
+	0123456789*
+	└────┘
+
+	position == 5
+		 *
+	0123456789*
+	└────┘
+
+	view == 5
+		 *
+	0123456789*
+		 ┴
+
+In middle, backward
+	index == 5
+	*0123456789
+	 └────┘
+
+	position == 4
+	*0123456789
+		  └───┘
+
+	view == 56789
+	*0123456789
+		  └───┴
+
+In middle, backward, capped
+	index == 5
+		  *
+	*0123456789
+	 └────┘
+
+	position == 4
+		  *
+	*0123456789
+		  └───┘
+
+	view == 56789
+		  *
+	*0123456789
+		  └───┴
+
+No found, forward
+	index == 10
+	0123456789*
+	└─────────┘
+
+	position == 10
+	0123456789*
+	└─────────┘
+
+	view == null
+	0123456789*
+			  ┴
+
+No found, backward
+	index == 10
+	*0123456789
+	└─────────┘
+
+	position == 10
+	*0123456789
+	└─────────┘
+
+	view == null
+	*0123456789
+	┴
+
+┌─┐
+│ ┼
+└─┘
+
+├─┤
+
+┬
+│
+┴
+*/
 
 namespace Hydrogenium::StringPolicy::UnitTest
 {
@@ -138,10 +277,10 @@ namespace Hydrogenium::StringPolicy::UnitTest
 	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::backwards_t>(CJK_NUMBERS_FWD_U8));
 }
 
-using namespace Hydrogenium;
 using namespace Hydrogenium::StringPolicy::UnitTest;
 
 void UnitTest_Runtime()
 {
 	auto r = UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(ASCII_NUMBERS_FWD);
+	assert(UnitTest_RelPos());
 }

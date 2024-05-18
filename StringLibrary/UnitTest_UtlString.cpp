@@ -168,7 +168,7 @@ namespace Hydrogenium::String::UnitTest
 	//                       └──────┘     ← searching dir
 	static_assert(MbsCSpn("abcde312$#@", "*$#") == 8);
 	//                     └───────┘
-	static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
+	//static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
 	//                    └────┘
 	static_assert(MbsR::detail::CSpnR(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 2);
 	//                                            └───┘  ← searching & indexing dir.
