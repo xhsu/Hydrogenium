@@ -1,7 +1,6 @@
 module;
 
 // C++ external libs
-#include <range/v3/all.hpp>	// #UPDATE_AT_CPP23
 #include <fmt/color.h>	// #UPDATE_AT_CPP23 std::print and STL range formatter.
 #include <fmt/ranges.h>
 
@@ -469,12 +468,12 @@ export struct ValveKeyValues
 			if constexpr (Arithmetic<ElemTy>)
 			{
 				// It must be a reference, otherwise the result would not be saved into ret.
-				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_SplitIntoNums<ElemTy>(dat->m_szValue, " \f\n\r\t\v\0")))
+				for (auto&& [Ref, Val] : std::views::zip(ret, UTIL_SplitIntoNums<ElemTy>(dat->m_szValue, " \f\n\r\t\v\0")))
 					Ref = Val;
 			}
 			else if constexpr (std::convertible_to<string_view, ElemTy>)
 			{
-				for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ ret }, UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0")))
+				for (auto&& [Ref, Val] : std::views::zip(ret, UTIL_Split(dat->m_szValue, " \f\n\r\t\v\0")))
 					Ref = static_cast<ElemTy>(Val);
 			}
 			else if constexpr (tuple_like<ElemTy> || std::ranges::range<T>)
@@ -562,12 +561,12 @@ export struct ValveKeyValues
 
 				if constexpr (std::is_arithmetic_v<ElemTy>)
 				{
-					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, Take(DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
+					for (auto&& [Ref, Val] : std::views::zip(Output, Take(DIST) | std::views::transform(UTIL_StrToNum<ElemTy>)))
 						Ref = Val;
 				}
 				else if constexpr (std::convertible_to<ElemTy, string_view>)
 				{
-					for (auto&& [Ref, Val] : ::ranges::zip_view(::ranges::ref_view{ Output }, Take(DIST)))
+					for (auto&& [Ref, Val] : std::views::zip(Output, Take(DIST)))
 						Ref = static_cast<ElemTy>(Val);
 				}
 				else
