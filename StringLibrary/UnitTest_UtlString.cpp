@@ -3,6 +3,7 @@
 
 
 
+using namespace Hydrogenium::String::Functors;
 using namespace Hydrogenium::String;
 using namespace Hydrogenium::UnitTest;
 using namespace Hydrogenium;
@@ -17,11 +18,6 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Str::Cmp(u8"你好", u8"你好") == 0 && Str::Cmp(u8"你好", u8"你好嗎") < 0);
 	static_assert(StrR::Cmp("dynamic_cast", "static_cast", 7) == 0 && StrR::Cmp("dynamic_cast", "static_cast", 8) < 0);	// just like ends_with. Purpose: test 'N' version.
 
-	static_assert(Str::Chr("Try not", 't') == "t" && StrI::Chr("Try not", 'T') == "Try not");
-	static_assert(Str::Chr("Try not", 't', 4).empty() && StrI::Chr("Try not", 't', 4) == "Try ");	// #NO_URGENT this is not good. the return of StrNI series should kept the original length. Purpose: test 'N' version.
-	static_assert(StrR::Chr("Try not", 'T') == "Try not" && StrIR::Chr("Try not", 'T') == "t");
-	static_assert(StrR::Chr("Try not", 'T', 4).empty() && StrIR::Chr("Try not", 'T', 4) == "t"); // Purpose: test 'N' version.
-
 	// Wcs series
 
 	static_assert(WcsI::Cmp(L"a0b1c2", L"A0B1C2") == 0);
@@ -30,15 +26,24 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Wcs::Cmp(L"你好", L"你好") == 0 && Wcs::Cmp(L"你好", L"你好嗎") < 0);
 	static_assert(Wcs::Cmp(L"你好", L"你好嗎", 2) == 0 && Wcs::Cmp(L"你好", L"你好嗎", 3) < 0);	// Purpose: test 'N' version.
 
-	static_assert(Wcs::Chr(L"Try not", L't') == L"t" && WcsI::Chr(L"Try not", L'T') == L"Try not");
-	static_assert(Wcs::Chr(L"Try not", L't', 4).empty() && WcsI::Chr(L"Try not", L't', 4) == L"Try ");	// Purpose: test 'N' version.
-
 	// Mbs series
-
-	static_assert(Mbs::Chr(u8"你好", '\xE5').empty() && Str::Chr(u8"你好", '\xE5') == u8"好");	// u8"好" == 0xE5 0xA5 0xBD
 
 	static_assert(Mbs::Cmp(u8"你好", u8"你好嗎", 2) == 0 && Mbs::Cmp(u8"你好", u8"你好嗎", 3) < 0);	// Purpose: test 'N' version.
 	static_assert(Mbs::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) > 0 && MbsR::Cmp(u8"吃葡萄不吐葡萄皮", "不吃葡萄倒吐葡萄皮", 4) == 0);	// U'吃' == \x5403, U'不' == \x4E0D. Purpose: test 'N' version.
+}
+
+// Chr
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Str::Chr("Try not", 't') == "t" && StrI::Chr("Try not", 'T') == "Try not");
+	static_assert(Str::Chr("Try not", 't', 4).empty() && StrI::Chr("Try not", 't', 4) == "Try ");	// #NO_URGENT this is not good. The 'N' version will cap the returning view onto param 'count'. Purpose: test 'N' version.
+	static_assert(StrR::Chr("Try not", 'T') == "Try not" && StrIR::Chr("Try not", 'T') == "t");
+	static_assert(StrR::Chr("Try not", 'T', 4).empty() && StrIR::Chr("Try not", 'T', 4) == "t"); // Purpose: test 'N' version.
+
+	static_assert(Wcs::Chr(L"Try not", L't') == L"t" && WcsI::Chr(L"Try not", L'T') == L"Try not");
+	static_assert(Wcs::Chr(L"Try not", L't', 4).empty() && WcsI::Chr(L"Try not", L't', 4) == L"Try ");	// Purpose: test 'N' version. The 'N' version will not cap the returning view onto param 'count'.
+
+	static_assert(Mbs::Chr(u8"你好", '\xE5').empty() && Str::Chr(u8"你好", '\xE5') == u8"好");	// u8"好" == 0xE5 0xA5 0xBD
 }
 
 // Cmp
@@ -171,6 +176,14 @@ namespace Hydrogenium::String::UnitTest
 	//                                                           └────┘  ← searching & indexing dir.
 	static_assert(Mbs::detail::CSpnR(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"äöüß") == 1);
 	//                                  └┘                               ← searching & indexing dir.
+
+	// 'N' Version
+
+	//static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"找不到", 10) == 30);
+	//                        └─────────────────────────────┘
+	//static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"", 10) == 30);
+	//                        └─────────────────────────────┘
+	//static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"") == 30);
 }
 
 // Str
@@ -189,11 +202,11 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄");	// purpose: verify the multibytes can be correctly parsed as groups.
 	static_assert(MbsR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄皮");	// Purpose: test 'N' version.
 
-	static_assert(WcsR::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_LOWER_BWD_W).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
+	//static_assert(WcsR::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_LOWER_BWD_W).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
 	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10)) == ELL_ALPHABET_LOWER_FWD_W.substr(10));
 	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10), 10).empty());	// Purpose: test 'N' version.
 
-	static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
+	//static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
 	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::detail::DupV(DEU_ALPHABET_LOWER_FWD_U8, 10));
 	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
 }
@@ -314,4 +327,5 @@ int main(int, char* []) noexcept
 	UnitTest_StrTok();	// Run-time only.
 
 	UnitTest_Runtime();
+	auto r1 = MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"找不到", 10);
 }

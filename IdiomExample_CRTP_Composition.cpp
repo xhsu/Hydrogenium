@@ -78,6 +78,12 @@ struct Linker<CFinal, TFirst> : TFirst<CFinal, CBaseWeapon>
 {
 };
 
+// Inherit Tree: With multiple linkers in-between.
+// CBaseWeapon
+// Node3
+// Node2
+// Node1
+// CAK47
 struct CAK47 : Linker<CAK47, Node1, Node2, Node3>
 {
 	static inline constexpr int32_t MAX_CLIP = 30;

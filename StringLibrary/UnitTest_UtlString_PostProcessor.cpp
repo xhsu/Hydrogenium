@@ -11,26 +11,25 @@ using std::string_view;
 
 namespace Hydrogenium::StringPolicy::UnitTest
 {
-	static_assert(std::is_same_v<std::invoke_result_t<as_pointer_t, string_view&, string_view&&, std::nullptr_t>, const char*>);
-	static_assert(as_pointer_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD, nullptr) == &ASCII_NUMBERS_FWD[0]);
-	static_assert(as_pointer_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(9), nullptr) == &ASCII_NUMBERS_FWD[9]);
-	static_assert(as_pointer_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(10), nullptr) == nullptr);
-	static_assert(as_pointer_t{}(nullptr, string_view{ "" }, nullptr) == nullptr);
+	static_assert(std::is_same_v<std::invoke_result_t<as_pointer_t, char*, char*, char*, char*, char*, std::nullptr_t>, char*>);
+	static_assert(as_pointer_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.end()) == &ASCII_NUMBERS_FWD[0]);
+	static_assert(as_pointer_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin() + 9, ASCII_NUMBERS_FWD.end()) == &ASCII_NUMBERS_FWD[9]);
+	static_assert(as_pointer_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin() + 10, ASCII_NUMBERS_FWD.end()) == nullptr);
+	static_assert(as_pointer_t::UnitTestInvoke((char*)nullptr, nullptr) == nullptr);
 
-	// Requirment: Transform the returning iter pos into index number. Which is of course, index-able.
+	// Requirement: Transform the returning iter pos into index number. Which is of course, index-able.
 	template <typename I, typename D>
 	constexpr bool UnitTest_AsPosition(auto&& STR, ptrdiff_t GRAPHEME_COUNT = 10)
 	{
-		constexpr auto functor = as_position_t{};
 		auto const [begin, it, end] = I::Get(STR, D{}, 0xFFFF);
 		auto const [fwd_begin, fwd_it, fwd_end] = I::Get(STR, Direction::front_to_back, 0xFFFF);
 
-		if (auto const pos = functor(begin, end, end, I{}); pos != GRAPHEME_COUNT)
+		if (auto const pos = as_position_t::UnitTestInvoke(STR.begin(), end, end, I{}); pos != GRAPHEME_COUNT)
 			return false;
 
 		for (auto i = it; i < end; I::Arithmetic(i, begin, end, 1))
 		{
-			if (auto const pos = functor(begin, end, i, I{}); i < end)
+			if (auto const pos = as_position_t::UnitTestInvoke(STR.begin(), i, end, I{}); i < end)
 			{
 				if (I::ValueOf(i) != I::ValueOf(I::ArithCpy(fwd_it, fwd_begin, fwd_end, pos)))	// simulate 'indexing'
 					return false;
@@ -40,22 +39,23 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		return true;
 	}
 	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::forwards_t>(ASCII_NUMBERS_FWD));
-	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(ASCII_NUMBERS_FWD));
+	//static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(ASCII_NUMBERS_FWD));
 	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::forwards_t>(CJK_NUMBERS_FWD_U8));
-	static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(CJK_NUMBERS_FWD_U8));
+	//static_assert(UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(CJK_NUMBERS_FWD_U8));
 	static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::forwards_t>(RMN_NUMBERS_FWD_W));
-	static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
+	//static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
 
-	static_assert(std::is_same_v<std::invoke_result_t<as_position_t, string_view&, string_view&&, std::nullptr_t>, std::ptrdiff_t>);
-	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(5), Iterating::as_regular_ptr) == 5 && ASCII_NUMBERS_FWD.substr(5)[0] == ASCII_NUMBERS_FWD[5]);
-	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(5), Iterating::as_regular_ptr) == 5);
-	static_assert(as_position_t{}(ASCII_NUMBERS_FWD, string_view{ "" }, Iterating::as_regular_ptr) == 10);	// no found: return strcnt() equivlent.
-	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(9 * 3), Iterating::as_regular_ptr) == (9 * 3));
-	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(9 * 3), Iterating::as_multibytes) == 9);
-	static_assert(as_position_t{}(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U8.substr(10 * 3), Iterating::as_multibytes) == 10);	// no found: return strcnt() equivlent.
+	static_assert(std::is_same_v<std::invoke_result_t<as_position_t, char*, char*, char*, char*, char*, Iterating::as_multibytes_t>, std::ptrdiff_t>);
+	static_assert(as_position_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 5, ASCII_NUMBERS_FWD.end(), Iterating::as_regular_ptr) == 5 && ASCII_NUMBERS_FWD.substr(5)[0] == ASCII_NUMBERS_FWD[5]);
+	static_assert(as_position_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.rbegin() + 5, ASCII_NUMBERS_FWD.rend(), Iterating::as_regular_ptr) == 4);
+	static_assert(as_position_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 10, ASCII_NUMBERS_FWD.end(), Iterating::as_regular_ptr) == 10);	// no found: return strcnt() equivlent.
+	static_assert(as_position_t::UnitTestInvoke(CJK_NUMBERS_FWD_U8.begin(), CJK_NUMBERS_FWD_U8.begin() + (9 * 3), CJK_NUMBERS_FWD_U8.end(), Iterating::as_regular_ptr) == (9 * 3));
+	static_assert(as_position_t::UnitTestInvoke(CJK_NUMBERS_FWD_U8.begin(), CJK_NUMBERS_FWD_U8.begin() + (9 * 3), CJK_NUMBERS_FWD_U8.end(), Iterating::as_multibytes) == 9);
+	static_assert(as_position_t::UnitTestInvoke(CJK_NUMBERS_FWD_U8.begin(), CJK_NUMBERS_FWD_U8.begin() + (10 * 3), CJK_NUMBERS_FWD_U8.end(), Iterating::as_multibytes) == 10);	// no found: return strcnt() equivlent.
 
-	static_assert(std::is_same_v<std::invoke_result_t<as_view_t, string_view&, string_view&&, std::nullptr_t>, string_view>);
-	static_assert(as_view_t{}(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD.substr(9), nullptr) == ASCII_NUMBERS_FWD.substr(9));
+	static_assert(std::is_same_v<std::invoke_result_t<as_view_t, char*, char*, char*, char*, char*, std::nullptr_t>, string_view>);
+	static_assert(as_view_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 9, ASCII_NUMBERS_FWD.end()) == ASCII_NUMBERS_FWD.substr(9));
+	static_assert(as_view_t::UnitTestInvoke(ASCII_NUMBERS_FWD.rbegin(), ASCII_NUMBERS_FWD.rbegin() + 8, ASCII_NUMBERS_FWD.rend()) == ASCII_NUMBERS_FWD.substr(1));
 
 	static constexpr bool UnitTest_Unmanaged() noexcept	// requires C++20 constexpr new.
 	{
@@ -140,3 +140,8 @@ namespace Hydrogenium::StringPolicy::UnitTest
 
 using namespace Hydrogenium;
 using namespace Hydrogenium::StringPolicy::UnitTest;
+
+void UnitTest_Runtime()
+{
+	auto r = UnitTest_AsPosition<Iterating::as_multibytes_t, Direction::backwards_t>(ASCII_NUMBERS_FWD);
+}

@@ -412,14 +412,6 @@ using Str2 = Hydrogenium::Laboratory::Utils<>;
 
 void UnitTest_Runtime()
 {
-	struct fake_functor
-	{
-		using ctype_info = CType<char>;
-		using view_type = ctype_info::view_type;
-		using iter_type = view_type::iterator;	// It's nothing but a node, nothing inside depending on the template param.
-		using value_type = view_type::value_type;
-	};
-
 	assert((*Str2::Chr("abc", 'b') == 'b'));
 	assert((Str2::Cmp("abc", "abc") == 0));
 	assert((Str2::Cnt("abc") == 3));

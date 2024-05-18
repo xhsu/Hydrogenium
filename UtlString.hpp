@@ -81,6 +81,24 @@ namespace Hydrogenium
 	template <typename T>
 	concept NonVoid = !std::is_same_v<T, void>;
 
+	template <typename T, typename C>
+	concept IteratorOf = requires (T iter)
+	{
+		{ *iter } -> std::convertible_to<C>;
+		requires std::bidirectional_iterator<std::remove_cvref_t<T>>;
+
+		//std::is_same_v<std::remove_cvref_t<T>, std::add_pointer_t<std::remove_cvref_t<C>>>
+		//|| std::is_same_v<std::remove_cvref_t<T>, std::add_pointer_t<std::add_const_t<std::remove_cvref_t<C>>>>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::const_iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::reverse_iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::const_reverse_iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::const_iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::reverse_iterator>
+		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::const_reverse_iterator>;
+	};
+
 	template <typename T>
 	concept ReverseIterator = requires (T iter)
 	{
@@ -164,6 +182,7 @@ namespace Hydrogenium
 
 	// Full Unicode character type
 	using fchar_t = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
+	using u16char_t = std::conditional_t<sizeof(wchar_t) == sizeof(char16_t), wchar_t, char16_t>;
 
 	// #TODO UTF32 a.k.a. all-lang support?
 
@@ -730,6 +749,22 @@ namespace Hydrogenium
 
 namespace Hydrogenium::StringPolicy
 {
+	template <typename T>
+	concept TypingPolicy = requires
+	{
+		typename T::char_type;
+		typename T::param_type;
+		typename T::view_type;
+		typename T::owner_type;
+		typename T::traits_type;
+
+		{ typename T::view_type{} } -> std::ranges::input_range;
+		{ typename T::owner_type{} } -> std::ranges::output_range<typename T::char_type>;
+
+		requires std::is_constructible_v<typename T::view_type, typename T::owner_type>;
+		requires std::is_constructible_v<typename T::owner_type, typename T::view_type>;
+	};
+
 	namespace Iterating
 	{
 		// Forward declearation.
@@ -740,32 +775,32 @@ namespace Hydrogenium::StringPolicy
 	{
 		static constexpr auto Begin(auto&& view) noexcept { return view.begin(); }
 		static constexpr auto End(auto&& view) noexcept { return view.end(); }
+		static inline constexpr bool is_reverse = false;
 	};
 
-	template <typename T, typename C>
-	concept IteratingPolicy = requires (C* p, C const* cp, C* const pc, CType<C>::view_type view)
+	template <typename T>
+	concept IteratingPolicy = requires (char* p, char const* cp, char* const pc, std::string_view view)
 	{
 		T::normal_pointer;	// enables random-access-iter optimization.
-		T::Get(view, MyDummy2{}, ptrdiff_t{});	// the middle one should be range policy.
+		requires (requires{ T::Get(view, MyDummy2{}, ptrdiff_t{}); } || requires{ T::Get(view, ptrdiff_t{}); });	// dummy2 represents range policy.
 
 		{ T::ValueOf(cp) } -> NonVoid;
 		{ T::Arithmetic(p, pc, pc, ptrdiff_t{}) } -> std::same_as<Iterating::APRES>;
 		{ T::NativeSize(p, pc) } -> std::integral;
 
-		requires !requires{ T::Initialize(std::declval<C*>(), pc, pc); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
-		requires !requires{ T::Arithmetic(std::declval<C*>(), pc, pc, ptrdiff_t{}); };
-		{ T::ArithCpy(std::declval<C*>(), pc, pc, ptrdiff_t{}) } -> std::same_as<C*>;	// This one gives you a copy.
+		requires !requires{ T::Arithmetic(std::declval<char*>(), pc, pc, ptrdiff_t{}); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
+		{ T::ArithCpy(std::declval<char*>(), pc, pc, ptrdiff_t{}) } -> std::same_as<char*>;	// This one gives you a copy.
 	};
 
-	template <typename T, typename C>
-	concept ComparingPolicy = requires (C c)
+	template <typename T>
+	concept ComparingPolicy = requires (unsigned char c)
 	{
-		{ T{}.Cmp(c, c) } -> std::same_as<int>;
-		{ T{}.Eql(c, c) } -> std::same_as<bool>;
+		{ T{}.ChCmp(c, c) } -> std::same_as<int>;
+		{ T{}.ChEql(c, c) } -> std::same_as<bool>;
 	};
 
-	template <typename T, typename C>
-	concept DirectionPolicy = requires (CType<C>::view_type view)
+	template <typename T>
+	concept DirectionPolicy = requires (std::string_view view)
 	{
 		{ T::Begin(view) } -> std::bidirectional_iterator;
 		{ T::End(view) } -> std::bidirectional_iterator;
@@ -773,16 +808,36 @@ namespace Hydrogenium::StringPolicy
 		{ T::End(view) } -> std::input_iterator;
 		T::is_reverse;
 	};
+	static_assert(DirectionPolicy<MyDummy2>);
 
 	// Result post-processing
-	template <typename R, typename C>
-	concept ResultProcessor = requires (CType<C>::view_type sv, CType<C>::owner_type s)
+	template <typename R>
+	concept ResultProcessor = requires (std::string_view sv, std::string s)
 	{
-		R::Query(sv, sv, nullptr);	// it seems like there is no way we can fit a generalized 'iter policy' in.
+		//R::Query(sv, sv, nullptr);	// it seems like there is no way we can fit a generalized 'iter policy' in.
 		R::Test(int{});
 		R::Counting(size_t{});
-		{ R::Modify(s) } -> std::convertible_to<std::basic_string_view<C>>;
+		{ R::Modify(s) } -> std::convertible_to<decltype(sv)>;
 	};
+
+	template <typename T>
+	concept CountingPostProcessor = requires(size_t n) { T::Transform(n); };
+
+	template <typename T>
+	concept ModifyPostProcessor = requires(char const* const boundary, std::identity proj) { { T::Transform(boundary, boundary, proj) } -> std::convertible_to<std::string_view>; };
+
+	template <typename T>
+	concept QueryPostProcessor = requires(char const* const iter) { T::Transform(iter, iter, iter); };
+
+	template <typename T>
+	concept TestPostProcessor = requires(int t) { T::Transform(t); };
+}
+
+namespace Hydrogenium::StringPolicy::Typing
+{
+	static_assert(TypingPolicy<CType<char>>);
+	static_assert(TypingPolicy<CType<u16char_t>>);
+	static_assert(TypingPolicy<CType<fchar_t>>);
 }
 
 namespace Hydrogenium::StringPolicy::Iterating
@@ -807,11 +862,11 @@ namespace Hydrogenium::StringPolicy::Iterating
 	constexpr auto operator& (APRES lhs, APRES rhs) noexcept { return std::to_underlying(lhs) & std::to_underlying(rhs); }
 	constexpr auto operator~ (APRES val) noexcept { return ~std::to_underlying(val); }
 
-	struct as_normal_ptr_t final
+	struct as_normal_ptr_t
 	{
 		static inline constexpr bool normal_pointer = true;
 
-		static constexpr auto Get(std::ranges::input_range auto&& view, auto RangePolicy, ptrdiff_t size) noexcept
+		static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
 		{
 			auto abs_begin = RangePolicy.Begin(view);
 			auto abs_end = RangePolicy.End(view);
@@ -862,7 +917,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 
 	inline constexpr auto as_regular_ptr = as_normal_ptr_t{};
 
-	struct as_multibytes_t final
+	struct as_multibytes_t
 	{
 		/*
 		Consider this case:
@@ -1127,7 +1182,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 		};
 		// End of not required functions
 
-		static constexpr auto Get(std::ranges::input_range auto&& view, auto RangePolicy, ptrdiff_t size) noexcept
+		static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
 		{
 			auto abs_begin = RangePolicy.Begin(view);
 			auto const abs_end = RangePolicy.End(view);
@@ -1235,17 +1290,15 @@ namespace Hydrogenium::StringPolicy::Iterating
 
 	inline constexpr auto as_multibytes = as_multibytes_t{};
 
-	static_assert(IteratingPolicy<as_normal_ptr_t, char>);
-	static_assert(IteratingPolicy<as_normal_ptr_t, wchar_t>);
-	static_assert(IteratingPolicy<as_multibytes_t, unsigned char>);
-	static_assert(IteratingPolicy<as_multibytes_t, wchar_t>);
+	static_assert(IteratingPolicy<as_normal_ptr_t>);
+	static_assert(IteratingPolicy<as_multibytes_t>);
 
 	// Unit testing at: UnitTest_UtlString_IterPolicy.cpp
 }
 
 namespace Hydrogenium::StringPolicy::Comparing
 {
-	struct case_ignored_t final
+	struct case_ignored_t
 	{
 		struct detail final
 		{
@@ -1265,7 +1318,7 @@ namespace Hydrogenium::StringPolicy::Comparing
 		};
 
 		template <typename T, typename U> [[nodiscard]]
-		static constexpr int Cmp(T lhs, U rhs) noexcept
+		static constexpr int ChCmp(T lhs, U rhs) noexcept
 		{
 			if constexpr (sizeof(T) == sizeof(U))
 			{
@@ -1285,7 +1338,7 @@ namespace Hydrogenium::StringPolicy::Comparing
 		}
 
 		template <typename T, typename U> [[nodiscard]]
-		static constexpr bool Eql(T lhs, U rhs) noexcept
+		static constexpr bool ChEql(T lhs, U rhs) noexcept
 		{
 			if constexpr (sizeof(T) == sizeof(U))
 			{
@@ -1307,16 +1360,16 @@ namespace Hydrogenium::StringPolicy::Comparing
 
 	inline constexpr auto case_ignored = case_ignored_t{};
 
-	struct regular_t final
+	struct regular_t
 	{
 		[[nodiscard]]
-		static constexpr int Cmp(auto lhs, auto rhs) noexcept
+		static constexpr int ChCmp(auto lhs, auto rhs) noexcept
 		{
 			return lhs - rhs;
 		}
 
 		[[nodiscard]]
-		static constexpr bool Eql(auto lhs, auto rhs) noexcept
+		static constexpr bool ChEql(auto lhs, auto rhs) noexcept
 		{
 			return lhs == rhs;
 		}
@@ -1324,13 +1377,13 @@ namespace Hydrogenium::StringPolicy::Comparing
 
 	inline constexpr auto regular = regular_t{};
 
-	static_assert(ComparingPolicy<case_ignored_t, char>);
-	static_assert(ComparingPolicy<regular_t, char>);
+	static_assert(ComparingPolicy<case_ignored_t>);
+	static_assert(ComparingPolicy<regular_t>);
 }
 
 namespace Hydrogenium::StringPolicy::Direction
 {
-	struct forwards_t final
+	struct forwards_t
 	{
 		inline static constexpr bool is_reverse = false;
 
@@ -1347,7 +1400,7 @@ namespace Hydrogenium::StringPolicy::Direction
 
 	inline constexpr auto front_to_back = forwards_t{};
 
-	struct backwards_t final
+	struct backwards_t
 	{
 		inline static constexpr bool is_reverse = true;
 
@@ -1364,109 +1417,165 @@ namespace Hydrogenium::StringPolicy::Direction
 
 	inline constexpr auto back_to_front = backwards_t{};
 
-	static_assert(DirectionPolicy<StringPolicy::Direction::forwards_t, char>);
-	static_assert(DirectionPolicy<StringPolicy::Direction::backwards_t, char>);
+	static_assert(DirectionPolicy<StringPolicy::Direction::forwards_t>);
+	static_assert(DirectionPolicy<StringPolicy::Direction::backwards_t>);
 }
 
 namespace Hydrogenium::StringPolicy::Result
 {
-	// Chr, SpnP(Spn), PBrk(CSpn), Str, Tok
+	/*
+In middle, forward
+	index == 5
+	0123456789*
+	└────┘
+
+	position == 5
+	0123456789*
+	└────┘
+
+	view == 56789
+	0123456789*
+		 └───┴
+
+In middle, forward, capped
+	index == 5
+		 *
+	0123456789*
+	└────┘
+
+		 *
+	position == 5
+	0123456789*
+	└────┘
+
+		 *
+	view == 5
+	0123456789*
+		 ┴
+
+In middle, backward
+	index == 5
+	*0123456789
+	 └────┘
+
+	position == 4
+	*0123456789
+		  └───┘
+
+	view == 56789
+	*0123456789
+		  └───┴
+
+In middle, backward, capped
+	index == 5
+		  *
+	*0123456789
+	 └────┘
+
+	position == 4
+		  *
+	*0123456789
+		  └───┘
+
+	view == 56789
+		  *
+	*0123456789
+		  └───┴
+
+No found, forward
+	index == 10
+	0123456789*
+	└─────────┘
+
+	position == 10
+	0123456789*
+	└─────────┘
+
+	view == null
+	0123456789*
+			  ┴
+
+No found, backward
+	index == 10
+	*0123456789
+	└─────────┘
+
+	position == 10
+	*0123456789
+	└─────────┘
+
+	view == null
+	*0123456789
+	┴
+
+┌─┐
+│ ┼
+└─┘
+
+├─┤
+
+┬
+│
+┴
+	*/
+
+	// Chr, SpnP(Spn), PBrk(CSpn), Str
 	struct as_pointer_t final
 	{
 		[[nodiscard]]
-		constexpr auto operator() (auto&& /*src*/, auto&& view, auto&& /*IterPolicy*/) const noexcept -> std::remove_cvref_t<decltype(view)>::const_pointer
-		{
-			if (view.empty())
-				return nullptr;
-
-			return std::addressof(view.front());
-		}
-
-		[[nodiscard]]
-		constexpr auto operator() (auto&& /*abs_begin*/, auto&& abs_end, auto&& result_loc, auto&& /*IterPolicy*/) const noexcept
+		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) const noexcept
 			-> decltype(std::addressof(*result_loc))
 		{
-			if (result_loc == abs_end)
+			if (result_loc == rel_end)
 				return nullptr;
 
 			return std::addressof(*result_loc);
 		}
+
+		static constexpr auto UnitTestInvoke(auto&& result_loc, auto&& rel_end) noexcept
+		{
+			return as_pointer_t{}(
+				nullptr,
+				nullptr,
+				nullptr,
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				nullptr
+			);
+		}
 	};
 	struct as_position_t final
 	{
-		[[nodiscard]]
-		constexpr auto operator() (auto&& src, auto&& view, auto IterPolicy) const noexcept -> std::ptrdiff_t
-		{
-			if (view.empty())	// return strcnt() equivalent.
-			{
-				std::ptrdiff_t counter = src.empty() ? 0 : 1;
-				auto const begin = src.begin(), end = src.end();
-
-				for (auto it = src.begin();
-					IterPolicy.Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED;
-					++counter)
-				{
-					// nothing.
-				}
-
-				return counter;
-			}
-
-			auto const p1 = std::addressof(src.front());
-			auto const p2 = std::addressof(view.front());
-
-			if constexpr (IterPolicy.normal_pointer)
-			{
-				// it is undefined behaviour if view is not a subrange of src.
-				return p2 - p1;
-			}
-			else
-			{
-				std::ptrdiff_t counter = 1;	// our pointer increment is in the testing phase, not post phase of for loop.
-				std::remove_cvref_t<decltype(view)> const discard{ p1, p2 };// it is undefined behaviour if view is not a subrange of src.
-				auto const begin = discard.begin(), end = discard.end();	// no range policy involved. the return value is always forwarding direction.
-
-				for (auto it = discard.begin();
-					IterPolicy.Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED;
-					++counter)
-				{
-					// nothing.
-				}
-
-				return counter;
-			}
-		}
-
 		// abs_begin must be initialized by IterPolicy. Serve as point result.
 		[[nodiscard]]
-		constexpr auto operator() (auto&& abs_begin, auto&& abs_end, auto&& result_loc, auto&& IterPolicy) const noexcept
+		constexpr auto operator() (auto&& abs_begin, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) const noexcept
 			-> std::ptrdiff_t
 		{
 			// cvref ignored.
-			static_assert(typeid(abs_begin) == typeid(abs_end) && typeid(abs_end) == typeid(result_loc));
+			static_assert(!ReverseIterator<std::remove_cvref_t<decltype(abs_begin)>>);
 
 			using StringPolicy::Iterating::APRES;
 
-			auto fwd_abs_begin = ToForwardIter(abs_begin, false);
-			auto fwd_abs_end = ToForwardIter(abs_end, false);
-			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != abs_end);
+			//auto fwd_abs_begin = ToForwardIter(abs_begin, false);
+			auto fwd_rel_end = ToForwardIter(rel_end, false);
+			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != rel_end);
 
-			if (fwd_abs_begin > fwd_abs_end)	// begin should always less than end.
-				std::swap(fwd_abs_begin, fwd_abs_end);
+			//if (fwd_abs_begin > fwd_rel_end)	// begin should always less than end.
+			//	std::swap(fwd_abs_begin, fwd_rel_end);
 
-			if (result_loc == abs_end)	// no found!
-				fwd_res_loc = fwd_abs_end;
+			if (result_loc == rel_end)	// no found!
+				fwd_res_loc = fwd_rel_end;
 
 			if constexpr (IterPolicy.normal_pointer)
 			{
 				// program is ill-formed if view_begin is not coming from abs_begin.
-				return fwd_res_loc - fwd_abs_begin;
+				return fwd_res_loc - abs_begin;
 			}
 			else
 			{
-				std::ptrdiff_t counter = fwd_abs_begin == fwd_res_loc ? 0 : 1;
-				for (auto it = fwd_abs_begin;	// no range policy involved. the return value is always forwarding direction.
-					IterPolicy.Arithmetic(it, fwd_abs_begin, fwd_res_loc, 1) & APRES::MOVED;
+				std::ptrdiff_t counter = abs_begin == fwd_res_loc ? 0 : 1;
+				for (auto it = abs_begin;	// no range policy involved. the return value is always forwarding direction.
+					IterPolicy.Arithmetic(it, abs_begin, fwd_res_loc, 1) & APRES::MOVED;
 					++counter)
 				{
 					// nothing.
@@ -1475,37 +1584,54 @@ namespace Hydrogenium::StringPolicy::Result
 				return counter;
 			}
 		}
+
+		static constexpr auto UnitTestInvoke(auto&& abs_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
+		{
+			return as_position_t{}(
+				std::forward<decltype(abs_begin)>(abs_begin),
+				nullptr,
+				nullptr,
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				IterPolicy
+				);
+		}
 	};
 	struct as_view_t final
 	{
-		// For Tok() only
-		[[nodiscard]]
-		constexpr auto operator() (auto&& /*src*/, auto&& view, auto&& /*IterPolicy*/) const noexcept -> std::remove_cvref_t<decltype(view)>
-		{
-			return view;
-		}
-
 		// For the rest Query functors.
 		// abs_begin must be initialized by IterPolicy. Return a view from result_loc to fwd_true_end
 		[[nodiscard]]
-		constexpr auto operator() (auto&& abs_begin, auto&& abs_end, auto&& result_loc, auto&& IterPolicy) const noexcept	// #MSVC_BUGGED_tailing_return_type_namespace_error
+		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, auto&& /* IterPolicy */) const noexcept	// #MSVC_BUGGED_tailing_return_type_namespace_error
 		{
 			// cvref ignored.
-			static_assert(typeid(abs_begin) == typeid(abs_end) && typeid(abs_end) == typeid(result_loc));
+			static_assert(typeid(rel_begin) == typeid(rel_end));
 
 			using StringPolicy::Iterating::APRES;
 
-			auto fwd_abs_begin = ToForwardIter(abs_begin, false);
-			auto fwd_abs_end = ToForwardIter(abs_end, false);
-			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != abs_end);
+			auto fwd_rel_begin = ToForwardIter(rel_begin, false);
+			auto fwd_rel_end = ToForwardIter(rel_end, false);
+			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != rel_end);
 
-			if (fwd_abs_begin > fwd_abs_end)	// begin should always less than end.
-				std::swap(fwd_abs_begin, fwd_abs_end);
+			if (fwd_rel_begin > fwd_rel_end)	// begin should always less than end.
+				std::swap(fwd_rel_begin, fwd_rel_end);
 
-			if (result_loc == abs_end)	// no found!
-				fwd_res_loc = fwd_abs_end;
+			if (result_loc == rel_end)	// no found!
+				fwd_res_loc = fwd_rel_end;
 
-			return typename CType<decltype(*result_loc)>::view_type{ fwd_res_loc, fwd_abs_end };
+			return typename CType<decltype(*result_loc)>::view_type{ fwd_res_loc, fwd_rel_end };
+		}
+
+		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end) noexcept
+		{
+			return as_view_t{}(
+				nullptr,
+				nullptr,
+				std::forward<decltype(rel_begin)>(rel_begin),
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				nullptr
+				);
 		}
 	};
 
@@ -1674,10 +1800,120 @@ namespace Hydrogenium::StringPolicy::Result
 	};
 
 	inline constexpr auto as_it_is = postprocessor_t<as_view_t, as_lexic_t, as_signed_t, as_marshaled_t>{};
-	static_assert(ResultProcessor<decltype(as_it_is), char>);
+	static_assert(ResultProcessor<decltype(as_it_is)>);
 
 	inline constexpr auto to_c_style = postprocessor_t<as_pointer_t, as_lexic_t, as_unsigned_t, as_unmanaged_t>{};
-	static_assert(ResultProcessor<decltype(to_c_style), char>);
+	static_assert(ResultProcessor<decltype(to_c_style)>);
+}
+
+namespace Hydrogenium::String::Functors::Components
+{
+	/*
+	* StrChr(str, '5');
+	      ┌───┬  as_view == "56789"
+	      ⇓   │  as_pointer/as_it_is == &str[5]
+	"0123456789"
+	 ┴────┘      as_index == 5
+	 ┴────┘      as_rel_pos == 5
+
+	* StrRChr(str, '5');
+	* StrNRChr(str, '5', 5);
+		  ┌───┬  as_view == "56789"
+		  ⇓   │  as_pointer/as_it_is == &str[5]
+	"0123456789"
+	 ┴────┘   │  as_index == 5
+	      └───┴  as_rel_pos == 4
+
+	* StrNChr(str, '5', 5);
+		  ┬      as_view == "5"
+		  ⇓      as_pointer/as_it_is == &str[5]
+	"0123456789"
+	 ┴────┘      as_index == 5
+	 ┴────┘      as_rel_pos == 5
+	*/
+	template <typename, typename Base>
+	struct alg_chr : Base
+	{
+		static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!");
+		using typename Base::param_type;
+		using typename Base::view_type;
+
+		static_assert(StringPolicy::DirectionPolicy<Base>, "Requires a direction manager component!");
+		using Base::Begin;
+		using Base::End;
+
+		static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!");
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!");
+		using Base::ChEql;
+
+		static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!");
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = std::numeric_limits<ptrdiff_t>::max()) const noexcept
+			-> decltype(Transform(str.begin(), str.end(), str.end()))
+		{
+			auto [begin, it, end] = Get(str, until);
+
+			for (; it < end; Arithmetic(it, begin, end, 1))
+			{
+				if (ChEql(ValueOf(it), ch))
+					break;
+			}
+
+			// This is absolute begin and end.
+			return Transform(str.begin(), str.end(), begin, it, end);
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_cmp : Base
+	{
+		static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!");
+		using typename Base::value_type;
+		using typename Base::view_type;
+
+		static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!");
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!");
+		using Base::ChEql;
+		using Base::ChCmp;
+
+		static_assert(StringPolicy::TestPostProcessor<Base>, "Requires a query-functor compatible postprocessor!");
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		constexpr auto operator()(view_type lhs, view_type rhs, ptrdiff_t count = std::numeric_limits<ptrdiff_t>::max()) const noexcept
+			-> decltype(Transform((int)0))
+		{
+			auto [b1, s1, e1] = Get(lhs, count);
+			auto [b2, s2, e2] = Get(rhs, count);
+
+			while (
+				s1 < e1 && s2 < e2
+				&& ChEql(ValueOf(s1), ValueOf(s2))
+				)
+			{
+				Arithmetic(s1, b1, e1, 1);
+				Arithmetic(s2, b2, e2, 1);
+			}
+
+			// Preventing deducing as something like 'int32_t'
+			value_type const c1 = s1 == e1 ? '\0' : ValueOf(s1);
+			value_type const c2 = s2 == e2 ? '\0' : ValueOf(s2);
+
+			return Transform(ChCmp(c1, c2));
+		}
+	};
 }
 
 namespace Hydrogenium::String::Functors::Components
@@ -1691,7 +1927,6 @@ namespace Hydrogenium::String::Functors::Components
 		{
 			static_assert(requires{ typename CFinal::policy_iter; }, "Requires an iterator policy component.");
 			static_assert(requires{ typename CFinal::policy_cmp; }, "Requires an comparator policy component.");
-			static_assert(requires{ typename CFinal::invk_sig; }, "Requires an invoking policy component.");
 			static_assert(requires{ typename CFinal::policy_dir; }, "Requires an searching direction policy component.");
 			static_assert(requires{ typename CFinal::policy_ret; }, "Requires an return transforming policy component.");
 
@@ -1708,59 +1943,132 @@ namespace Hydrogenium::String::Functors::Components
 	template <typename CFinal, template <typename, typename> class TFirst>
 	struct Linker<CFinal, TFirst> : TFirst<CFinal, base_comp_t> { using TFirst<CFinal, base_comp_t>::operator(); };
 
-	// Iterating
+#pragma region Type info
+
+	template <typename CFinal, typename Base, typename T>
+	struct wrapper_info : Base
+	{
+		using policy_info = wrapper_info;
+		static_assert(!requires{ typename Base::policy_info; }, "Only one type policy allowed!");
+
+		using ctype_info = CType<T>;
+		using char_type = std::remove_cvref_t<T>;
+		using param_type = std::conditional_t<sizeof(char_type) == 1, unsigned char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>;
+		using view_type = ::std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
+		using owner_type = ::std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
+		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
+	};
 
 	template <typename CFinal, typename Base>
-	struct iter_multibytes : Base
+	using info_u8 = wrapper_info<CFinal, Base, char>;
+
+	template <typename CFinal, typename Base>
+	using info_u16 = wrapper_info<CFinal, Base, u16char_t>;
+
+	template <typename CFinal, typename Base>
+	using info_u32 = wrapper_info<CFinal, Base, fchar_t>;
+
+	static_assert(StringPolicy::TypingPolicy<info_u8<base_comp_t, base_comp_t>>);
+	static_assert(StringPolicy::TypingPolicy<info_u16<base_comp_t, base_comp_t>>);
+	static_assert(StringPolicy::TypingPolicy<info_u32<base_comp_t, base_comp_t>>);
+
+#pragma endregion Type info
+
+#pragma region Iterating
+
+	template <typename CFinal, typename Base, StringPolicy::IteratingPolicy CWrapped>
+	struct wrapper_iter : Base, CWrapped
 	{
-		using policy_iter = StringPolicy::Iterating::as_multibytes_t;
 		static_assert(!requires{ typename Base::policy_iter; }, "Only one iterator policy allowed!");
+		using policy_iter = CWrapped;
+
+		static_assert(requires{ typename Base::char_type; typename Base::view_type; }, "Requires a type info component before introducing an iterator policy!");
+		using typename Base::char_type;
+		using typename Base::view_type;
+
+		static_assert(requires{ typename Base::policy_dir; }, "Requires a search direction component before introducing an iterator policy!");
+		using typename Base::policy_dir;
+
+		using CWrapped::normal_pointer;
+
+		using CWrapped::ValueOf;
+		using CWrapped::Arithmetic;
+		using CWrapped::ArithCpy;
+		using CWrapped::NativeSize;
+
+		static inline constexpr auto Get =
+			[](view_type const& view, ptrdiff_t until = std::numeric_limits<ptrdiff_t>::max()) noexcept -> decltype(auto)
+			{
+				return CWrapped::Get(view, policy_dir{}, until);
+			};
 	};
 
 	template <typename CFinal, typename Base>
-	struct iter_default : Base
-	{
-		using policy_iter = StringPolicy::Iterating::as_normal_ptr_t;
-		static_assert(!requires{ typename Base::policy_iter; }, "Only one iterator policy allowed!");
-	};
-
-	// Comparing
+	using iter_default = wrapper_iter<CFinal, Base, StringPolicy::Iterating::as_normal_ptr_t>;
 
 	template <typename CFinal, typename Base>
-	struct cmp_case_ignored : Base
+	using iter_multibytes = wrapper_iter<CFinal, Base, StringPolicy::Iterating::as_multibytes_t>;
+
+#pragma endregion Iterating
+
+#pragma region Comparing
+
+	template <typename CFinal, typename Base, StringPolicy::ComparingPolicy CWrapped>
+	struct wrapper_cmp : Base, CWrapped
 	{
-		using policy_cmp = StringPolicy::Comparing::case_ignored_t;
 		static_assert(!requires{ typename Base::policy_cmp; }, "Only one comparing policy allowed!");
+		using policy_cmp = CWrapped;
+
+		using CWrapped::ChCmp;
+		using CWrapped::ChEql;
 	};
 
 	template <typename CFinal, typename Base>
-	struct cmp_default : Base
-	{
-		using policy_cmp = StringPolicy::Comparing::regular_t;
-		static_assert(!requires{ typename Base::policy_cmp; }, "Only one comparing policy allowed!");
-	};
-
-	// Direction
+	using cmp_default = wrapper_cmp<CFinal, Base, StringPolicy::Comparing::regular_t>;
 
 	template <typename CFinal, typename Base>
-	struct dir_forward : Base
+	using cmp_case_ignored = wrapper_cmp<CFinal, Base, StringPolicy::Comparing::case_ignored_t>;
+
+#pragma endregion Comparing
+
+#pragma region Direction
+
+	template <typename CFinal, typename Base, StringPolicy::DirectionPolicy CWrapped>
+	struct wrapper_dir : Base, CWrapped
 	{
-		using policy_dir = StringPolicy::Direction::forwards_t;
 		static_assert(!requires{ typename Base::policy_dir; }, "Only one directional policy allowed!");
+		using policy_dir = CWrapped;
+
+		using CWrapped::is_reverse;
+
+		using CWrapped::Begin;
+		using CWrapped::End;
 	};
 
 	template <typename CFinal, typename Base>
-	struct dir_backward : Base
-	{
-		using policy_dir = StringPolicy::Direction::backwards_t;
-		static_assert(!requires{ typename Base::policy_dir; }, "Only one directional policy allowed!");
-	};
+	using dir_forward = wrapper_dir<CFinal, Base, StringPolicy::Direction::forwards_t>;
+
+	template <typename CFinal, typename Base>
+	using dir_backward = wrapper_dir<CFinal, Base, StringPolicy::Direction::backwards_t>;
+
+#pragma endregion Direction
 
 	// Result #CONTINUE_FROM_HERE
+
+	template <typename CFinal, typename Base, typename CWrapped>
+	struct wrapper_ret : Base, CWrapped
+	{
+		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transformer allowed!");
+		using policy_ret = CWrapped;
+
+
+	};
 
 	template <typename CIncompleteType, typename Base>
 	struct ret_as_it_is : Base
 	{
+		using is_transparent = std::identity::is_transparent;	// make STL happy.
+
 		using policy_ret = ret_as_it_is;
 		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
 
@@ -1774,9 +2082,10 @@ namespace Hydrogenium::String::Functors::Components
 
 		// Cmp, Cnt(Len), Tok
 		[[nodiscard]]
-		__forceinline static constexpr decltype(auto) Transform(auto&& arg0) noexcept
+		__forceinline static constexpr decltype(auto) Transform(auto&& t) noexcept
 		{
-			return std::move(arg0);
+			// Move: to make sure that all resources were carry to caller.
+			return std::move(t);
 		}
 
 		// Dup(Rev), Lwr, Upr => Unsupported.
@@ -1799,16 +2108,31 @@ namespace Hydrogenium::String::Functors::Components
 	};
 
 	template <typename CIncompleteType, typename Base>
-	struct ret_as_abs_pos : Base
+	struct ret_as_index : Base
 	{
-		using policy_ret = ret_as_abs_pos;
+		using policy_ret = ret_as_index;
 		static_assert(!requires{ typename Base::policy_ret; }, "Only one returning transform policy allowed!");
 
-		template <typename CFinal = CIncompleteType>
+		static_assert(requires{ typename Base::char_type; }, "Requires a type info component before introducing an iterator policy!");
+		using typename Base::char_type;
+
+		static_assert(requires{ typename Base::policy_iter; }, "Requires a iterator manager component before introducing an returning policy!");
+		using typename Base::policy_iter;
+
 		[[nodiscard]]
-		__forceinline static constexpr decltype(auto) Transform(CFinal::iter_type const& abs_begin, CFinal::iter_type const& abs_end, CFinal::iter_type const& result_loc) noexcept
+		__forceinline static constexpr decltype(auto) Transform(
+			IteratorOf<char_type> auto&& abs_begin,
+			IteratorOf<char_type> auto&& abs_end,
+			IteratorOf<char_type> auto&& rel_begin,
+			IteratorOf<char_type> auto&& result_loc,
+			IteratorOf<char_type> auto&& rel_end
+			) noexcept
 		{
-			return StringPolicy::Result::as_position_t{}(abs_begin, abs_end, result_loc);
+			return StringPolicy::Result::as_position_t{}(
+				abs_begin, abs_end,
+				rel_begin, result_loc, rel_end,
+				policy_iter{}
+			);
 		}
 	};
 
@@ -1934,14 +2258,53 @@ namespace Hydrogenium::String::Functors::Components
 	// It's of lazy and active difference.
 }
 
+namespace Hydrogenium::String::Functors
+{
+	struct dummy {};
+
+	using mbs_r_chr_fn_t = Components::Linker<dummy, Components::alg_chr, Components::ret_as_index, Components::iter_multibytes, Components::cmp_default, Components::dir_backward, Components::info_u8>;
+
+	struct mbs_spn_fn_t : Components::Linker<mbs_spn_fn_t, Components::ret_as_index, Components::iter_multibytes, Components::cmp_default, Components::dir_forward, Components::info_u8>
+	{
+		constexpr auto operator()(std::string_view str, std::string_view charset, ptrdiff_t count = 0xFFFFFFFF) const noexcept
+		{
+			// The count is capping the str, not charset
+			auto [b1, s1, e1] = this->Get(str, count);
+			auto [b2, s2, e2] = this->Get(charset);
+
+			for (; s1 < e1; Arithmetic(s1, b1, e1, 1))
+			{
+				bool found_in_src = false;
+				auto const ch1 = ValueOf(s1);
+
+				for (s2 = b2; s2 < e2; Arithmetic(s2, b2, e2, 1))
+				{
+					auto const ch2 = ValueOf(s2);
+
+					if (ChEql(ch1, ch2))
+					{
+						found_in_src = true;
+						break;
+					}
+				}
+
+				if (found_in_src == false)
+					break;
+			}
+
+			return Transform(str.begin(), str.end(), b1, s1, e1);
+		}
+	};
+}
+
 namespace Hydrogenium::String
 {
 	template <
 		typename char_type = char,
-		StringPolicy::IteratingPolicy<char_type> auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
-		StringPolicy::ComparingPolicy<char_type> auto Comparator = StringPolicy::Comparing::regular,
-		StringPolicy::DirectionPolicy<char_type> auto RangePolicy = StringPolicy::Direction::front_to_back,
-		StringPolicy::ResultProcessor<char_type> auto RsltProc = StringPolicy::Result::as_it_is
+		StringPolicy::IteratingPolicy auto IterPolicy = StringPolicy::Iterating::as_regular_ptr,
+		StringPolicy::ComparingPolicy auto Comparator = StringPolicy::Comparing::regular,
+		StringPolicy::DirectionPolicy auto RangePolicy = StringPolicy::Direction::front_to_back,
+		StringPolicy::ResultProcessor auto RsltProc = StringPolicy::Result::as_it_is
 	>
 	struct Utils final
 	{
@@ -1991,7 +2354,7 @@ namespace Hydrogenium::String
 					{
 						auto const ch2 = IterPolicy.ValueOf(s2);
 
-						if (Comparator.Eql(ch1, ch2))
+						if (Comparator.ChEql(ch1, ch2))
 						{
 							found_in_src = true;
 							break;
@@ -2079,7 +2442,7 @@ namespace Hydrogenium::String
 					{
 						auto const ch2 = IterPolicy.ValueOf(s2);
 
-						if (Comparator.Eql(ch1, ch2))
+						if (Comparator.ChEql(ch1, ch2))
 						{
 							found_in_src = true;
 							break;
@@ -2141,17 +2504,21 @@ namespace Hydrogenium::String
 		struct chr_fn_t
 		{
 			constexpr auto operator()(view_type const& str, param_type ch, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> decltype(RsltProc.Query(RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.Begin(str), IterPolicy))
+				-> decltype(RsltProc.Query(str.begin(), str.end(), RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.End(str), IterPolicy))
 			{
 				auto [begin, it, end] = IterPolicy.Get(str, RangePolicy, until);
 
 				for (; it < end; IterPolicy.Arithmetic(it, begin, end, 1))
 				{
-					if (Comparator.Eql(IterPolicy.ValueOf(it), ch))
+					if (Comparator.ChEql(IterPolicy.ValueOf(it), ch))
 						break;
 				}
 
-				return RsltProc.Query(begin, end, it, IterPolicy);
+				// This is absolute begin and end.
+				return RsltProc.Query(
+					str.begin(), str.end(), begin, it, end,
+					IterPolicy
+				);
 			}
 		};
 		static inline constexpr auto Chr = chr_fn_t{};
@@ -2168,7 +2535,7 @@ namespace Hydrogenium::String
 
 				while (
 					s1 < e1 && s2 < e2
-					&& Comparator.Eql(IterPolicy.ValueOf(s1), IterPolicy.ValueOf(s2))
+					&& Comparator.ChEql(IterPolicy.ValueOf(s1), IterPolicy.ValueOf(s2))
 					)
 				{
 					IterPolicy.Arithmetic(s1, b1, e1, 1);
@@ -2180,7 +2547,7 @@ namespace Hydrogenium::String
 				value_type const c2 = s2 == e2 ? '\0' : IterPolicy.ValueOf(s2);
 
 				return RsltProc.Test(
-					Comparator.Cmp(c1, c2)
+					Comparator.ChCmp(c1, c2)
 				);
 			}
 		};
@@ -2247,12 +2614,12 @@ namespace Hydrogenium::String
 		struct pbrk_fn_t
 		{
 			constexpr auto operator()(view_type const& dest, view_type const& src, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(RsltProc.Query(dest, src, IterPolicy))
+				-> decltype(RsltProc.Query(dest.begin(), dest.end(), RangePolicy.Begin(dest), RangePolicy.End(dest), RangePolicy.End(dest), IterPolicy))
 			{
 				auto [begin, end, it] = detail::PBrk(dest, src, count, false);
 
 				return RsltProc.Query(
-					begin, end, it,
+					dest.begin(), dest.end(), begin, it, end,
 					IterPolicy
 				);
 			}
@@ -2264,12 +2631,12 @@ namespace Hydrogenium::String
 		struct spnp_fn_t
 		{
 			constexpr auto operator()(view_type const& dest, view_type const& src, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(RsltProc.Query(dest, src, IterPolicy))
+				-> decltype(RsltProc.Query(dest.begin(), dest.end(), RangePolicy.Begin(dest), RangePolicy.End(dest), RangePolicy.End(dest), IterPolicy))
 			{
 				auto [begin, end, it] = detail::PBrk(dest, src, count, true);
 
 				return RsltProc.Query(
-					begin, end, it,
+					dest.begin(), dest.end(), begin, it, end,
 					IterPolicy
 				);
 			}
@@ -2281,7 +2648,7 @@ namespace Hydrogenium::String
 		struct str_fn_t
 		{
 			constexpr auto operator()(view_type const& str, view_type const& substr, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> decltype(RsltProc.Query(RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.Begin(str), IterPolicy))
+				-> decltype(RsltProc.Query(str.begin(), str.end(), RangePolicy.Begin(str), RangePolicy.End(str), RangePolicy.End(str), IterPolicy))
 			{
 				// Searching direction is nothing to do with comparing direction!!
 				// the substr is going to attempting to match with the forwarding order.
@@ -2318,7 +2685,10 @@ namespace Hydrogenium::String
 					}
 				}
 
-				return RsltProc.Query(b1, e1, s1, IterPolicy);
+				return RsltProc.Query(
+					str.begin(), str.end(), b1, s1, e1,
+					IterPolicy
+				);
 			}
 		};
 		static inline constexpr auto Str = str_fn_t{};
@@ -2327,21 +2697,16 @@ namespace Hydrogenium::String
 #pragma region Tok
 		struct tok_fn_t
 		{
-			auto operator()(nullable_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> decltype(RsltProc.Query(*str, delim, IterPolicy))
+			auto operator()(nullable_type const& psz, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
 			{
-				static thread_local std::tuple_element_t<0, decltype(IterPolicy.Get(*str, RangePolicy, until))> begin{};
-				static thread_local std::tuple_element_t<1, decltype(IterPolicy.Get(*str, RangePolicy, until))> it{};
-				static thread_local std::tuple_element_t<2, decltype(IterPolicy.Get(*str, RangePolicy, until))> end{};
+				static thread_local std::tuple_element_t<0, decltype(IterPolicy.Get(*psz, RangePolicy, until))> begin{};
+				static thread_local std::tuple_element_t<1, decltype(IterPolicy.Get(*psz, RangePolicy, until))> it{};
+				static thread_local std::tuple_element_t<2, decltype(IterPolicy.Get(*psz, RangePolicy, until))> end{};
 
-				if (str.has_value())
-					std::tie(begin, it, end) = IterPolicy.Get(*str, RangePolicy, until);	// in all other calling case, 'until' param will be ignored.
+				if (psz.has_value())
+					std::tie(begin, it, end) = IterPolicy.Get(*psz, RangePolicy, until);	// in all other calling case, 'until' param will be ignored.
 
-				return RsltProc.Query(
-					str,
-					detail::Tok(begin, it, end, delim),
-					IterPolicy
-				);
+				return detail::Tok(begin, it, end, delim);
 			}
 
 			auto operator()(StringPolicy::Result::as_generator_t, view_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
@@ -2433,13 +2798,13 @@ namespace Hydrogenium
 			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
 		> ::PBrk;
 
-		inline constexpr auto MbsSpn = Utils<
+		inline constexpr auto MbsSpn = Hydrogenium::String::Functors::mbs_spn_fn_t{};/*Utils<
 			char,
 			Iterating::as_multibytes,
 			Comparing::regular,
 			Direction::front_to_back,
 			Result::postprocessor_t<Result::as_position_t, Result::as_lexic_t, Result::as_unsigned_t, Result::as_unmanaged_t>{}
-		> ::SpnP;
+		> ::SpnP;*/
 
 		inline constexpr auto MbsRCSpn = Utils<
 			char,
