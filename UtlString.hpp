@@ -761,6 +761,62 @@ namespace Hydrogenium
 		for (; CT::CodePointOf(*it) > CodePoint::BEGIN_OF_4; ++it) {}
 	}
 
+	// [0 ~ n]: counting from front; [-1 ~ -(n+1)]: counting from back.
+	constexpr fchar_t UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
+	{
+		using CT = CType<decltype(str[0])>;
+
+		if (str.empty())
+			return 0x110000;	// Invalid Unicode point, max legit val is 0x10FFFF
+
+		if (pos >= 0)
+		{
+			auto it = str.begin();
+			CodePoint cp{ CT::CodePointOf(*it) };
+
+			while (it < str.end() && pos > 0)
+			{
+				cp = CT::CodePointOf(*it);
+				assert(cp <= CodePoint::BEGIN_OF_4);
+
+				it += (int)cp;
+				--pos;
+			}
+
+			if (pos == 0 && it < str.end())
+				return CT::ToFullWidth({ it, it + (int)cp, });
+
+			return 0x110000;	// Invalid Unicode point, max val is 0x10FFFF
+		}
+		else
+		{
+			pos = -pos;
+			--pos;
+
+			auto it = str.rbegin();
+			MoveRevIterToUtfStartPos(it);
+
+			CodePoint cp{ CT::CodePointOf(*it) };
+
+			while (it < str.rend() && pos > 0)
+			{
+				do 
+				{
+					++it;
+				} while ((cp = CT::CodePointOf(*it)) > CodePoint::BEGIN_OF_4);
+
+				--pos;
+			}
+
+			if (pos == 0 && it < str.rend())
+				return CT::ToFullWidth({ std::addressof(*it), (size_t)cp, });
+
+			return 0x110000;	// Invalid Unicode point, max val is 0x10FFFF
+		}
+
+		std::unreachable();
+	}
+
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
 
@@ -1404,12 +1460,12 @@ namespace Hydrogenium::StringPolicy::Direction
 	{
 		inline static constexpr bool is_reverse = false;
 
-		static constexpr auto Begin(auto&& r) noexcept
+		static constexpr auto Begin(auto&& r) noexcept -> decltype(std::ranges::begin(r))
 		{
 			return std::ranges::begin(r);
 		}
 
-		static constexpr auto End(auto&& r) noexcept
+		static constexpr auto End(auto&& r) noexcept -> decltype(std::ranges::end(r))
 		{
 			return std::ranges::end(r);
 		}
@@ -1421,12 +1477,12 @@ namespace Hydrogenium::StringPolicy::Direction
 	{
 		inline static constexpr bool is_reverse = true;
 
-		static constexpr auto Begin(auto&& r) noexcept
+		static constexpr auto Begin(auto&& r) noexcept -> decltype(std::ranges::rbegin(r))
 		{
 			return std::ranges::rbegin(r);
 		}
 
-		static constexpr auto End(auto&& r) noexcept
+		static constexpr auto End(auto&& r) noexcept -> decltype(std::ranges::rend(r))
 		{
 			return std::ranges::rend(r);
 		}
@@ -1468,6 +1524,7 @@ namespace Hydrogenium::StringPolicy::Result
 		}
 
 		static constexpr auto UnitTestInvoke(auto&& result_loc, auto&& rel_end) noexcept
+			-> decltype(Transform(nullptr, nullptr, nullptr, result_loc, rel_end, nullptr))
 		{
 			return Transform(
 				nullptr,
@@ -1508,6 +1565,7 @@ namespace Hydrogenium::StringPolicy::Result
 		}
 
 		static constexpr auto UnitTestInvoke(auto&& abs_begin, auto&& result_loc, auto&& rel_end) noexcept
+			-> decltype(Transform(abs_begin, nullptr, nullptr, result_loc, rel_end, nullptr))
 		{
 			return Transform(
 				std::forward<decltype(abs_begin)>(abs_begin),
@@ -1519,21 +1577,24 @@ namespace Hydrogenium::StringPolicy::Result
 			);
 		}
 	};
-	struct as_position_t final	// compatible with indexing function from this library.
+	struct as_position_t final	// intend to be used with Hydrogenium::UtfAt()
 	{
 		[[nodiscard]]
 		static constexpr auto Transform(auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
 		{
+			// cvref ignored.
+			static_assert(typeid(rel_begin) == typeid(rel_end));
+
 			constexpr bool bIsReverseIter = ReverseIterator<std::remove_cvref_t<decltype(result_loc)>>;
+			ptrdiff_t count{};
 
 			if constexpr (IterPolicy.normal_pointer)
 			{
-				// program is ill-formed if view_begin is not coming from abs_begin.
-				return result_loc - rel_begin;
+				// program is ill-formed if result_loc is not coming from rel_begin
+				count = result_loc - rel_begin;
 			}
 			else
 			{
-				ptrdiff_t count{};
 				auto it = rel_begin;
 
 				// In the reverse iter case, the rel_begin doesn't necessary being a startpos of UTF-Stream.
@@ -1547,17 +1608,17 @@ namespace Hydrogenium::StringPolicy::Result
 				{
 					// nothing to do.
 				}
-
-				// Returning negative number representing 'indexing backwards', as in python.
-				if constexpr (bIsReverseIter)
-				{
-					// starting counting from -1, upto -(length+1)
-					++count;
-					count = -count;
-				}
-
-				return count;
 			}
+
+			// Returning negative number representing 'indexing backwards', as in python.
+			if constexpr (bIsReverseIter)
+			{
+				// starting counting from -1, upto -(length+1)
+				++count;
+				count = -count;
+			}
+
+			return count;
 		}
 
 		// abs_begin must be initialized by IterPolicy. Serve as point result.
@@ -1599,16 +1660,16 @@ namespace Hydrogenium::StringPolicy::Result
 			}
 		}
 
-		static constexpr auto UnitTestInvoke(auto&& abs_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
+		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
 		{
-			return as_position_t{}(
-				std::forward<decltype(abs_begin)>(abs_begin),
+			return Transform(
 				nullptr,
 				nullptr,
+				std::forward<decltype(rel_begin)>(rel_begin),
 				std::forward<decltype(result_loc)>(result_loc),
 				std::forward<decltype(rel_end)>(rel_end),
 				IterPolicy
-				);
+			);
 		}
 	};
 	struct as_view_t final

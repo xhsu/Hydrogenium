@@ -326,6 +326,5 @@ int main(int, char* []) noexcept
 	UnitTest_StrFry();	// Run-time only.
 	UnitTest_StrTok();	// Run-time only.
 
-	UnitTest_Runtime();
-	auto r1 = MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"找不到", 10);
+	//UnitTest_Runtime();
 }

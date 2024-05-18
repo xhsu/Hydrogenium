@@ -50,4 +50,22 @@ namespace Hydrogenium::UnitTest
 	}
 	static_assert(UnitTest_StringIterConcept<char>());
 	static_assert(UnitTest_StringIterConcept<wchar_t>());
+
+	static constexpr bool UnitTest_UtfAt(auto&& seq, auto&& ans, int GRAPHEME_COUNT = 10) noexcept
+	{
+		for (int i = 0; i < GRAPHEME_COUNT; ++i)
+			if (auto const ch = UtfAt(seq, i); ch != ans[i])
+				return false;
+
+		for (int i = -1; i > -(GRAPHEME_COUNT + 1); --i)
+			if (auto const ch = UtfAt(seq, i); ch != ans[GRAPHEME_COUNT + i])
+				return false;
+
+		return true;
+	}
+	static_assert(UnitTest_UtfAt(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_UtfAt(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_UtfAt(RMN_NUMBERS_FWD_W, RMN_NUMBERS_FWD_U32ARR));
 }
+
+using namespace Hydrogenium::UnitTest;
