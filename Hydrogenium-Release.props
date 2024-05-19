@@ -7,6 +7,9 @@
     <IntDir>$(SolutionDir)Bin\$(ProjectName)-$(PlatformName)-$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(PlatformName)</TargetName>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <EnableASAN>true</EnableASAN>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -28,6 +31,7 @@
       <StringPooling>true</StringPooling>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeaderFile>Precompiled.hpp</PrecompiledHeaderFile>
+      <BuildStlModules>true</BuildStlModules>
     </ClCompile>
     <Link>
       <OptimizeReferences>true</OptimizeReferences>

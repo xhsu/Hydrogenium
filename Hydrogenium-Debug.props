@@ -7,6 +7,9 @@
     <IntDir>$(SolutionDir)Bin\$(ProjectName)-$(PlatformName)-$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(PlatformName)</TargetName>
   </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <EnableASAN>true</EnableASAN>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
@@ -32,6 +35,7 @@
       <StringPooling>true</StringPooling>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeaderFile>Precompiled.hpp</PrecompiledHeaderFile>
+      <BuildStlModules>true</BuildStlModules>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup />
