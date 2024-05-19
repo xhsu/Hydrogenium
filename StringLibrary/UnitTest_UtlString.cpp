@@ -168,7 +168,7 @@ namespace Hydrogenium::String::UnitTest
 	//                              └────┘    ← searching dir
 	static_assert(MbsCSpn("abcde312$#@", "*$#") == 8);
 	//                     └───────┘
-	//static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
+	static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
 	//                    └────┘
 	static_assert(MbsR::detail::CSpnR(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 2);
 	//                                            └───┘  ← searching & indexing dir.
@@ -280,8 +280,8 @@ namespace Hydrogenium::String::UnitTest
 		assert(UnitTest_StrTok_AllStyles<StrR>("hello, world", " ,\t", std::vector{ "hello", "world" } | std::views::reverse));
 		assert(UnitTest_StrTok_AllStyles<Str>("", " ,\t", std::views::empty<std::string_view>));
 		assert(UnitTest_StrTok_AllStyles<StrR>("", "", std::views::empty<std::string_view>));
-		assert(UnitTest_StrTok_AllStyles<WcsI>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" }));
-		assert(UnitTest_StrTok_AllStyles<WcsIR>(ELL_ALPHABET_UPPER_FWD_W, L"αειουω", std::vector{ L"ΒΓΔ", L"ΖΗΘ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" } | std::views::reverse));
+		assert(UnitTest_StrTok_AllStyles<WcsI>(ELL_ALPHABET_UPPER_FWD_W, L"αεηιουω", std::vector{ L"ΒΓΔ", L"Ζ", L"Θ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" }));
+		assert(UnitTest_StrTok_AllStyles<WcsIR>(ELL_ALPHABET_UPPER_FWD_W, L"αεηιουω", std::vector{ L"ΒΓΔ", L"Ζ", L"Θ", L"ΚΛΜΝΞ", L"ΠΡ΢ΣΤ", L"ΦΧΨ" } | std::views::reverse));
 		assert(UnitTest_StrTok_AllStyles<MbsI>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" }));
 		assert(UnitTest_StrTok_AllStyles<MbsIR>(DEU_ALPHABET_UPPER_FWD_U8, "aeiou", std::vector{ u8"ÄBCD", u8"FGH", u8"JKLMN", u8"ÖPQRSẞT", u8"ÜVWXYZ" } | std::views::reverse));
 		assert(Str::Tok(std::nullopt, "").empty());	// purpose: test how the residue from different calls handled.

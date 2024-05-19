@@ -151,14 +151,14 @@ No found, backward
 
 namespace Hydrogenium::StringPolicy::UnitTest
 {
-	static_assert(std::is_same_v<std::invoke_result_t<as_pointer_t, char*, char*, char*, char*, char*, std::nullptr_t>, char*>);
+	static_assert(requires(char* p) { { as_pointer_t::Transform(p, p, p, p, p, nullptr) } -> std::same_as<char*>; });
 	static_assert(as_pointer_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.end()) == &ASCII_NUMBERS_FWD[0]);
 	static_assert(as_pointer_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin() + 9, ASCII_NUMBERS_FWD.end()) == &ASCII_NUMBERS_FWD[9]);
 	static_assert(as_pointer_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin() + 10, ASCII_NUMBERS_FWD.end()) == nullptr);
 	static_assert(as_pointer_t::UnitTestInvoke((char*)nullptr, nullptr) == nullptr);
 
 	// Requirement: Transform the returning iter pos into Hydrogenium::UtfAt() compatible input.
-	static_assert(std::is_same_v<std::invoke_result_t<as_position_t, char*, char*, char*, char*, char*, Iterating::as_multibytes_t>, std::ptrdiff_t>);
+	static_assert(requires(char* p) { { as_position_t::Transform(p, p, p, p, p, Iterating::as_multibytes) } -> std::same_as<std::ptrdiff_t>; });
 	static_assert(as_position_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 5, ASCII_NUMBERS_FWD.end(), Iterating::as_regular_ptr) == 5 && ASCII_NUMBERS_FWD.substr(5)[0] == ASCII_NUMBERS_FWD[5]);
 	static_assert(as_position_t::UnitTestInvoke(ASCII_NUMBERS_FWD.rbegin(), ASCII_NUMBERS_FWD.rbegin() + 5, ASCII_NUMBERS_FWD.rend(), Iterating::as_regular_ptr) == -6);
 	static_assert(as_position_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 10, ASCII_NUMBERS_FWD.end(), Iterating::as_regular_ptr) == 10);	// no found: return strcnt() equivlent.
@@ -195,7 +195,7 @@ namespace Hydrogenium::StringPolicy::UnitTest
 	static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::forwards_t>(RMN_NUMBERS_FWD_W));
 	static_assert(UnitTest_AsPosition<Iterating::as_normal_ptr_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
 
-	static_assert(std::is_same_v<std::invoke_result_t<as_view_t, char*, char*, char*, char*, char*, std::nullptr_t>, string_view>);
+	static_assert(requires(char* p) { { as_view_t::Transform(p, p, p, p, p, nullptr) } -> std::same_as<string_view>; });
 	static_assert(as_view_t::UnitTestInvoke(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 9, ASCII_NUMBERS_FWD.end()) == ASCII_NUMBERS_FWD.substr(9));
 	static_assert(as_view_t::UnitTestInvoke(ASCII_NUMBERS_FWD.rbegin(), ASCII_NUMBERS_FWD.rbegin() + 8, ASCII_NUMBERS_FWD.rend()) == ASCII_NUMBERS_FWD.substr(1));
 
@@ -204,11 +204,9 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		auto [cn_txt_abs_begin, cn_txt_it, cn_txt_end]
 			= Iterating::as_multibytes.Get(CJK_NUMBERS_FWD_U8, Direction::back_to_front, 100);
 
-		as_unmanaged_t unmanaged{};
-
-		auto const cpy1 = unmanaged(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.end(), Iterating::as_regular_ptr);
-		auto const cpy2 = unmanaged(RMN_NUMBERS_FWD_W.rbegin(), RMN_NUMBERS_FWD_W.rend(), Iterating::as_regular_ptr);
-		auto const cpy3 = unmanaged(cn_txt_it, cn_txt_end, Iterating::as_multibytes);
+		auto const cpy1 = as_unmanaged_t::Transform(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.end(), Iterating::as_regular_ptr);
+		auto const cpy2 = as_unmanaged_t::Transform(RMN_NUMBERS_FWD_W.rbegin(), RMN_NUMBERS_FWD_W.rend(), Iterating::as_regular_ptr);
+		auto const cpy3 = as_unmanaged_t::Transform(cn_txt_it, cn_txt_end, Iterating::as_multibytes);
 
 		decltype(ASCII_NUMBERS_FWD) const view1{ cpy1 };
 		decltype(RMN_NUMBERS_FWD_W) const view2{ cpy2 };
@@ -233,11 +231,9 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		auto [cn_txt_abs_begin, cn_txt_it, cn_txt_end]
 			= Iterating::as_multibytes.Get(CJK_NUMBERS_FWD_U8, Direction::back_to_front, 5);
 
-		as_marshaled_t marshall{};
-
-		auto cpy1 = marshall(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 5, Iterating::as_regular_ptr);
-		auto cpy2 = marshall(RMN_NUMBERS_FWD_W.rbegin(), RMN_NUMBERS_FWD_W.rbegin() + 5, Iterating::as_regular_ptr);
-		auto cpy3 = marshall(cn_txt_it, cn_txt_end, Iterating::as_multibytes);
+		auto cpy1 = as_marshaled_t::Transform(ASCII_NUMBERS_FWD.begin(), ASCII_NUMBERS_FWD.begin() + 5, Iterating::as_regular_ptr);
+		auto cpy2 = as_marshaled_t::Transform(RMN_NUMBERS_FWD_W.rbegin(), RMN_NUMBERS_FWD_W.rbegin() + 5, Iterating::as_regular_ptr);
+		auto cpy3 = as_marshaled_t::Transform(cn_txt_it, cn_txt_end, Iterating::as_multibytes);
 
 		bool const bResult =
 			ASCII_NUMBERS_FWD.starts_with(cpy1)
@@ -248,36 +244,6 @@ namespace Hydrogenium::StringPolicy::UnitTest
 		return bResult;
 	}
 	static_assert(UnitTest_Marshaled());
-
-	template <typename I, typename D>
-	static constexpr bool UnitTest_RelativePos(auto&& str, ptrdiff_t GRAPHEME_COUNT = 10) noexcept
-	{
-		struct fake_base {};
-
-		struct fake_functor
-		{
-			using policy_dir = D;
-			using policy_iter = I;
-
-			using view_type = CType<decltype(str[0])>::view_type;
-			using iter_type = decltype(D::Begin(str));
-		};
-
-		constexpr ret_as_rel_pos<fake_functor, fake_base> functor{};
-
-		auto [begin, it, end] = I::Get(str, D{}, 0xFFFF);
-
-		for (ptrdiff_t i = 0; i < GRAPHEME_COUNT; ++i)
-			if (auto const rel = functor.Transform(begin, end, I::ArithCpy(it, begin, end, i)); rel != i)
-				return false;
-
-		return true;
-	}
-	static_assert(UnitTest_RelativePos<Iterating::as_normal_ptr_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
-	static_assert(UnitTest_RelativePos<Iterating::as_normal_ptr_t, Direction::forwards_t>(RMN_NUMBERS_FWD_W));
-	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::backwards_t>(RMN_NUMBERS_FWD_W));
-	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::forwards_t>(CJK_NUMBERS_FWD_U8));
-	static_assert(UnitTest_RelativePos<Iterating::as_multibytes_t, Direction::backwards_t>(CJK_NUMBERS_FWD_U8));
 }
 
 using namespace Hydrogenium::StringPolicy::UnitTest;
