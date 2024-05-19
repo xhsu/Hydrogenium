@@ -1543,7 +1543,7 @@ namespace Hydrogenium::StringPolicy::Result
 			-> std::ptrdiff_t
 		{
 			if (result_loc == rel_end)
-				return std::numeric_limits<ptrdiff_t>::max();
+				return std::numeric_limits<ptrdiff_t>::max();	// a.k.a. std::string::npos
 
 			auto const fwd_result_loc = ToForwardIter(result_loc, result_loc != rel_end);
 
@@ -1623,41 +1623,17 @@ namespace Hydrogenium::StringPolicy::Result
 
 		// abs_begin must be initialized by IterPolicy. Serve as point result.
 		[[nodiscard]]
-		constexpr auto operator() (auto&& abs_begin, auto&& /*abs_end*/, auto&& /*rel_begin*/, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) const noexcept
+		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) const noexcept
 			-> std::ptrdiff_t
 		{
-			// cvref ignored.
-			static_assert(!ReverseIterator<std::remove_cvref_t<decltype(abs_begin)>>);
-
-			using StringPolicy::Iterating::APRES;
-
-			//auto fwd_abs_begin = ToForwardIter(abs_begin, false);
-			auto fwd_rel_end = ToForwardIter(rel_end, false);
-			auto fwd_res_loc = ToForwardIter(result_loc, result_loc != rel_end);
-
-			//if (fwd_abs_begin > fwd_rel_end)	// begin should always less than end.
-			//	std::swap(fwd_abs_begin, fwd_rel_end);
-
-			if (result_loc == rel_end)	// no found!
-				fwd_res_loc = fwd_rel_end;
-
-			if constexpr (IterPolicy.normal_pointer)
-			{
-				// program is ill-formed if view_begin is not coming from abs_begin.
-				return fwd_res_loc - abs_begin;
-			}
-			else
-			{
-				std::ptrdiff_t counter = abs_begin == fwd_res_loc ? 0 : 1;
-				for (auto it = abs_begin;	// no range policy involved. the return value is always forwarding direction.
-					IterPolicy.Arithmetic(it, abs_begin, fwd_res_loc, 1) & APRES::MOVED;
-					++counter)
-				{
-					// nothing.
-				}
-
-				return counter;
-			}
+			return Transform(
+				nullptr,
+				nullptr,
+				std::forward<decltype(rel_begin)>(rel_begin),
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				IterPolicy
+			);
 		}
 
 		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
@@ -1674,15 +1650,11 @@ namespace Hydrogenium::StringPolicy::Result
 	};
 	struct as_view_t final
 	{
-		// For the rest Query functors.
-		// abs_begin must be initialized by IterPolicy. Return a view from result_loc to fwd_true_end
 		[[nodiscard]]
-		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, auto&& /* IterPolicy */) const noexcept	// #MSVC_BUGGED_tailing_return_type_namespace_error
+		static constexpr auto Transform(auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, auto&& /*IterPolicy*/) noexcept
 		{
 			// cvref ignored.
 			static_assert(typeid(rel_begin) == typeid(rel_end));
-
-			using StringPolicy::Iterating::APRES;
 
 			auto fwd_rel_begin = ToForwardIter(rel_begin, false);
 			auto fwd_rel_end = ToForwardIter(rel_end, false);
@@ -1697,16 +1669,31 @@ namespace Hydrogenium::StringPolicy::Result
 			return typename CType<decltype(*result_loc)>::view_type{ fwd_res_loc, fwd_rel_end };
 		}
 
-		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end) noexcept
+		// For the rest Query functors.
+		// abs_begin must be initialized by IterPolicy. Return a view from result_loc to fwd_true_end
+		[[nodiscard]]
+		constexpr auto operator() (auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, auto&& /* IterPolicy */) const noexcept	// #MSVC_BUGGED_tailing_return_type_namespace_error
 		{
-			return as_view_t{}(
+			return Transform(
 				nullptr,
 				nullptr,
 				std::forward<decltype(rel_begin)>(rel_begin),
 				std::forward<decltype(result_loc)>(result_loc),
 				std::forward<decltype(rel_end)>(rel_end),
 				nullptr
-				);
+			);
+		}
+
+		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end) noexcept
+		{
+			return Transform(
+				nullptr,
+				nullptr,
+				std::forward<decltype(rel_begin)>(rel_begin),
+				std::forward<decltype(result_loc)>(result_loc),
+				std::forward<decltype(rel_end)>(rel_end),
+				nullptr
+			);
 		}
 	};
 

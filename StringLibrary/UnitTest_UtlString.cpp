@@ -162,10 +162,10 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrI::SpnP("Try not", "tr") == "y not");
 	static_assert(StrIR::SpnP("Try not", "tr") == "ot");
 
-	static_assert(MbsRCSpn(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 5);
-	//                        └────────┘  ← searching dir
-	static_assert(MbsRSpn(u8"吃葡萄不吐葡萄皮", u8"葡萄皮") == 4);
-	//                       └──────┘     ← searching dir
+	static_assert(MbsRCSpn(u8"吃葡萄不吐葡萄皮", u8"吐葡") == -3);
+	//                               └────┘   ← searching dir
+	static_assert(MbsRSpn(u8"吃葡萄不吐葡萄皮", u8"葡萄皮") == -4);
+	//                              └────┘    ← searching dir
 	static_assert(MbsCSpn("abcde312$#@", "*$#") == 8);
 	//                     └───────┘
 	//static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
