@@ -32,9 +32,6 @@
     <ClCompile Include="UnitTest_UtlString_PostProcessor.cpp">
       <Filter>Testing</Filter>
     </ClCompile>
-    <ClCompile Include="UnitTest_UtlString_Laboratory.cpp">
-      <Filter>Testing</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UtlString.hpp">

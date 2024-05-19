@@ -66,6 +66,34 @@ namespace Hydrogenium::UnitTest
 	static_assert(UnitTest_UtfAt(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD_U32ARR));
 	static_assert(UnitTest_UtfAt(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U32ARR));
 	static_assert(UnitTest_UtfAt(RMN_NUMBERS_FWD_W, RMN_NUMBERS_FWD_U32ARR));
+
+	static constexpr bool UnitTest_UtfSlicing(auto&& str, auto&& ans) noexcept
+	{
+		auto const GRAPHEME_COUNT = std::ranges::ssize(ans);
+
+		int16_t first = 1, last = -1;
+
+		for (first = 0; first < GRAPHEME_COUNT; ++first)
+		{
+			for (last = first; last < GRAPHEME_COUNT; ++last)
+			{
+				auto const r = UtfSlicing(str, first, last);
+				auto const a = std::span{ &ans[first], size_t(last - first) };
+
+				for (size_t i = 0; i < a.size(); ++i)
+					if (auto const u = UtfAt(r, i); u != a[i])
+						return false;
+			}
+		}
+
+		return true;
+	}
+
+	static_assert(UtfSlicing(std::string_view{}, {}, {}).empty());	// "" is actually "\0", so it won't work in this test.
+	static_assert(UnitTest_UtfSlicing(ASCII_NUMBERS_FWD, ASCII_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_UtfSlicing(CJK_NUMBERS_FWD_U8, CJK_NUMBERS_FWD_U32ARR));
+	static_assert(UnitTest_UtfSlicing(RMN_NUMBERS_FWD_W, RMN_NUMBERS_FWD_U32ARR));
 }
 
 using namespace Hydrogenium::UnitTest;
+using namespace Hydrogenium;

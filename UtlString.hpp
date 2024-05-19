@@ -565,8 +565,15 @@ namespace Hydrogenium
 		}
 
 		// Luna's extension
-		[[nodiscard]] static constexpr auto ToFullWidth(view_type bytes) noexcept -> fchar_t
+		[[nodiscard]] static constexpr auto ToFullWidth(const_span_t bytes) noexcept -> fchar_t
 		{
+#ifndef _DEBUG
+			if (std::ranges::empty(bytes))
+				return 0x110000;	// Invalid Unicode point, max val is 0x10FFFF
+#else
+			assert(!std::ranges::empty(bytes));
+#endif
+
 			switch (CodePointOf(bytes.front()))
 			{
 			case CodePoint::WHOLE:
@@ -574,7 +581,7 @@ namespace Hydrogenium
 
 			case CodePoint::BEGIN_OF_2:
 			{
-				assert(bytes.size() == 2);
+				assert(bytes.size() == 2 || (bytes.size() == 3 && bytes.back() == '\0'));
 
 				if constexpr (is_utf8)
 				{
@@ -599,7 +606,7 @@ namespace Hydrogenium
 			{
 				if constexpr (is_utf8)
 				{
-					assert(bytes.size() == 3);
+					assert(bytes.size() == 3 || (bytes.size() == 4 && bytes.back() == '\0'));
 					fchar_t ret = (bytes[0] & 0b00001111) << 12 | (bytes[1] & 0b00111111) << 6 | (bytes[2] & 0b00111111);
 
 					if (ret < (fchar_t)0x800)		// Not a valid result, Wrong encoding
@@ -617,7 +624,7 @@ namespace Hydrogenium
 			{
 				if constexpr (is_utf8)
 				{
-					assert(bytes.size() == 4);
+					assert(bytes.size() == 4 || (bytes.size() == 5 && bytes.back() == '\0'));
 					fchar_t ret =
 						(bytes[0] & 0b00000111) << 18 | (bytes[1] & 0b00111111) << 12 | (bytes[2] & 0b00111111) << 6 | (bytes[3] & 0b00111111);
 
@@ -727,8 +734,9 @@ namespace Hydrogenium
 namespace Hydrogenium
 {
 	constexpr auto BuildStringView(auto&& it1, auto&& it2, auto&& end, bool do_offset) noexcept
-		requires (typeid(*it1) == typeid(*it2) && typeid(*end) == typeid(*it2))
 	{
+		static_assert(typeid(*it1) == typeid(*it2) && typeid(*end) == typeid(*it2));
+
 		using char_type = std::remove_cvref_t<decltype(*it1)>;
 		using fwd_iter_t = decltype(ToForwardIter(it1));
 
@@ -761,20 +769,23 @@ namespace Hydrogenium
 		for (; CT::CodePointOf(*it) > CodePoint::BEGIN_OF_4; ++it) {}
 	}
 
+	// #MSVC_BUGGED_tailing_return_type_namespace_error
+
 	// [0 ~ n]: counting from front; [-1 ~ -(n+1)]: counting from back.
-	constexpr fchar_t UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
+	constexpr auto FetchBytes(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
 	{
 		using CT = CType<decltype(str[0])>;
+		auto ret = std::span<std::remove_reference_t<decltype(str[0])>>{};
 
-		if (str.empty())
-			return 0x110000;	// Invalid Unicode point, max legit val is 0x10FFFF
+		if (std::ranges::empty(str))
+			return ret;
 
 		if (pos >= 0)
 		{
-			auto it = str.begin();
+			auto it = std::ranges::begin(str);
 			CodePoint cp{ CT::CodePointOf(*it) };
 
-			while (it < str.end() && pos > 0)
+			while (it < std::ranges::end(str) && pos > 0)
 			{
 				cp = CT::CodePointOf(*it);
 				assert(cp <= CodePoint::BEGIN_OF_4);
@@ -783,22 +794,22 @@ namespace Hydrogenium
 				--pos;
 			}
 
-			if (pos == 0 && it < str.end())
-				return CT::ToFullWidth({ it, it + (int)cp, });
+			if (pos == 0 && it < std::ranges::end(str))
+				return std::span{ std::addressof(*it), (size_t)cp, };
 
-			return 0x110000;	// Invalid Unicode point, max val is 0x10FFFF
+			return ret;	// Invalid Unicode point, max val is 0x10FFFF
 		}
 		else
 		{
 			pos = -pos;
 			--pos;
 
-			auto it = str.rbegin();
+			auto it = std::ranges::rbegin(str);
 			MoveRevIterToUtfStartPos(it);
 
 			CodePoint cp{ CT::CodePointOf(*it) };
 
-			while (it < str.rend() && pos > 0)
+			while (it < std::ranges::rend(str) && pos > 0)
 			{
 				do 
 				{
@@ -808,13 +819,38 @@ namespace Hydrogenium
 				--pos;
 			}
 
-			if (pos == 0 && it < str.rend())
-				return CT::ToFullWidth({ std::addressof(*it), (size_t)cp, });
+			if (pos == 0 && it < std::ranges::rend(str))
+				return std::span{ std::addressof(*it), (size_t)cp, };
 
-			return 0x110000;	// Invalid Unicode point, max val is 0x10FFFF
+			return ret;	// Invalid Unicode point, max val is 0x10FFFF
 		}
 
 		std::unreachable();
+	}
+
+	constexpr fchar_t UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
+	{
+		using CT = CType<decltype(str[0])>;
+
+		auto const bytes = FetchBytes(str, pos);
+		return CT::ToFullWidth(bytes);
+	}
+
+	constexpr auto UtfSlicing(std::ranges::input_range auto&& str, int32_t pos1, std::optional<int16_t> pos2) noexcept
+	{
+		using CT = CType<decltype(str[0])>;
+
+		auto const first = FetchBytes(str, pos1);
+		auto const last = FetchBytes(str, pos2.value_or(-1));
+
+		if (first.empty())
+			return typename CT::view_type{};
+
+		auto const p1 = std::addressof(first.front());
+		auto const p2 = pos2 ? std::addressof(last.front()) : (std::ranges::data(str) + std::ranges::size(str));
+
+		assert(p1 <= p2);
+		return typename CT::view_type{ p1, p2 };
 	}
 
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
@@ -1718,12 +1754,12 @@ namespace Hydrogenium::StringPolicy::Result
 				return std::strong_ordering::equal;	// that's what expression 0<=>0 will return.
 		}
 	};
-	//struct as_eql_t final { [[nodiscard]] constexpr bool operator()(std::same_as<int> auto val) const noexcept { return val == 0; } };
-	//struct as_lt_t final { [[nodiscard]] constexpr bool operator()(std::same_as<int> auto val) const noexcept { return val < 0; } };
-	//struct as_lt_eq_t final { [[nodiscard]] constexpr bool operator()(std::same_as<int> auto val) const noexcept { return val <= 0; } };
-	//struct as_gt_t final { [[nodiscard]] constexpr bool operator()(std::same_as<int> auto val) const noexcept { return val > 0; } };
-	//struct as_gt_eq_t final { [[nodiscard]] constexpr bool operator()(std::same_as<int> auto val) const noexcept { return val >= 0; } };
-	//struct as_not_eq_t final { [[nodiscard]] constexpr bool operator()(std::same_as<int> auto val) const noexcept { return val != 0; } };
+	struct as_eql_t final { [[nodiscard]] static constexpr bool Transform(std::same_as<int> auto val) noexcept { return val == 0; } };
+	struct as_lt_t final { [[nodiscard]] static constexpr bool Transform(std::same_as<int> auto val) noexcept { return val < 0; } };
+	struct as_lt_eq_t final { [[nodiscard]] static constexpr bool Transform(std::same_as<int> auto val) noexcept { return val <= 0; } };
+	struct as_gt_t final { [[nodiscard]] static constexpr bool Transform(std::same_as<int> auto val) noexcept { return val > 0; } };
+	struct as_gt_eq_t final { [[nodiscard]] static constexpr bool Transform(std::same_as<int> auto val) noexcept { return val >= 0; } };
+	struct as_not_eq_t final { [[nodiscard]] static constexpr bool Transform(std::same_as<int> auto val) noexcept { return val != 0; } };
 
 	static_assert(TestPostProcessor<as_it_is_t>);
 	static_assert(TestPostProcessor<as_lexic_t>);
