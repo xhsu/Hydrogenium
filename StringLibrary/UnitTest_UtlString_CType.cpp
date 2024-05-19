@@ -130,10 +130,10 @@ namespace Hydrogenium::UnitTest
 	static_assert(CType<char>::ToFullWidth(u8"𐒰") == U'𐒰');
 
 	using U8MBARR = std::array<unsigned char, 4>;
-	static_assert(CType<char>::ToMultiBytes(U'A').first == U8MBARR{ 'A', 0, 0, 0 });
-	static_assert(CType<char>::ToMultiBytes(U'Á').first == U8MBARR{ 0xC3, 0x81, 0, 0 });
-	static_assert(CType<char>::ToMultiBytes(U'あ').first == U8MBARR{ 0xE3, 0x81, 0x82, 0 });
-	static_assert(CType<char>::ToMultiBytes(U'𐒰').first == U8MBARR{ 0xF0, 0x90, 0x92, 0xB0 });
+	static_assert(CType<char>::ToMultiBytes(U'A') == U8MBARR{ 'A', 0, 0, 0 });
+	static_assert(CType<char>::ToMultiBytes(U'Á') == U8MBARR{ 0xC3, 0x81, 0, 0 });
+	static_assert(CType<char>::ToMultiBytes(U'あ') == U8MBARR{ 0xE3, 0x81, 0x82, 0 });
+	static_assert(CType<char>::ToMultiBytes(U'𐒰') == U8MBARR{ 0xF0, 0x90, 0x92, 0xB0 });
 
 	static_assert(CType<char16_t>::CodePointOf(u"A"[0]) == CodePoint::WHOLE);
 	static_assert(CType<char16_t>::CodePointOf(u"Á"[0]) == CodePoint::WHOLE);
@@ -152,8 +152,24 @@ namespace Hydrogenium::UnitTest
 	}
 
 	using U16MBARR = std::array<char16_t, 2>;
-	static_assert(CType<char16_t>::ToMultiBytes(U'A').first == U16MBARR{ u'A', 0 });
-	static_assert(CType<char16_t>::ToMultiBytes(U'Á').first == U16MBARR{ u'Á', 0 });
-	static_assert(CType<char16_t>::ToMultiBytes(U'あ').first == U16MBARR{ u'あ', 0 });
-	static_assert(CType<char16_t>::ToMultiBytes(U'𐒰').first == U16MBARR{ 0xD801, 0xDCB0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'A') == U16MBARR{ u'A', 0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'Á') == U16MBARR{ u'Á', 0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'あ') == U16MBARR{ u'あ', 0 });
+	static_assert(CType<char16_t>::ToMultiBytes(U'𐒰') == U16MBARR{ 0xD801, 0xDCB0 });
+}
+
+// Code conversion test
+namespace Hydrogenium::UnitTest
+{
+	constexpr bool UnitTest_UtfCvt() noexcept
+	{
+		// #MSVC_BUGGED_compile_time_utf8
+
+		bool const b1 = std::ranges::equal(DEU_ALPHABET_LOWER_FWD_U8 | UTF8_TO_UTF16, std::wstring_view{ L"aäbcdefghijklmnoöpqrsßtuüvwxyz" });
+		bool const b2 = std::ranges::equal(ELL_ALPHABET_LOWER_FWD_W | UTF16_TO_UTF8, std::string_view{ u8"αβγδεζηθικλμνξοπρςστυφχψω" });
+
+		return b1 && b2;
+	}
+
+	static_assert(UnitTest_UtfCvt());
 }

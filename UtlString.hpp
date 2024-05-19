@@ -12,6 +12,7 @@
 #include <cwctype>
 
 #include <algorithm>
+#include <bit>		// u8buffer, bit_cast
 #include <concepts>
 #include <functional>
 #include <limits>
@@ -164,6 +165,69 @@ namespace Hydrogenium
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
 
+// u8 and u16buffer
+namespace Hydrogenium
+{
+	template <typename C>
+	struct multibytes_t final
+	{
+		static_assert(sizeof(C) < 4, "Use with char8_t or char16_t!");
+		static inline constexpr auto MAX_SIZE = sizeof(uint32_t) / sizeof(C);
+		static inline constexpr auto BACK = MAX_SIZE - 1;
+
+		[[nodiscard]]
+		constexpr auto begin(this auto&& self) noexcept -> decltype(std::ranges::begin(self.m_data))
+		{
+			return std::ranges::begin(self.m_data);
+		}
+
+		[[nodiscard]]
+		constexpr auto end(this auto&& self) noexcept -> decltype(std::ranges::end(self.m_data))
+		{
+			if (self.m_data[BACK] > BACK)
+				return std::ranges::end(self.m_data);
+
+			return std::ranges::begin(self.m_data) + self.m_data[BACK];
+		}
+
+		[[nodiscard]] constexpr auto cbegin(this auto&& self) noexcept -> decltype(self.begin()) { return self.begin(); }
+		[[nodiscard]] constexpr auto cend(this auto&& self) noexcept -> decltype(self.end()) { return self.end(); }
+
+		[[nodiscard]] constexpr size_t size(this auto&& self) noexcept
+		{
+			if (self.m_data[BACK] <= BACK)
+				return self.m_data[BACK];
+
+			return MAX_SIZE;
+		}
+
+		[[nodiscard]] constexpr bool empty() const noexcept { return m_data[BACK] == 0 || (m_data[0] == 0 && m_data[BACK] == static_cast<C>(-1)); }
+		[[nodiscard]] constexpr auto data(this auto&& self) noexcept -> decltype(&self.m_data[0]) { return &self.m_data[0]; }
+
+		[[nodiscard]] constexpr auto operator[](this auto&& self, size_t n) noexcept -> decltype(self.m_data[n]) { return self.m_data[n]; }
+
+		[[nodiscard]] constexpr bool operator==(this auto&& lhs, multibytes_t rhs) noexcept
+		{
+			return std::bit_cast<uint32_t>(lhs) == std::bit_cast<uint32_t>(rhs);
+		}
+		[[nodiscard]] constexpr bool operator==(this auto&& lhs, auto&& rhs) noexcept requires(requires{ { rhs[0] } -> std::convertible_to<C>; })
+		{
+			if (std::ranges::size(rhs) < lhs.size())
+				return false;
+
+			for (auto&& [l, r] : std::views::zip(lhs, rhs))
+			{
+				if (l != static_cast<C>(r))
+					return false;
+			}
+
+			return true;
+		}
+
+		C m_data[MAX_SIZE]{};
+	};
+}
+
 // CType
 namespace Hydrogenium
 {
@@ -185,8 +249,6 @@ namespace Hydrogenium
 	// Full Unicode character type
 	using fchar_t = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
 	using u16char_t = std::conditional_t<sizeof(wchar_t) == sizeof(char16_t), wchar_t, char16_t>;
-
-	// #TODO UTF32 a.k.a. all-lang support?
 
 	template <typename T>
 	struct CType final
@@ -214,7 +276,7 @@ namespace Hydrogenium
 		using view_type = std::basic_string_view<char_type>;
 		using owner_type = std::basic_string<char_type>;
 		using traits_type = ::std::char_traits<char_type>;
-		using multibytes_type = std::conditional_t<is_narrow, std::array<param_type, 4>, std::conditional_t<is_wide, std::array<param_type, 2>, void>>;
+		using multibytes_type = std::conditional_t<is_utf8, multibytes_t<char>, std::conditional_t<is_utf16, multibytes_t<u16char_t>, void>>;
 		using mutable_span_t = std::span<char_type>;
 		using const_span_t = std::span<std::add_const_t<char_type>>;
 
@@ -646,25 +708,11 @@ namespace Hydrogenium
 		}
 
 		// Luna's extension
-		[[nodiscard]] static constexpr auto ToFullWidth(std::integral auto c) noexcept -> fchar_t
+		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> multibytes_type requires (is_utf8 || is_utf16)
 		{
-			switch (CodePointOf(c))
-			{
-			case CodePoint::WHOLE:
-				return static_cast<fchar_t>(c);
-
-			default:
-				assert(false);
-				std::unreachable();
-			}
-		}
-
-		// Luna's extension
-		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> std::pair<multibytes_type, int32_t> requires (is_utf8 || is_utf16)
-		{
-			std::pair<multibytes_type, int32_t> res{};
-			auto& ret = res.first;
-			auto& cnt = res.second;
+			multibytes_type res{};
+			auto& ret = res.m_data;
+			auto& cnt = res.m_data[res.BACK];
 
 			if constexpr (is_utf8)
 			{
@@ -694,7 +742,7 @@ namespace Hydrogenium
 					ret[2] = static_cast<param_type>(0x80u | ((wc >> 6) & 0x3Fu));	/* 10xxxxxx */
 					ret[3] = static_cast<param_type>(0x80u | (wc & 0x3Fu));			/* 10xxxxxx */
 
-					cnt = 4;
+					//cnt = 4;	// don't override the data! Now this cell is used as a part of UTF, rather than size indicator.
 				}
 				else
 					cnt = -1;	// out of UTF range
@@ -712,7 +760,7 @@ namespace Hydrogenium
 					ret[0] = static_cast<param_type>(((((uint32_t)wc - 0x10000u) << 12) >> 22) + 0xD800u);
 					ret[1] = static_cast<param_type>(((((uint32_t)wc - 0x10000u) << 22) >> 22) + 0xDC00u);
 
-					cnt = 2;
+					//cnt = 2;	// don't override the data! Now this cell is used as a part of UTF, rather than size indicator.
 				}
 				else
 					cnt = -1;	// out of UTF range
@@ -852,6 +900,20 @@ namespace Hydrogenium
 		assert(p1 <= p2);
 		return typename CT::view_type{ p1, p2 };
 	}
+
+	inline constexpr auto UTF8_TO_UTF16 =
+		std::views::chunk_by([](auto, char rhs) { return CType<char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
+		| std::views::transform(&CType<char>::ToFullWidth)
+		| std::views::transform(&CType<u16char_t>::ToMultiBytes)
+		| std::views::join
+		| std::ranges::to<std::basic_string>();
+
+	inline constexpr auto UTF16_TO_UTF8 =
+		std::views::chunk_by([](auto, u16char_t rhs) { return CType<u16char_t>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
+		| std::views::transform(&CType<u16char_t>::ToFullWidth)
+		| std::views::transform(&CType<char>::ToMultiBytes)
+		| std::views::join
+		| std::ranges::to<std::basic_string>();
 
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
@@ -1815,10 +1877,9 @@ namespace Hydrogenium::StringPolicy::Result
 				{
 					static_assert(typeid(fchar_t) == typeid(value_type));
 
-					auto const [bytes, count] = CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)));
-					assert(count > 0);
+					auto const bytes = CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)));
 
-					for (auto&& byt : bytes | std::views::take(count))
+					for (auto&& byt : bytes)
 					{
 						p[i++] = byt;
 					}
@@ -1854,11 +1915,8 @@ namespace Hydrogenium::StringPolicy::Result
 				{
 					static_assert(typeid(fchar_t) == typeid(value_type));
 
-					auto const [bytes, count] = CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)));
-					assert(count > 0);
-
 					ret.append_range(
-						bytes | std::views::take(count)
+						CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)))
 					);
 				}
 			}
@@ -2844,6 +2902,7 @@ namespace Hydrogenium
 
 
 
+[[nodiscard]]
 constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
 {
 	using namespace Hydrogenium;
@@ -2871,5 +2930,20 @@ static_assert(UTIL_Trim(" abc") == "abc");
 static_assert(UTIL_Trim("abc ") == "abc");
 static_assert(UTIL_Trim("abc") == "abc");
 
-// UTIL_ReplaceAll
+
+// #TODO Str::ReplaceAll maybe??
+template <typename C>
+constexpr void UTIL_ReplaceAll(std::basic_string<C>* psz, std::basic_string_view<C> const& from, std::basic_string_view<C> const& to) noexcept
+{
+	if (from.empty())
+		return;
+
+	std::size_t start_pos = 0;
+	while ((start_pos = psz->find(from, start_pos)) != psz->npos)
+	{
+		psz->replace(start_pos, from.length(), to);
+		start_pos += to.length();	// In case 'to' contains 'from', like replacing 'x' with 'yx'
+	}
+}
+
 // UTIL_Split
