@@ -2107,17 +2107,6 @@ namespace Hydrogenium::String::Functors::Components
 	{
 		// Only for non-dependented name, quick diagnosis.
 		// https://en.cppreference.com/w/cpp/language/dependent_name
-		template <typename CFinal>
-		static consteval bool VerifyComponents()
-		{
-			static_assert(requires{ typename CFinal::policy_iter; }, "Requires an iterator policy component.");
-			static_assert(requires{ typename CFinal::policy_cmp; }, "Requires an comparator policy component.");
-			static_assert(requires{ typename CFinal::policy_dir; }, "Requires an searching direction policy component.");
-			static_assert(requires{ typename CFinal::policy_ret; }, "Requires an return transforming policy component.");
-
-			return true;
-		}
-
 		// Just keep compiler happy.
 		void operator()(...) const noexcept = delete;
 	};
