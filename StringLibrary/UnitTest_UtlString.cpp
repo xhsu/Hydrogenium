@@ -15,8 +15,16 @@ namespace Hydrogenium::String::UnitTest
 
 extern void UnitTest_Runtime();
 
+
+
 constexpr int32_t UTIL_atoi(std::string_view str)
 {
+	constexpr auto is_digit =
+		[](auto c) noexcept -> bool
+		{
+			return '0' <= c && c <= '9';
+		};
+
 	int32_t acc = 0;
 	bool neg = false;
 	auto it = str.begin();
@@ -28,7 +36,7 @@ constexpr int32_t UTIL_atoi(std::string_view str)
 		neg = true;
 	}
 
-	for (; it != ed && CType<char>::IsDigit(*it); ++it)
+	for (; it != ed && is_digit(*it); ++it)
 	{
 		acc *= 10;
 		acc += *it - 0x30;
@@ -39,6 +47,12 @@ constexpr int32_t UTIL_atoi(std::string_view str)
 
 constexpr double UTIL_atof(const char* s) noexcept
 {
+	constexpr auto is_digit =
+		[](auto c) noexcept
+		{
+			return '0' <= c && c <= '9';
+		};
+
 	// This function stolen from either Rolf Neugebauer or Andrew Tolmach. 
 	// Probably Rolf.
 	double a{};
@@ -51,14 +65,14 @@ constexpr double UTIL_atof(const char* s) noexcept
 		neg = true;
 	}
 
-	while ((c = *s++) != '\0' && CType<char>::IsDigit(c))
+	while ((c = *s++) != '\0' && is_digit(c))
 	{
 		a = a * 10.0 + (c - '0');
 	}
 
 	if (c == '.')
 	{
-		while ((c = *s++) != '\0' && CType<char>::IsDigit(c))
+		while ((c = *s++) != '\0' && is_digit(c))
 		{
 			a = a * 10.0 + (c - '0');
 			e = e - 1;
@@ -82,7 +96,7 @@ constexpr double UTIL_atof(const char* s) noexcept
 			sign = -1;
 		}
 
-		while (CType<char>::IsDigit(c))
+		while (is_digit(c))
 		{
 			i = i * 10 + (c - '0');
 			c = *s++;
@@ -113,15 +127,6 @@ constexpr uint32_t UTIL_Pow(uint8_t count) noexcept
 
 	return ret;
 }
-
-//static_assert(UTIL_Pow(0) == 1.0);
-//static_assert(UTIL_Pow(1) == 10.0);
-//static_assert(UTIL_Pow(2) == 100.0);
-//static_assert(UTIL_Pow(3) == 1000.0);
-//static_assert(UTIL_Pow(4) == 10000.0);
-//static_assert(UTIL_Pow(5) == 100000.0);
-//static_assert(UTIL_Pow(6) == 1000000.0);
-//static_assert(UTIL_Pow(7) == 10000000.0);
 
 struct rational_t final
 {
@@ -253,8 +258,8 @@ constexpr float UTIL_strtof(std::string_view dec) noexcept
 		return 0;
 
 /// Step III
-	
-	std::array<unsigned char, 4> bytes{};
+
+	std::array<uint8_t, 4> bytes{};
 	bytes[0] = (neg << 7) | ((bias_exp & 0xFF) >> 1);
 	bytes[1] = ((bias_exp & 0b1) << 7) | (iMantissa >> (23 - 7));
 	bytes[2] = static_cast<uint8_t>(iMantissa >> (23 - 7 - 8));
@@ -281,4 +286,5 @@ int main(int, char* []) noexcept
 	UnitTest_StrTok();	// Run-time only.
 
 	//UnitTest_Runtime();
+	constexpr auto r = sizeof(long double);
 }

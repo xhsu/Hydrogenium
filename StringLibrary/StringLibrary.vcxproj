@@ -186,6 +186,7 @@
   <ItemGroup>
     <ClInclude Include="..\Precompiled.hpp" />
     <ClInclude Include="..\UtlCChType.hpp" />
+    <ClInclude Include="..\UtlCharConv.hpp" />
     <ClInclude Include="..\UtlCString.hpp" />
     <ClInclude Include="..\UtlString.hpp" />
     <ClInclude Include="..\UtlUnicode.hpp" />

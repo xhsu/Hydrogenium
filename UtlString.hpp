@@ -273,9 +273,9 @@ namespace Hydrogenium
 
 		using param_type = std::conditional_t<is_narrow, unsigned char, std::conditional_t<is_wide, wchar_t, std::conditional_t<is_utf8, unsigned char, std::conditional_t<is_utf16, char16_t, std::conditional_t<is_utf32, char32_t, void>>>>>;
 		using eof_type = std::common_type_t<decltype(EOF), decltype(WEOF)>;
-		using view_type = std::basic_string_view<char_type>;
-		using owner_type = std::basic_string<char_type>;
-		using traits_type = ::std::char_traits<char_type>;
+		using view_type = std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
+		using owner_type = std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
+		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
 		using multibytes_type = std::conditional_t<is_utf8, multibytes_t<char>, std::conditional_t<is_utf16, multibytes_t<u16char_t>, void>>;
 		using mutable_span_t = std::span<char_type>;
 		using const_span_t = std::span<std::add_const_t<char_type>>;
