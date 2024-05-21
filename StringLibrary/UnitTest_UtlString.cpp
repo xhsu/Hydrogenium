@@ -119,15 +119,6 @@ constexpr double UTIL_atof(const char* s) noexcept
 	return neg ? -a : a;
 }
 
-constexpr uint32_t UTIL_Pow(uint8_t count) noexcept
-{
-	int32_t ret{ 1 };
-	for (uint8_t i = 0; i < count; ++i)
-		ret *= 10;
-
-	return ret;
-}
-
 struct rational_t final
 {
 	constexpr void Rationalize() noexcept
@@ -173,8 +164,26 @@ struct rational_t final
 };
 
 
-constexpr float UTIL_strtof(std::string_view dec) noexcept
+constexpr double UTIL_strtof(std::string_view dec) noexcept
 {
+	constexpr auto TenToThePowerOf =
+		[](uint8_t count) /*#UPDATE_AT_CPP23 static*/ noexcept -> uint32_t
+		{
+			uint32_t ret{ 1 };
+			for (uint8_t i = 0; i < count; ++i)
+				ret *= 10;
+
+			return ret;
+		};
+
+	// Basic type info: double
+#define DBL_MANTISSA 52
+#define DBL_EXPONENT 11
+#define DBL_BIAS 1023
+	static_assert(sizeof(double) == sizeof(uint64_t), "Unsupported platform.");
+
+// Step I. Split integral and fraction, and make them binary.
+
 	std::string_view Integral, Fraction;
 
 	uint8_t const neg = dec.starts_with('-');
@@ -198,84 +207,87 @@ constexpr float UTIL_strtof(std::string_view dec) noexcept
 	if ((Integral == "0" || Integral.empty()) && Fraction.empty())
 		return 0;
 
-	auto iIntegral = UTIL_atoi(Integral);
-	auto flFraction = rational_t{ UTIL_atoi(Fraction), UTIL_Pow((uint8_t)Fraction.size()) };
-	std::string IntegralBinary{};
+	auto iIntegral = UTIL_atoi(Integral), iIntegralPartDigits = 0;
+	auto flFraction = rational_t{ UTIL_atoi(Fraction), TenToThePowerOf((uint8_t)Fraction.size()) };
+	std::vector<bool> Binary{};	// std::dynamic_bitset, I know what I am doing.
 
 	while (iIntegral)
 	{
 		auto const rem = iIntegral % 2;
-		IntegralBinary.push_back(rem + '0');
+		Binary.push_back((bool)rem);
 		iIntegral /= 2;
+		++iIntegralPartDigits;
 	}
 
 	// by definition, this should be read reversely
-	std::ranges::reverse(IntegralBinary);
+	std::ranges::reverse(Binary);
 
 	// Fraction part
-	std::string FractionBinary{};
-
-	while (flFraction && FractionBinary.size() < 64)
+	while (flFraction && Binary.size() < 80)
 	{
 		flFraction *= 2;
 
 		if (flFraction.GreaterThanOrEqualToOne())
 		{
 			--flFraction;
-			FractionBinary.push_back('1');
+			Binary.push_back(true);
 		}
 		else
-			FractionBinary.push_back('0');
+			Binary.push_back(false);
 	}
 
-	if (FractionBinary.size() < 64)
-		FractionBinary += std::string(64 - FractionBinary.size(), '0');
+	if (Binary.size() < 80)
+		Binary.append_range(std::views::repeat(false) | std::views::take(80 - Binary.size()));
 
 // Step II. Convert to scientific notation
 
-	uint32_t iMantissa{}, bias_exp{};
-	std::string WholeBinary = IntegralBinary + FractionBinary;
-	auto const first_one = WholeBinary.find_first_of('1');
+	auto const first_one = std::ranges::find(Binary, true);
+	uint64_t iMantissa{};	// out
+	uint16_t bias_exp{};	// out
 
-	if (first_one != std::string::npos)
+	if (first_one != Binary.end())
 	{
-		auto const dotpos = (ptrdiff_t)first_one + 1;	// AFTER the first '1'
-		auto const expn = std::ssize(IntegralBinary) - dotpos;
-		bias_exp = static_cast<uint32_t>(127 + expn);
+		auto const dotpos = (ptrdiff_t)(first_one - Binary.begin()) + 1;	// AFTER the first '1'
+		auto const exponent = iIntegralPartDigits - dotpos;	// how many times we have the decimal point moved?
+		bias_exp = static_cast<decltype(bias_exp)>(DBL_BIAS + exponent);
 
-		auto const Mantissa = std::string_view{ WholeBinary.begin() + dotpos, WholeBinary.end() };
-		for (auto&& c : Mantissa | std::views::take(23))
+		std::ranges::subrange Mantissa{ Binary.begin() + dotpos, Binary.end() };
+		for (auto&& b : Mantissa | std::views::take(DBL_MANTISSA))
 		{
 			iMantissa <<= 1;
-			iMantissa |= (c - '0');
+			iMantissa |= (decltype(iMantissa))b;
 		}
 
 		// "round" up
-		if (Mantissa[23] == '1')
-			iMantissa |= 0b1;
+		if (Mantissa[DBL_MANTISSA] == true)
+			iMantissa += 0b1;
 	}
 	else
 		return 0;
 
-/// Step III
+/// Step III. Assemble all informations we have.
 
-	std::array<uint8_t, 4> bytes{};
-	bytes[0] = (neg << 7) | ((bias_exp & 0xFF) >> 1);
-	bytes[1] = ((bias_exp & 0b1) << 7) | (iMantissa >> (23 - 7));
-	bytes[2] = static_cast<uint8_t>(iMantissa >> (23 - 7 - 8));
-	bytes[3] = static_cast<uint8_t>(iMantissa >> (23 - 7 - 16));
+	// This is for float32.
+	//std::array<uint8_t, 4> bytes{};
+	//bytes[0] = (neg << 7) | ((bias_exp & 0xFF) >> 1);
+	//bytes[1] = ((bias_exp & 0b1) << 7) | (iMantissa >> (23 - 7));
+	//bytes[2] = static_cast<uint8_t>(iMantissa >> (23 - 7 - 8));
+	//bytes[3] = static_cast<uint8_t>(iMantissa >> (23 - 7 - 16));
 
-	uint32_t const res
-		= (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+	uint64_t const res =
+		(uint64_t)neg << (DBL_EXPONENT + DBL_MANTISSA) | uint64_t(bias_exp & 0b111'1111'1111) << DBL_MANTISSA | iMantissa;
 
-	return std::bit_cast<float>(res);
+	return std::bit_cast<double>(res);
+
+#undef DBL_MANTISSA
+#undef DBL_EXPONENT
 }
 
 static_assert(UTIL_strtof("") == 0.f && UTIL_strtof("0") == 0.f && UTIL_strtof("0.0") == 0.f);	// purpose: testing null input.
 static_assert(UTIL_strtof("9527") == 9527.f);	// purpose: testing num without fraction part.
 static_assert(UTIL_strtof("0.15625") == 0.15625f);	// purpose: testing num without integral part.
-static_assert(UTIL_strtof("263.3") == 263.3f);	// purpose: testing inf loop.
-static_assert(UTIL_strtof("0.1") == 0.1f);	// purpose: testing round up.
+static_assert(UTIL_strtof("263.3") == 263.3);	// purpose: testing inf loop.
+static_assert(UTIL_strtof("0.1") == 0.1);	// purpose: testing round up.
 
 
 int main(int, char* []) noexcept
@@ -286,5 +298,4 @@ int main(int, char* []) noexcept
 	UnitTest_StrTok();	// Run-time only.
 
 	//UnitTest_Runtime();
-	constexpr auto r = sizeof(long double);
 }
