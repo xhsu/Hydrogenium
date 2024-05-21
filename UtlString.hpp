@@ -4,7 +4,7 @@
 
 #pragma once
 
-#define HYDROGENIUM_UTL_STRING 20240510L
+#define HYDROGENIUM_UTL_STRING 20240520L
 
 #include <cassert>
 #include <cctype>
