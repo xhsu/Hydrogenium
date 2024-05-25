@@ -4,7 +4,7 @@
 
 #pragma once
 
-#define HYDROGENIUM_UTL_CHARCONV 20240520L
+#define HYDROGENIUM_UTL_CHARCONV 20240526L
 
 #include <algorithm>
 #include <limits>
