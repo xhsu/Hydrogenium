@@ -14,11 +14,16 @@
 #include <string>
 #include <vector>
 
+#include "detail/UtlDecimal.hpp"
+
 namespace Hydrogenium::detail_charconv
 {
 	struct rational_t final
 	{
-		constexpr void Rationalize() noexcept
+		constexpr rational_t() noexcept = default;
+		constexpr rational_t(int64_t num, uint64_t dom) noexcept : m_num{ num }, m_dom{ dom } { Simplify(); }
+
+		constexpr void Simplify() noexcept
 		{
 			auto const d = std::gcd(m_num, m_dom);
 
@@ -38,12 +43,49 @@ namespace Hydrogenium::detail_charconv
 
 			return { static_cast<int32_t>(num / d), m_dom / d };
 		}
-
 		constexpr rational_t& operator*=(int32_t mul) noexcept
 		{
 			m_num *= mul;
-			Rationalize();
+			Simplify();
 
+			return *this;
+		}
+
+		constexpr rational_t operator+(rational_t rhs) const noexcept
+		{
+			rational_t ret{};
+
+			if (this->m_dom == rhs.m_dom)
+			{
+				ret.m_num = this->m_num + rhs.m_num;
+				ret.m_dom = this->m_dom;
+			}
+			else
+			{
+				auto const m = std::lcm(this->m_dom, rhs.m_dom);
+
+				ret.m_num = this->m_num * (m / this->m_dom) + rhs.m_num * (m / rhs.m_dom);
+				ret.m_dom = m;
+			}
+
+			ret.Simplify();
+			return ret;
+		}
+		constexpr rational_t& operator+=(rational_t rhs) noexcept
+		{
+			if (this->m_dom == rhs.m_dom)
+			{
+				this->m_num += rhs.m_num;
+			}
+			else
+			{
+				auto const m = std::lcm(this->m_dom, rhs.m_dom);
+
+				this->m_num = this->m_num * (m / this->m_dom) + rhs.m_num * (m / rhs.m_dom);
+				this->m_dom = m;
+			}
+
+			this->Simplify();
 			return *this;
 		}
 
@@ -56,10 +98,113 @@ namespace Hydrogenium::detail_charconv
 		constexpr operator double() const noexcept { return (double)m_num / (double)m_dom; }
 		explicit constexpr operator bool() const noexcept { return m_num != 0; }
 
-		int32_t m_num{};
-		uint32_t m_dom{ 1 };
+		int64_t m_num{};
+		uint64_t m_dom{ 1 };
 	};
 
+	constexpr std::string stringfied_float_add(std::string_view lhs, std::string_view rhs)
+	{
+		auto const dotpos1 = lhs.find_first_of('.') + 1;
+		auto const dotpos2 = rhs.find_first_of('.') + 1;
+
+		auto const integral1{ lhs.substr(0, dotpos1 - 1) };
+		auto const integral2{ rhs.substr(0, dotpos2 - 1) };
+		auto const fraction1{ lhs.substr(dotpos1) };
+		auto const fraction2{ rhs.substr(dotpos2) };
+
+		std::string ret{};
+
+		bool carry = false;
+		for (auto [l, r] :
+			std::views::zip(integral1 | std::views::reverse, integral2 | std::views::reverse))
+		{
+			auto sum = (l - '0') + (r - '0') + (uint8_t)carry;
+			carry = false;
+
+			if (sum >= 10)
+			{
+				sum -= 10;
+				carry = true;
+			}
+
+			ret.insert(ret.begin(), static_cast<char>('0' + sum));
+		}
+
+		auto const prefixing_integral =
+			integral1.size() > integral2.size()
+			?
+			integral1.substr(0, integral1.size() - integral2.size())
+			:
+			integral2.substr(0, integral2.size() - integral1.size());
+
+		if (!prefixing_integral.empty())
+		{
+			ret.insert(0, prefixing_integral);
+
+			if (carry)
+			{
+				++ret[prefixing_integral.size() - 1];
+				carry = false;
+			}
+		}
+		else if (carry)
+		{
+			ret.insert(0, "1");
+			carry = false;
+		}
+
+		// just remember it first, insert it later.
+		auto const dotpos_ret = ret.size();
+
+		for (auto [l, r] :
+			std::views::zip(fraction1, fraction2))
+		{
+			auto sum = (l - '0') + (r - '0');
+
+			if (sum >= 10)
+			{
+				ret.back() += 1;
+				sum -= 10;
+			}
+
+			ret.push_back('0' + sum);
+			//fmt::println("{} + {} == {}", l, r, sum);
+		}
+
+		carry = false;
+		for (auto& c : ret | std::views::reverse)
+		{
+			if (carry)
+			{
+				carry = false;
+				c += 1;
+			}
+
+			if (c > '9')
+			{
+				c -= 10;
+				carry = true;
+			}
+		}
+
+		// add the decimal point before inserting number in front such invalidate our spot.
+		ret.insert(dotpos_ret, ".");
+
+		if (carry)
+			ret.insert(0, "1");
+
+		auto const tailing_fraction =
+			fraction1.size() < fraction2.size()
+			?
+			fraction2.substr(fraction1.size())
+			:
+			fraction1.substr(fraction2.size());
+
+		ret.append_range(tailing_fraction);
+
+		//fmt::println("{}", ret);
+		return ret;
+	}
 }
 
 template <std::integral T = int32_t>
@@ -99,13 +244,16 @@ constexpr std::string UTIL_strfromi(T num) noexcept
 	std::string ret{};
 	ret.reserve(32);
 
-	if (std::cmp_less(num, 0))
+	if constexpr (std::is_signed_v<T>)
 	{
-		ret.push_back('-');
-		num = -num;	// #UPDATE_AT_CPP26 sat cast
+		if (std::cmp_less(num, 0))
+		{
+			ret.push_back('-');
+			num = -num;	// #UPDATE_AT_CPP26 sat cast
 
-		if (std::cmp_less(num, 0)) [[unlikely]]
-			num = std::numeric_limits<T>::max();
+			if (std::cmp_less(num, 0)) [[unlikely]]
+				num = std::numeric_limits<T>::max();
+		}
 	}
 
 	auto const fn =
@@ -251,3 +399,29 @@ static_assert(UTIL_strtof("9527") == 9527.f);	// purpose: testing num without fr
 static_assert(UTIL_strtof("0.15625") == 0.15625f);	// purpose: testing num without integral part.
 static_assert(UTIL_strtof("263.3") == 263.3);	// purpose: testing inf loop.
 static_assert(UTIL_strtof("0.1") == 0.1);	// purpose: testing round up.
+
+[[nodiscard]]
+constexpr std::string UTIL_strfromf(double fl) noexcept
+{
+	using namespace Hydrogenium::detail_charconv;
+
+	auto const hex = std::bit_cast<uint64_t>(fl);
+	auto const sign = hex >> 63;
+	auto const exponent = int16_t((hex >> 52) & 0x7FF);	// bias stayed.
+	auto const mantissa = (hex & 0xF'FFFF'FFFF'FFFFull) | (0b1ull << 52);	// preceeding 1 added.
+
+	std::string ret{ "0.0" };
+
+	int16_t i = exponent - 52;
+	uint8_t counter = 0;
+	uint64_t frac = mantissa;
+
+	for (; counter < 53;
+		++i, ++counter, frac >>= 1)
+	{
+		if (frac & 0b1 && i >= 0)
+			ret = stringfied_float_add(ret, DBL_TABLE[i]);
+	}
+
+	return ret;
+}
