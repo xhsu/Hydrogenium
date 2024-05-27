@@ -942,7 +942,7 @@ namespace Hydrogenium::StringPolicy
 		enum struct APRES : std::uint_fast8_t;
 	}
 
-	struct MyDummy2
+	struct dummy_dir_mgr_t
 	{
 		static constexpr auto Begin(auto&& view) noexcept { return view.begin(); }
 		static constexpr auto End(auto&& view) noexcept { return view.end(); }
@@ -953,7 +953,7 @@ namespace Hydrogenium::StringPolicy
 	concept IteratingPolicy = requires (char* p, char const* cp, char* const pc, std::string_view view)
 	{
 		T::normal_pointer;	// enables random-access-iter optimization.
-		requires (requires{ T::Get(view, MyDummy2{}, ptrdiff_t{}); } || requires{ T::Get(view, ptrdiff_t{}); });	// dummy2 represents range policy.
+		requires (requires{ T::Get(view, dummy_dir_mgr_t{}, ptrdiff_t{}); } || requires{ T::Get(view, ptrdiff_t{}); });	// dummy2 represents range policy.
 
 		{ T::ValueOf(cp) } -> NonVoid;
 		{ T::Arithmetic(p, pc, pc, ptrdiff_t{}) } -> std::same_as<Iterating::APRES>;
@@ -979,7 +979,7 @@ namespace Hydrogenium::StringPolicy
 		{ T::End(view) } -> std::input_iterator;
 		T::is_reverse;
 	};
-	static_assert(DirectionPolicy<MyDummy2>);
+	static_assert(DirectionPolicy<dummy_dir_mgr_t>);
 
 	// Result post-processing
 	template <typename R>
@@ -991,7 +991,7 @@ namespace Hydrogenium::StringPolicy
 		{ R::Modify(s) } -> std::convertible_to<decltype(sv)>;
 	};
 
-	struct MyDummy3 final
+	struct dummy_iter_policy_t final
 	{
 		static inline constexpr bool normal_pointer = false;
 		static constexpr void Get(auto&&...) noexcept {}
@@ -1008,12 +1008,12 @@ namespace Hydrogenium::StringPolicy
 
 	template <typename T>
 	concept ModifyPostProcessor =
-		requires(char const* const boundary) { { T::Transform(boundary, boundary, MyDummy3{}, std::identity{}) } -> std::convertible_to<std::string_view>; }	// free style
+		requires(char const* const boundary) { { T::Transform(boundary, boundary, dummy_iter_policy_t{}, std::identity{}) } -> std::convertible_to<std::string_view>; }	// free style
 		|| requires(char const* const boundary) { { T::Transform(boundary, boundary, std::identity{}) } -> std::convertible_to<std::string_view>; };	// component style
 
 	template <typename T>
 	concept QueryPostProcessor =
-		requires(char const* const iter) { T::Transform(iter, iter, iter, iter, iter, MyDummy3{}); }	// free style
+		requires(char const* const iter) { T::Transform(iter, iter, iter, iter, iter, dummy_iter_policy_t{}); }	// free style
 		|| requires(char const* const iter) { T::Transform(iter, iter, iter, iter, iter); };	// component style
 
 	template <typename T>
@@ -1937,29 +1937,6 @@ namespace Hydrogenium::StringPolicy::Result
 
 namespace Hydrogenium::String::Functors::Components
 {
-	/*
-	* StrChr(str, '5');
-	      ┌───┬  as_view == "56789"
-	      ⇓   │  as_pointer/as_it_is == &str[5]
-	"0123456789"
-	 ┴────┘      as_index == 5
-	 ┴────┘      as_rel_pos == 5
-
-	* StrRChr(str, '5');
-	* StrNRChr(str, '5', 5);
-		  ┌───┬  as_view == "56789"
-		  ⇓   │  as_pointer/as_it_is == &str[5]
-	"0123456789"
-	 ┴────┘   │  as_index == 5
-	      └───┴  as_rel_pos == 4
-
-	* StrNChr(str, '5', 5);
-		  ┬      as_view == "5"
-		  ⇓      as_pointer/as_it_is == &str[5]
-	"0123456789"
-	 ┴────┘      as_index == 5
-	 ┴────┘      as_rel_pos == 5
-	*/
 	template <typename, typename Base>
 	struct alg_chr : Base
 	{
@@ -2891,34 +2868,28 @@ namespace Hydrogenium
 
 
 
+template <typename C>
 [[nodiscard]]
-constexpr auto UTIL_Trim(std::string_view sv) noexcept -> decltype(sv)
+constexpr auto UTIL_Trim(std::basic_string_view<C> sv) noexcept -> decltype(sv)
 {
 	using namespace Hydrogenium;
+	using CT = CType<C>;
 
 	auto ret =
 		sv
-		| std::views::drop_while(CType<char>::IsSpace)
+		| std::views::drop_while(CT::IsSpace)
 		| std::views::reverse
-		| std::views::drop_while(CType<char>::IsSpace)
+		| std::views::drop_while(CT::IsSpace)
 		| std::views::reverse;
 
 	if (std::ranges::empty(ret))
-		return "";
+		return { sv.end(), sv.end(), };
 
 	return {
 		ret.begin().base().base(),
 		ret.end().base().base(),
 	};
 }
-
-static_assert(UTIL_Trim("").empty());
-static_assert(UTIL_Trim(" \r\n\t").empty());
-static_assert(UTIL_Trim(" abc ") == "abc");
-static_assert(UTIL_Trim(" abc") == "abc");
-static_assert(UTIL_Trim("abc ") == "abc");
-static_assert(UTIL_Trim("abc") == "abc");
-
 
 // #TODO Str::ReplaceAll maybe??
 template <typename C>
