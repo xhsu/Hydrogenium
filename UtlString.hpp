@@ -952,7 +952,7 @@ namespace Hydrogenium::StringPolicy
 	template <typename T>
 	concept IteratingPolicy = requires (char* p, char const* cp, char* const pc, std::string_view view)
 	{
-		T::normal_pointer;	// enables random-access-iter optimization.
+		T::normal_pointer;	// enables random-access-iterator optimization.
 		requires (requires{ T::Get(view, dummy_dir_mgr_t{}, ptrdiff_t{}); } || requires{ T::Get(view, ptrdiff_t{}); });	// dummy2 represents range policy.
 
 		{ T::ValueOf(cp) } -> NonVoid;
@@ -1004,7 +1004,7 @@ namespace Hydrogenium::StringPolicy
 	};
 
 	template <typename T>
-	concept CountingPostProcessor = requires(size_t n) { T::Transform(n); };
+	concept CountingPostProcessor = requires(size_t n) { { T::Transform(n) } -> NonVoid; };
 
 	template <typename T>
 	concept ModifyPostProcessor =
@@ -1013,11 +1013,11 @@ namespace Hydrogenium::StringPolicy
 
 	template <typename T>
 	concept QueryPostProcessor =
-		requires(char const* const iter) { T::Transform(iter, iter, iter, iter, iter, dummy_iter_policy_t{}); }	// free style
-		|| requires(char const* const iter) { T::Transform(iter, iter, iter, iter, iter); };	// component style
+		requires(char const* const iter) { { T::Transform(iter, iter, iter, iter, iter, dummy_iter_policy_t{}) } -> NonVoid; }	// free style
+		|| requires(char const* const iter) { { T::Transform(iter, iter, iter, iter, iter) } -> NonVoid; };	// component style
 
 	template <typename T>
-	concept TestPostProcessor = requires(int t) { T::Transform(t); };
+	concept TestPostProcessor = requires(int t) { { T::Transform(t) } -> NonVoid; };
 }
 
 namespace Hydrogenium::StringPolicy::Typing
@@ -1937,32 +1937,37 @@ namespace Hydrogenium::StringPolicy::Result
 
 namespace Hydrogenium::String::Functors::Components
 {
+#define REQ_TYPE_INFO	static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!")
+#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base>, "Requires a direction manager component!")
+#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!")
+#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!")
+#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!")
+#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base>, "Requires a modifying-functor compatible postprocessor!")
+
+	inline constexpr auto MAX_COUNT = std::numeric_limits<std::ptrdiff_t>::max();
+
 	template <typename, typename Base>
 	struct alg_chr : Base
 	{
-		static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!");
+		REQ_TYPE_INFO;
 		using typename Base::param_type;
 		using typename Base::view_type;
 
-		static_assert(StringPolicy::DirectionPolicy<Base>, "Requires a direction manager component!");
-		using Base::Begin;
-		using Base::End;
-
-		static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!");
+		REQ_ITER_MGR;
 		using Base::Arithmetic;
 		using Base::Get;
 		using Base::ValueOf;
 
-		static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!");
+		REQ_COMPARATOR;
 		using Base::ChEql;
 
-		static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!");
+		REQ_QUERY_PP;
 		using Base::Transform;
 
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = std::numeric_limits<ptrdiff_t>::max()) const noexcept
+		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = MAX_COUNT) const noexcept
 			-> decltype(Transform(str.begin(), str.end(), str.end()))
 		{
 			auto [begin, it, end] = Get(str, until);
@@ -1981,27 +1986,26 @@ namespace Hydrogenium::String::Functors::Components
 	template <typename, typename Base>
 	struct alg_cmp : Base
 	{
-		static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!");
+		REQ_TYPE_INFO;
 		using typename Base::value_type;
 		using typename Base::view_type;
 
-		static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!");
+		REQ_ITER_MGR;
 		using Base::Arithmetic;
 		using Base::Get;
 		using Base::ValueOf;
 
-		static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!");
+		REQ_COMPARATOR;
 		using Base::ChEql;
 		using Base::ChCmp;
 
-		static_assert(StringPolicy::TestPostProcessor<Base>, "Requires a query-functor compatible postprocessor!");
-		using Base::Transform;
+		static inline constexpr bool HAS_TEST_POSTPROCESSOR = StringPolicy::TestPostProcessor<Base>;
+		using transformed_ret_type = std::invoke_result_t<decltype([] { if constexpr (HAS_TEST_POSTPROCESSOR) return Base::Transform(int{}); else return int{}; })>;
 
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type lhs, view_type rhs, ptrdiff_t count = std::numeric_limits<ptrdiff_t>::max()) const noexcept
-			-> decltype(Transform((int)0))
+		constexpr transformed_ret_type operator()(view_type lhs, view_type rhs, ptrdiff_t count = MAX_COUNT) const noexcept
 		{
 			auto [b1, s1, e1] = Get(lhs, count);
 			auto [b2, s2, e2] = Get(rhs, count);
@@ -2019,29 +2023,96 @@ namespace Hydrogenium::String::Functors::Components
 			value_type const c1 = s1 == e1 ? '\0' : ValueOf(s1);
 			value_type const c2 = s2 == e2 ? '\0' : ValueOf(s2);
 
-			return Transform(ChCmp(c1, c2));
+			if constexpr (HAS_TEST_POSTPROCESSOR)
+			{
+				return Transform(ChCmp(c1, c2));
+			}
+			else
+			{
+				return ChCmp(c1, c2);
+			}
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_cnt : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+
+		static inline constexpr bool HAS_COUNTING_POSTPROCESSOR = StringPolicy::CountingPostProcessor<Base>;
+		using transformed_ret_type = std::invoke_result_t<decltype([] { if constexpr (HAS_COUNTING_POSTPROCESSOR) return Base::Transform(size_t{}); else return size_t{}; })>;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr transformed_ret_type operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			auto [begin, it, end] = Get(str, count);
+
+			// Count is length, same impl, just different on ptr arithmetic.
+			size_t n{};
+			for (; it < end; Arithmetic(it, begin, end, 1)) { ++n; }
+
+			if constexpr (HAS_COUNTING_POSTPROCESSOR)
+			{
+				return Base::Transform(n);
+			}
+			else
+			{
+				return n;
+			}
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_dup : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Get;
+
+		REQ_MODIFY_PP;
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
+			-> decltype(Transform(str.begin(), str.end()))
+		{
+			auto [_, it, end] = Get(str, count);
+
+			// the count param represents count of graphemes.
+			return Transform(it, end);
 		}
 	};
 
 	template <typename, typename Base, bool bSpnPMode>
 	struct impl_alg_find : Base
 	{
-		static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!");
+		REQ_TYPE_INFO;
 		using typename Base::view_type;
 
-		static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!");
+		REQ_ITER_MGR;
 		using Base::Arithmetic;
 		using Base::Get;
 		using Base::ValueOf;
 
-		static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!");
+		REQ_COMPARATOR;
 		using Base::ChEql;
 
-		static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!");
+		REQ_QUERY_PP;
 		using Base::Transform;
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, view_type charset, ptrdiff_t count = std::numeric_limits<ptrdiff_t>::max()) const noexcept
+		constexpr auto operator()(view_type str, view_type charset, ptrdiff_t count = MAX_COUNT) const noexcept
 		{
 			// The count is capping the str, not charset
 			auto [b1, s1, e1] = this->Get(str, count);
@@ -2076,6 +2147,13 @@ namespace Hydrogenium::String::Functors::Components
 
 	template <typename CFinal, typename Base>
 	using alg_spnp = impl_alg_find<CFinal, Base, true>;
+
+#undef REQ_TYPE_INFO
+#undef REQ_DIR_MGR
+#undef REQ_ITER_MGR
+#undef REQ_COMPARATOR
+#undef REQ_QUERY_PP
+#undef REQ_MODIFY_PP
 }
 
 namespace Hydrogenium::String::Functors::Components
@@ -2237,7 +2315,7 @@ namespace Hydrogenium::String::Functors::Components
 		// Test & Counting
 
 		[[nodiscard]]
-		__forceinline static constexpr auto Transform(std::integral auto val) noexcept -> decltype(val)
+		__forceinline static constexpr auto Transform(std::integral auto val) noexcept -> decltype(CWrapped::Transform(val))
 		{
 			return CWrapped::Transform(val);
 		}
@@ -2415,20 +2493,7 @@ namespace Hydrogenium::String
 			}
 
 			// Len - v -> size_t; Use Cnt instead.
-
-			// Lwr - o -> string
-			__forceinline static constexpr auto Lwr(view_type const& str, ptrdiff_t count) noexcept
-			{
-				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				constexpr auto to_lower =
-					[](decltype(IterPolicy::ValueOf(it)) ch) noexcept -> decltype(ch)
-					{
-						return CType<decltype(ch)>::ToLower(ch);
-					};
-
-				return std::make_tuple(std::move(it), std::move(end), to_lower);
-			}
+			// Lwr - o -> string; No internal impl needed.
 
 			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
 			__forceinline static constexpr auto PBrk(view_type const& dest, view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept
@@ -2491,19 +2556,7 @@ namespace Hydrogenium::String
 				return BuildStringView(tokenBegin, it, end, false);
 			}
 
-			// Upr - o -> string; For some reason compiler will complain about 'accessing released memory' if not convert to it's view form.
-			__forceinline static constexpr auto Upr(view_type const& str, ptrdiff_t count) noexcept
-			{
-				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				constexpr auto to_upper =
-					[](decltype(IterPolicy::ValueOf(it)) ch) noexcept -> decltype(ch)
-					{
-						return CType<decltype(ch)>::ToUpper(ch);
-					};
-
-				return std::make_tuple(std::move(it), std::move(end), to_upper);
-			}
+			// Upr - o -> string; No internal impl needed.
 		};
 
 #pragma region Chr
@@ -2603,15 +2656,16 @@ namespace Hydrogenium::String
 			// return type is void, in the case of in_place mode.
 			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
-				// For some reason, it must look like this can the compiler happy about 'accessing released memory'.
-
-				auto [it, end, functor] = detail::Lwr(*pstr, count);
+			// explictly create a view, such that compiler won't complain about const& object expiring.
+				view_type const str{ *pstr };
+				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
 
 				static_assert(
-					typeid(ModifyPostProc::Transform(it, end, IterPolicy{}, functor)) == typeid(owner_type),
+					typeid(ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToLower)) == typeid(owner_type),
 					"Lwr() method must be used with marshaled returning types."
 				);
-				*pstr = ModifyPostProc::Transform(it, end, IterPolicy{}, functor);
+
+				*pstr = ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToLower);
 			}
 		};
 		static inline constexpr auto Lwr = lwr_fn_t{};
@@ -2761,15 +2815,16 @@ namespace Hydrogenium::String
 			// return type is void, in the case of in_place mode.
 			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
 			{
-				// For some reason, it must look like this can the compiler happy about 'accessing released memory'.
-
-				auto [it, end, functor] = detail::Upr(*pstr, count);
+				// explictly create a view, such that compiler won't complain about const& object expiring.
+				view_type const str{ *pstr };
+				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
 
 				static_assert(
-					typeid(ModifyPostProc::Transform(it, end, IterPolicy{}, functor)) == typeid(typename ctype_info::owner_type),
+					typeid(ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToUpper)) == typeid(typename ctype_info::owner_type),
 					"Upr() method must be used with marshaled returning types."
 				);
-				*pstr = ModifyPostProc::Transform(it, end, IterPolicy{}, functor);
+
+				*pstr = ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToUpper);
 			}
 		};
 		static inline constexpr auto Upr = upr_fn_t{};
@@ -2799,6 +2854,15 @@ namespace Hydrogenium
 		using MbsI	= Utils<char,		Iterating::as_multibytes_t,	Comparing::case_ignored_t>;
 		using MbsR	= Utils<char,		Iterating::as_multibytes_t,	Comparing::regular_t,		Direction::backwards_t>;
 		using MbsIR	= Utils<char,		Iterating::as_multibytes_t,	Comparing::case_ignored_t,	Direction::backwards_t>;
+
+		inline constexpr auto StrLen = Linker<
+			empty_comp_t,
+			alg_cnt,
+			ret_as_signed,
+			iter_default,
+			dir_forward,
+			info_u8
+		>{};
 
 		inline constexpr auto MbsCSpn = Linker<
 			empty_comp_t,
@@ -2855,6 +2919,8 @@ namespace Hydrogenium
 	using detail::strutl_decl::MbsI;
 	using detail::strutl_decl::MbsR;
 	using detail::strutl_decl::MbsIR;
+
+	using detail::strutl_decl::StrLen;
 
 	using detail::strutl_decl::MbsCSpn;
 	using detail::strutl_decl::MbsSpn;

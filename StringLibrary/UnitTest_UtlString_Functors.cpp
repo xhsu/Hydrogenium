@@ -54,7 +54,7 @@ namespace Hydrogenium::String::UnitTest
 #endif
 }
 
-// Cnt
+// Cnt, Len
 namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Mbs::Cnt(u8"Heraclius") == Str::Cnt(u8"Heraclius"));
@@ -71,6 +71,9 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Cnt(CJK_NUMBERS_FWD_U8) == MbsR::Cnt(CJK_NUMBERS_BWD_U8));
 	static_assert(Mbs::Cnt(DEU_ALPHABET_UPPER_FWD_U8) == MbsR::Cnt(DEU_ALPHABET_LOWER_FWD_U8));
 	static_assert(Mbs::Cnt(DEU_ALPHABET_UPPER_BWD_U8, 10) == MbsR::Cnt(DEU_ALPHABET_LOWER_BWD_U8, 10));	// Purpose: test 'N' version.
+
+	static_assert(StrLen(ASCII_NUMBERS_FWD) == ASCII_NUMBERS_FWD.length());
+	static_assert(StrLen(CJK_NUMBERS_FWD_U8) == CJK_NUMBERS_FWD_U8.length());
 }
 
 // Dup, Rev
