@@ -1937,227 +1937,6 @@ namespace Hydrogenium::StringPolicy::Result
 
 namespace Hydrogenium::String::Functors::Components
 {
-#define REQ_TYPE_INFO	static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!")
-#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base>, "Requires a direction manager component!")
-#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!")
-#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!")
-#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!")
-#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base>, "Requires a modifying-functor compatible postprocessor!")
-
-	inline constexpr auto MAX_COUNT = std::numeric_limits<std::ptrdiff_t>::max();
-
-	template <typename, typename Base>
-	struct alg_chr : Base
-	{
-		REQ_TYPE_INFO;
-		using typename Base::param_type;
-		using typename Base::view_type;
-
-		REQ_ITER_MGR;
-		using Base::Arithmetic;
-		using Base::Get;
-		using Base::ValueOf;
-
-		REQ_COMPARATOR;
-		using Base::ChEql;
-
-		REQ_QUERY_PP;
-		using Base::Transform;
-
-		using Base::operator();	// Just watch out for overload resolution
-
-		[[nodiscard]]
-		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = MAX_COUNT) const noexcept
-			-> decltype(Transform(str.begin(), str.end(), str.end()))
-		{
-			auto [begin, it, end] = Get(str, until);
-
-			for (; it < end; Arithmetic(it, begin, end, 1))
-			{
-				if (ChEql(ValueOf(it), ch))
-					break;
-			}
-
-			// This is absolute begin and end.
-			return Transform(str.begin(), str.end(), begin, it, end);
-		}
-	};
-
-	template <typename, typename Base>
-	struct alg_cmp : Base
-	{
-		REQ_TYPE_INFO;
-		using typename Base::value_type;
-		using typename Base::view_type;
-
-		REQ_ITER_MGR;
-		using Base::Arithmetic;
-		using Base::Get;
-		using Base::ValueOf;
-
-		REQ_COMPARATOR;
-		using Base::ChEql;
-		using Base::ChCmp;
-
-		static inline constexpr bool HAS_TEST_POSTPROCESSOR = StringPolicy::TestPostProcessor<Base>;
-		using transformed_ret_type = std::invoke_result_t<decltype([] { if constexpr (HAS_TEST_POSTPROCESSOR) return Base::Transform(int{}); else return int{}; })>;
-
-		using Base::operator();	// Just watch out for overload resolution
-
-		[[nodiscard]]
-		constexpr transformed_ret_type operator()(view_type lhs, view_type rhs, ptrdiff_t count = MAX_COUNT) const noexcept
-		{
-			auto [b1, s1, e1] = Get(lhs, count);
-			auto [b2, s2, e2] = Get(rhs, count);
-
-			while (
-				s1 < e1 && s2 < e2
-				&& ChEql(ValueOf(s1), ValueOf(s2))
-				)
-			{
-				Arithmetic(s1, b1, e1, 1);
-				Arithmetic(s2, b2, e2, 1);
-			}
-
-			// Preventing deducing as something like 'int32_t'
-			value_type const c1 = s1 == e1 ? '\0' : ValueOf(s1);
-			value_type const c2 = s2 == e2 ? '\0' : ValueOf(s2);
-
-			if constexpr (HAS_TEST_POSTPROCESSOR)
-			{
-				return Transform(ChCmp(c1, c2));
-			}
-			else
-			{
-				return ChCmp(c1, c2);
-			}
-		}
-	};
-
-	template <typename, typename Base>
-	struct alg_cnt : Base
-	{
-		REQ_TYPE_INFO;
-		using typename Base::view_type;
-
-		REQ_ITER_MGR;
-		using Base::Arithmetic;
-		using Base::Get;
-
-		static inline constexpr bool HAS_COUNTING_POSTPROCESSOR = StringPolicy::CountingPostProcessor<Base>;
-		using transformed_ret_type = std::invoke_result_t<decltype([] { if constexpr (HAS_COUNTING_POSTPROCESSOR) return Base::Transform(size_t{}); else return size_t{}; })>;
-
-		using Base::operator();	// Just watch out for overload resolution
-
-		[[nodiscard]]
-		constexpr transformed_ret_type operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
-		{
-			auto [begin, it, end] = Get(str, count);
-
-			// Count is length, same impl, just different on ptr arithmetic.
-			size_t n{};
-			for (; it < end; Arithmetic(it, begin, end, 1)) { ++n; }
-
-			if constexpr (HAS_COUNTING_POSTPROCESSOR)
-			{
-				return Base::Transform(n);
-			}
-			else
-			{
-				return n;
-			}
-		}
-	};
-
-	template <typename, typename Base>
-	struct alg_dup : Base
-	{
-		REQ_TYPE_INFO;
-		using typename Base::view_type;
-
-		REQ_ITER_MGR;
-		using Base::Get;
-
-		REQ_MODIFY_PP;
-		using Base::Transform;
-
-		using Base::operator();	// Just watch out for overload resolution
-
-		[[nodiscard]]
-		constexpr auto operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
-			-> decltype(Transform(str.begin(), str.end()))
-		{
-			auto [_, it, end] = Get(str, count);
-
-			// the count param represents count of graphemes.
-			return Transform(it, end);
-		}
-	};
-
-	template <typename, typename Base, bool bSpnPMode>
-	struct impl_alg_find : Base
-	{
-		REQ_TYPE_INFO;
-		using typename Base::view_type;
-
-		REQ_ITER_MGR;
-		using Base::Arithmetic;
-		using Base::Get;
-		using Base::ValueOf;
-
-		REQ_COMPARATOR;
-		using Base::ChEql;
-
-		REQ_QUERY_PP;
-		using Base::Transform;
-
-		[[nodiscard]]
-		constexpr auto operator()(view_type str, view_type charset, ptrdiff_t count = MAX_COUNT) const noexcept
-		{
-			// The count is capping the str, not charset
-			auto [b1, s1, e1] = this->Get(str, count);
-			auto const b2 = charset.begin(), e2 = charset.end();	// And it's not directional. It's a set.
-
-			for (; s1 < e1; Arithmetic(s1, b1, e1, 1))
-			{
-				bool found_in_src = false;
-				auto const ch1 = ValueOf(s1);
-
-				for (auto s2 = b2; s2 < e2; Arithmetic(s2, b2, e2, 1))
-				{
-					auto const ch2 = ValueOf(s2);
-
-					if (ChEql(ch1, ch2))
-					{
-						found_in_src = true;
-						break;
-					}
-				}
-
-				if (found_in_src == !bSpnPMode)
-					break;
-			}
-
-			return Transform(str.begin(), str.end(), b1, s1, e1);
-		}
-	};
-
-	template <typename CFinal, typename Base>
-	using alg_pbrk = impl_alg_find<CFinal, Base, false>;
-
-	template <typename CFinal, typename Base>
-	using alg_spnp = impl_alg_find<CFinal, Base, true>;
-
-#undef REQ_TYPE_INFO
-#undef REQ_DIR_MGR
-#undef REQ_ITER_MGR
-#undef REQ_COMPARATOR
-#undef REQ_QUERY_PP
-#undef REQ_MODIFY_PP
-}
-
-namespace Hydrogenium::String::Functors::Components
-{
 	struct base_comp_t
 	{
 		// Only for non-dependented name, quick diagnosis.
@@ -2376,6 +2155,511 @@ namespace Hydrogenium::String::Functors::Components
 
 #pragma endregion Result
 
+}
+
+namespace Hydrogenium::String::Functors::Components
+{
+#define REQ_TYPE_INFO	static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!")
+#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base>, "Requires a direction manager component!")
+#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!")
+#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!")
+#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!")
+#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base>, "Requires a modifying-functor compatible postprocessor!")
+
+	inline constexpr auto MAX_COUNT = std::numeric_limits<std::ptrdiff_t>::max();
+
+	template <typename, typename Base>
+	struct alg_chr : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::param_type;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		REQ_COMPARATOR;
+		using Base::ChEql;
+
+		REQ_QUERY_PP;
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = MAX_COUNT) const noexcept
+			-> decltype(Transform(str.begin(), str.end(), str.end()))
+		{
+			auto [begin, it, end] = Get(str, until);
+
+			for (; it < end; Arithmetic(it, begin, end, 1))
+			{
+				if (ChEql(ValueOf(it), ch))
+					break;
+			}
+
+			// This is absolute begin and end.
+			return Transform(str.begin(), str.end(), begin, it, end);
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_cmp : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		REQ_COMPARATOR;
+		using Base::ChEql;
+		using Base::ChCmp;
+
+		static inline constexpr bool HAS_TEST_POSTPROCESSOR = StringPolicy::TestPostProcessor<Base>;
+		using transformed_ret_type = std::invoke_result_t<decltype([] { if constexpr (HAS_TEST_POSTPROCESSOR) return Base::Transform(int{}); else return int{}; })>;
+		using value_type = decltype(ValueOf(typename view_type::iterator{}));
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr transformed_ret_type operator()(view_type lhs, view_type rhs, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			auto [b1, s1, e1] = Get(lhs, count);
+			auto [b2, s2, e2] = Get(rhs, count);
+
+			while (
+				s1 < e1 && s2 < e2
+				&& ChEql(ValueOf(s1), ValueOf(s2))
+				)
+			{
+				Arithmetic(s1, b1, e1, 1);
+				Arithmetic(s2, b2, e2, 1);
+			}
+
+			// Preventing deducing as something like 'int32_t'
+			value_type const c1 = s1 == e1 ? '\0' : ValueOf(s1);
+			value_type const c2 = s2 == e2 ? '\0' : ValueOf(s2);
+
+			if constexpr (HAS_TEST_POSTPROCESSOR)
+			{
+				return Transform(ChCmp(c1, c2));
+			}
+			else
+			{
+				return ChCmp(c1, c2);
+			}
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_cnt : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+
+		static inline constexpr bool HAS_COUNTING_POSTPROCESSOR = StringPolicy::CountingPostProcessor<Base>;
+		using transformed_ret_type = std::invoke_result_t<decltype([] { if constexpr (HAS_COUNTING_POSTPROCESSOR) return Base::Transform(size_t{}); else return size_t{}; })>;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr transformed_ret_type operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			auto [begin, it, end] = Get(str, count);
+
+			// Count is length, same impl, just different on ptr arithmetic.
+			size_t n{};
+			for (; it < end; Arithmetic(it, begin, end, 1)) { ++n; }
+
+			if constexpr (HAS_COUNTING_POSTPROCESSOR)
+			{
+				return Base::Transform(n);
+			}
+			else
+			{
+				return n;
+			}
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_dup : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Get;
+
+		REQ_MODIFY_PP;
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+			-> decltype(Transform(str.begin(), str.end()))
+		{
+			auto [_, it, end] = Get(str, count);
+
+			// the count param represents count of graphemes.
+			return Transform(it, end);
+		}
+	};
+
+	template <typename, typename Base, bool bSpnPMode>
+	struct impl_alg_find : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		REQ_COMPARATOR;
+		using Base::ChEql;
+
+		REQ_QUERY_PP;
+		using Base::Transform;
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type str, view_type charset, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			// The count is capping the str, not charset
+			auto [b1, s1, e1] = this->Get(str, count);
+			auto const b2 = charset.begin(), e2 = charset.end();	// And it's not directional. It's a set.
+
+			for (; s1 < e1; Arithmetic(s1, b1, e1, 1))
+			{
+				bool found_in_src = false;
+				auto const ch1 = ValueOf(s1);
+
+				for (auto s2 = b2; s2 < e2; Arithmetic(s2, b2, e2, 1))
+				{
+					auto const ch2 = ValueOf(s2);
+
+					if (ChEql(ch1, ch2))
+					{
+						found_in_src = true;
+						break;
+					}
+				}
+
+				if (found_in_src == !bSpnPMode)
+					break;
+			}
+
+			return Transform(str.begin(), str.end(), b1, s1, e1);
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_lwr : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::ctype_info;
+		using typename Base::owner_type;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Get;
+
+		REQ_MODIFY_PP;
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+			-> decltype(Transform(str.begin(), str.end(), &ctype_info::ToLower))
+		{
+			auto [_, it, end] = Get(str, count);
+
+			return Transform(it, end, &ctype_info::ToLower);
+		}
+
+		// return type is void, in the case of in-place mode.
+		constexpr void operator()(owner_type* pstr, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			// explictly create a view, such that compiler won't complain about const& object expiring.
+			view_type const str{ *pstr };
+			auto [_, it, end] = Get(str, count);
+
+			static_assert(
+				typeid(Transform(it, end, &ctype_info::ToLower)) == typeid(owner_type),
+				"Lwr() in-place mode must be used with marshaled returning types."
+			);
+
+			*pstr = Transform(it, end, &ctype_info::ToLower);
+		}
+	};
+
+	template <typename CFinal, typename Base>
+	using alg_pbrk = impl_alg_find<CFinal, Base, false>;
+
+	template <typename CFinal, typename Base>
+	using alg_spnp = impl_alg_find<CFinal, Base, true>;
+
+	template <typename, typename Base>
+	struct alg_str : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_DIR_MGR;
+		using typename Base::policy_dir;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		REQ_COMPARATOR;
+		using Base::ChEql;
+		using Base::ChCmp;
+
+		REQ_QUERY_PP;
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		using value_type = decltype(ValueOf(typename view_type::iterator{}));
+
+		static constexpr ptrdiff_t detail_cnt(view_type const& str) noexcept
+		{
+			auto [begin, it, end] = Get(str, MAX_COUNT);
+
+			ptrdiff_t n{};
+			for (; it < end; Arithmetic(it, begin, end, 1)) { ++n; }
+
+			return n;
+		}
+
+		static constexpr int detail_cmp(view_type str, view_type const& substr) noexcept
+		{
+			auto const iSubstrCount = detail_cnt(substr);
+
+			auto [b1, s1, e1] = Get(str, iSubstrCount);
+			auto [b2, s2, e2] = Get(substr, iSubstrCount);
+
+			while (
+				s1 < e1 && s2 < e2
+				&& ChEql(ValueOf(s1), ValueOf(s2))
+				)
+			{
+				Arithmetic(s1, b1, e1, 1);
+				Arithmetic(s2, b2, e2, 1);
+			}
+
+			// Preventing deducing as something like 'int32_t'
+			value_type const c1 = s1 == e1 ? '\0' : ValueOf(s1);
+			value_type const c2 = s2 == e2 ? '\0' : ValueOf(s2);
+
+			return ChCmp(c1, c2);
+		}
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type str, view_type substr, ptrdiff_t until = MAX_COUNT) const noexcept
+			-> decltype(Transform(str.begin(), str.end(), str.begin(), str.end(), str.end()))
+		{
+			// Searching direction has nothing to do with comparing direction!!
+			// the substr is going to attempting to match with the forwarding order.
+			// hence no range function put onto src.
+
+			auto [b1, s1, e1] = Get(str, until);
+
+			if constexpr (!policy_dir::is_reverse)
+			{
+				for (; s1 < e1; Arithmetic(s1, b1, e1, 1))
+				{
+					if (detail_cmp({ s1, e1 }, substr) == 0)	// length included, specialized version.
+						break;
+				}
+			}
+			else
+			{
+				for (; s1 < e1; Arithmetic(s1, b1, e1, 1))
+				{
+					auto const fwit1 = ToForwardIter(s1);
+					auto const fwed1 = ToForwardIter(b1, false);	// in reverse_iter, rbegin is the actual end.
+
+					if (detail_cmp({ fwit1, fwed1 }, substr) == 0)	// length included, specialized version.
+						break;
+				}
+			}
+
+			return Transform(str.begin(), str.end(), b1, s1, e1);
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_tok : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::Get;
+		using Base::ValueOf;
+
+		REQ_COMPARATOR;
+		using Base::ChEql;
+
+		// This one will count distance from RangePolicy.Begin() instead of from absolute start. 'R' stands for 'relative'.
+		static constexpr ptrdiff_t detail_CSpnR(view_type const& str, view_type const& charset, bool bSpnMode = false) noexcept
+		{
+			auto [b1, s1, e1] = Get(str, MAX_COUNT);
+			auto [b2, s2, e2] = Get(charset, MAX_COUNT);	// search everything in char set.
+			ptrdiff_t counter = 0;
+
+			for (; s1 < e1; Arithmetic(s1, b1, e1, 1), ++counter)
+			{
+				bool found_in_src = false;
+				auto const ch1 = ValueOf(s1);
+
+				for (s2 = b2; s2 < e2; Arithmetic(s2, b2, e2, 1))
+				{
+					auto const ch2 = ValueOf(s2);
+
+					if (ChEql(ch1, ch2))
+					{
+						found_in_src = true;
+						break;
+					}
+				}
+
+				if (found_in_src == !bSpnMode)
+					break;
+			}
+
+			return counter;
+		}
+
+		static constexpr auto detail_tok(auto&& begin, auto& it, auto&& end, view_type const& delim) noexcept
+			-> decltype(BuildStringView(begin, it, end, false))
+		{
+			// I. Move pointer to the next non-delim position.
+			auto const org_before_comp = detail_CSpnR(BuildStringView(it, end, end, false), delim, true);
+			Arithmetic(it, begin, end, org_before_comp);
+
+			if (it >= end)
+				return BuildStringView(end, end, end, false);
+
+			// II. Move pointer to next delim position. And now 'it' serves as end.
+			auto const tokenBegin = it;
+			auto const org_before_comp2 = detail_CSpnR(BuildStringView(it, end, end, false), delim);
+			Arithmetic(it, begin, end, org_before_comp2);
+
+			// buffer is the end in this section as it is going to be assigned as '\0' in original strtok().
+			return BuildStringView(tokenBegin, it, end, false);
+		}
+
+		[[nodiscard]]
+		auto operator()(std::optional<view_type> psz, view_type delim, ptrdiff_t until = MAX_COUNT) const noexcept
+			-> decltype(detail_tok(psz->begin(), std::declval<typename view_type::iterator&>(), psz->end(), delim))
+		{
+			// improve compared to original strtok(): thread safe.
+			static thread_local std::tuple_element_t<0, decltype(Get(*psz, until))> begin{};
+			static thread_local std::tuple_element_t<1, decltype(Get(*psz, until))> it{};
+			static thread_local std::tuple_element_t<2, decltype(Get(*psz, until))> end{};
+
+			if (psz.has_value())
+				std::tie(begin, it, end) = Get(*psz, until);	// in all other calling case, 'until' param will be ignored.
+
+			return detail_tok(begin, it, end, delim);
+		}
+
+#ifdef GENERATOR_TY
+		[[nodiscard]]
+		auto operator()(StringPolicy::Result::as_generator_t, view_type str, view_type delim, ptrdiff_t until = MAX_COUNT) const noexcept
+			-> GENERATOR_TY<view_type>
+		{
+			auto [begin, it, end] = Get(str, until);
+
+			for (auto view = detail_tok(begin, it, end, delim); !view.empty(); view = detail_tok(begin, it, end, delim))
+			{
+				co_yield view;
+			}
+
+			co_return;
+		}
+#endif
+
+		[[nodiscard]]
+		constexpr auto operator()(StringPolicy::Result::as_vector_t, view_type str, view_type delim, ptrdiff_t until = MAX_COUNT) const noexcept
+			-> std::vector<view_type>
+		{
+			auto [begin, it, end] = Get(str, until);
+			std::vector<view_type> ret{};
+
+			for (auto view = detail_tok(begin, it, end, delim); !view.empty(); view = detail_tok(begin, it, end, delim))
+			{
+				ret.emplace_back(std::move(view));
+			}
+
+			return ret;
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_upr : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::ctype_info;
+		using typename Base::owner_type;
+		using typename Base::view_type;
+
+		REQ_ITER_MGR;
+		using Base::Get;
+
+		REQ_MODIFY_PP;
+		using Base::Transform;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr auto operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
+			-> decltype(Transform(str.begin(), str.end(), &ctype_info::ToUpper))
+		{
+			auto [_, it, end] = Get(str, count);
+
+			return Transform(it, end, &ctype_info::ToUpper);
+		}
+
+		// return type is void, in the case of in-place mode.
+		constexpr void operator()(owner_type* pstr, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			// explictly create a view, such that compiler won't complain about const& object expiring.
+			view_type const str{ *pstr };
+			auto [_, it, end] = Get(str, count);
+
+			static_assert(
+				typeid(Transform(it, end, &ctype_info::ToUpper)) == typeid(owner_type),
+				"Upr() in-place mode must be used with marshaled returning types."
+			);
+
+			*pstr = Transform(it, end, &ctype_info::ToUpper);
+		}
+	};
+
+#undef REQ_TYPE_INFO
+#undef REQ_DIR_MGR
+#undef REQ_ITER_MGR
+#undef REQ_COMPARATOR
+#undef REQ_QUERY_PP
+#undef REQ_MODIFY_PP
 }
 
 namespace Hydrogenium::String
@@ -2711,7 +2995,7 @@ namespace Hydrogenium::String
 			constexpr auto operator()(view_type const& str, view_type const& substr, ptrdiff_t until = detail::default_search_len) const noexcept
 				-> decltype(QueryPostProc::Transform(str.begin(), str.end(), RangePolicy::Begin(str), RangePolicy::End(str), RangePolicy::End(str), IterPolicy{}))
 			{
-				// Searching direction is nothing to do with comparing direction!!
+				// Searching direction has nothing to do with comparing direction!!
 				// the substr is going to attempting to match with the forwarding order.
 				// hence no range function put onto src.
 
