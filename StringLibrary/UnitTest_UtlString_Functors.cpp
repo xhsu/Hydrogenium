@@ -104,14 +104,25 @@ namespace Hydrogenium::String::UnitTest
 {
 	void UnitTest_StrFry() noexcept
 	{
-		std::string test1(0x20, ' ');
-		std::wstring test2(0x10, L' ');
+		std::string test1(0x20, '\0');
+		std::wstring test2(0x10, L'\0');
 
-		Str::detail::Fry(&test1, 0x10);
-		Wcs::detail::Fry(&test2);
+		StrFry(&test1, 0x10);
+		WcsFry(&test2);
+
+		assert(test1.size() == 0x20);
+		assert(test2.size() == 0x10);
+
+		for (auto&& c : test1 | std::views::take(0x10))
+			if (c == '\0')
+				assert(false);
 
 		for (auto&& c : test1 | std::views::drop(0x10))
-			if (c != ' ')
+			if (c != '\0')
+				assert(false);
+
+		for (auto&& c : test2)
+			if (c == L'\0')
 				assert(false);
 	}
 }

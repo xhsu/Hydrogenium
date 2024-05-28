@@ -1978,6 +1978,8 @@ namespace Hydrogenium::String::Functors::Components
 	template <typename CFinal, typename Base>
 	using info_u32 = wrapper_info<CFinal, Base, fchar_t>;
 
+	// #TODO info_wchar?
+
 	static_assert(StringPolicy::TypingPolicy<info_u8<base_comp_t, base_comp_t>>);
 	static_assert(StringPolicy::TypingPolicy<info_u16<base_comp_t, base_comp_t>>);
 	static_assert(StringPolicy::TypingPolicy<info_u32<base_comp_t, base_comp_t>>);
@@ -2361,6 +2363,32 @@ namespace Hydrogenium::String::Functors::Components
 			}
 
 			return Transform(str.begin(), str.end(), b1, s1, e1);
+		}
+	};
+
+	template <typename, typename Base>
+	struct alg_fry : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::char_type;
+		using typename Base::owner_type;
+
+		owner_type* operator()(owner_type* psz, ptrdiff_t until = MAX_COUNT) const noexcept
+		{
+			using int_type = std::conditional_t<sizeof(char_type) == 1, int8_t, std::conditional_t<sizeof(char_type) == 2, int16_t, int32_t>>;
+			constexpr auto UTF_MAX = std::min<int32_t>(std::numeric_limits<int_type>::max(), 0x10FFFF);
+
+			thread_local static std::random_device PureRD;
+			thread_local static std::mt19937 gen{ PureRD() };
+			thread_local static std::uniform_int_distribution<int32_t> distrb(1, UTF_MAX);	// avoid '\0' causing C bug.
+
+			// we are just filling random garbage, the order doesn't matter.
+			for (auto& ch : *psz | std::views::take(until))
+			{
+				ch = distrb(gen);
+			}
+
+			return psz;
 		}
 	};
 
@@ -3139,6 +3167,18 @@ namespace Hydrogenium
 		using MbsR	= Utils<char,		Iterating::as_multibytes_t,	Comparing::regular_t,		Direction::backwards_t>;
 		using MbsIR	= Utils<char,		Iterating::as_multibytes_t,	Comparing::case_ignored_t,	Direction::backwards_t>;
 
+		inline constexpr auto StrFry = Linker<
+			empty_comp_t,
+			alg_fry,
+			info_u8
+		>{};
+
+		inline constexpr auto WcsFry = Linker<
+			empty_comp_t,
+			alg_fry,
+			info_u16
+		>{};
+
 		inline constexpr auto StrLen = Linker<
 			empty_comp_t,
 			alg_cnt,
@@ -3203,6 +3243,9 @@ namespace Hydrogenium
 	using detail::strutl_decl::MbsI;
 	using detail::strutl_decl::MbsR;
 	using detail::strutl_decl::MbsIR;
+
+	using detail::strutl_decl::StrFry;
+	using detail::strutl_decl::WcsFry;
 
 	using detail::strutl_decl::StrLen;
 
