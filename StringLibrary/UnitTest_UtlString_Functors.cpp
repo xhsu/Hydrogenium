@@ -188,13 +188,14 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::detail::CSpnR(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"äöüß") == 1);
 	//                                  └┘                               ← searching & indexing dir.
 
-	// 'N' Version #CONTINUE_FROM_HERE work on disabled test cases.
+	// 'N' Version
 
-	//static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"找不到", 10) == 30);
-	//                        └─────────────────────────────┘
-	//static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"", 10) == 30);
-	//                        └─────────────────────────────┘
-	//static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"") == 30);
+	static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"找不到", 10) == -11);
+	//                                           └─────────┘
+	static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"", 10) == -11);
+	//                                           └─────────┘
+	static_assert(MbsRCSpn(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"") == -31);
+	//                        └────────────────────────────┘
 }
 
 // Str

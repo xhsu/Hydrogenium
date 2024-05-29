@@ -2642,6 +2642,12 @@ namespace Hydrogenium::String::Functors::Components
 	};
 
 	template <typename, typename Base>
+	struct alg_trm : Base
+	{
+		// #CONTINUE_FROM_HERE
+	};
+
+	template <typename, typename Base>
 	struct alg_upr : Base
 	{
 		REQ_TYPE_INFO;
