@@ -2170,6 +2170,8 @@ namespace Hydrogenium::String::Functors::Components
 
 	inline constexpr auto MAX_COUNT = std::numeric_limits<std::ptrdiff_t>::max();
 
+	/// <summary>Search a character in a string.</summary>
+	/// <returns>Query.</returns>
 	template <typename, typename Base>
 	struct alg_chr : Base
 	{
@@ -2207,6 +2209,8 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Lexicographically compare two strings.</summary>
+	/// <returns>Test.</returns>
 	template <typename, typename Base>
 	struct alg_cmp : Base
 	{
@@ -2258,6 +2262,8 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Counting all effective characters in a string.</summary>
+	/// <returns>Count.</returns>
 	template <typename, typename Base>
 	struct alg_cnt : Base
 	{
@@ -2293,6 +2299,8 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Copy a string to the postprocessor buffer.</summary>
+	/// <returns>Modify.</returns>
 	template <typename, typename Base>
 	struct alg_dup : Base
 	{
@@ -2366,14 +2374,16 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Filling the string with randomized characters.</summary>
+	/// <returns>Void</returns>
 	template <typename, typename Base>
 	struct alg_fry : Base
 	{
 		REQ_TYPE_INFO;
 		using typename Base::char_type;
-		using typename Base::owner_type;
 
-		owner_type* operator()(owner_type* psz, ptrdiff_t until = MAX_COUNT) const noexcept
+		template <typename T> requires(std::convertible_to<T&, std::span<char_type>>)
+		T* operator()(T* psz, ptrdiff_t until = MAX_COUNT) const noexcept
 		{
 			using int_type = std::conditional_t<sizeof(char_type) == 1, int8_t, std::conditional_t<sizeof(char_type) == 2, int16_t, int32_t>>;
 			constexpr auto UTF_MAX = std::min<int32_t>(std::numeric_limits<int_type>::max(), 0x10FFFF);
@@ -2383,7 +2393,7 @@ namespace Hydrogenium::String::Functors::Components
 			thread_local static std::uniform_int_distribution<int32_t> distrb(1, UTF_MAX);	// avoid '\0' causing C bug.
 
 			// we are just filling random garbage, the order doesn't matter.
-			for (auto& ch : *psz | std::views::take(until))
+			for (auto& ch : std::span{ *psz } | std::views::take(until))
 			{
 				ch = distrb(gen);
 			}
@@ -2392,6 +2402,8 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Lower all character in a string when applicable.</summary>
+	/// <returns>Modify.</returns>
 	template <typename, typename Base>
 	struct alg_lwr : Base
 	{
@@ -2433,12 +2445,18 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Find the first character that appears in string which also appears in the character set.</summary>
+	/// <returns>Query.</returns>
 	template <typename CFinal, typename Base>
 	using alg_pbrk = impl_alg_find<CFinal, Base, false>;
 
+	/// <summary>Find the first character that appears in string which doesn't appears in the character set.</summary>
+	/// <returns>Query.</returns>
 	template <typename CFinal, typename Base>
 	using alg_spnp = impl_alg_find<CFinal, Base, true>;
 
+	/// <summary>Find the sub-string if it appears exactly as-is in the original string.</summary>
+	/// <returns>Query.</returns>
 	template <typename, typename Base>
 	struct alg_str : Base
 	{
@@ -2531,6 +2549,8 @@ namespace Hydrogenium::String::Functors::Components
 		}
 	};
 
+	/// <summary>Split up the string with provided token set.</summary>
+	/// <returns>Range.</returns>
 	template <typename, typename Base>
 	struct alg_tok : Base
 	{
@@ -2647,6 +2667,8 @@ namespace Hydrogenium::String::Functors::Components
 		// #CONTINUE_FROM_HERE
 	};
 
+	/// <summary>Upper all character in a string when applicable.</summary>
+	/// <returns>Modify.</returns>
 	template <typename, typename Base>
 	struct alg_upr : Base
 	{
