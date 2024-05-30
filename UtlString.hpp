@@ -781,24 +781,37 @@ namespace Hydrogenium
 // Misc, Part II
 namespace Hydrogenium
 {
-	constexpr auto BuildStringView(auto&& it1, auto&& it2, auto&& end, bool do_offset) noexcept
+	constexpr auto BuildStringView(auto&& logic_first, auto logic_last, auto&& end, bool do_offset) noexcept
 	{
-		static_assert(typeid(*it1) == typeid(*it2) && typeid(*end) == typeid(*it2));
+		static_assert(typeid(*logic_first) == typeid(*logic_last) && typeid(*end) == typeid(*logic_last));
 
-		using char_type = std::remove_cvref_t<decltype(*it1)>;
-		using fwd_iter_t = decltype(ToForwardIter(it1));
+		using char_type = std::remove_cvref_t<decltype(*logic_first)>;
+		using fwd_iter_t = decltype(ToForwardIter(logic_first));
+
+		if constexpr (ReverseIterator<std::remove_cvref_t<decltype(logic_last)>>)
+		{
+			// Have to make sure that last is actually pointing to the edge, rather than a beginning of UTF-sequence.
+			if (logic_last != end && CType<char_type>::CodePointOf(*logic_last) != CodePoint::WHOLE)
+			{
+				do 
+				{
+					--logic_last;
+				} while (CType<char_type>::CodePointOf(*logic_last) > CodePoint::BEGIN_OF_4);
+				++logic_last;
+			}
+		}
 
 		fwd_iter_t fwit1{}, fwit2{};
 
-		if constexpr (requires {it1 != end; })
-			fwit1 = ToForwardIter(it1, it1 != end && do_offset);
+		if constexpr (requires {logic_first != end; })
+			fwit1 = ToForwardIter(logic_first, logic_first != end && do_offset);
 		else
-			fwit1 = ToForwardIter(it1, do_offset);
+			fwit1 = ToForwardIter(logic_first, do_offset);
 
-		if constexpr (requires {it2 != end; })
-			fwit2 = ToForwardIter(it2, it2 != end && do_offset);
+		if constexpr (requires {logic_last != end; })
+			fwit2 = ToForwardIter(logic_last, logic_last != end && do_offset);
 		else
-			fwit2 = ToForwardIter(it2, do_offset);
+			fwit2 = ToForwardIter(logic_last, do_offset);
 
 
 
@@ -1395,7 +1408,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 			case CodePoint::BEGIN_OF_2:
 			case CodePoint::BEGIN_OF_3:
 			case CodePoint::BEGIN_OF_4:
-				return CT::ToFullWidth({ fwd_iter, fwd_iter + std::to_underlying(cp) });
+				return CT::ToFullWidth({ std::addressof(*fwd_iter), std::addressof(*fwd_iter) + std::to_underlying(cp) });	// Unexpected MSVC bug.
 
 			default:
 				std::abort();
