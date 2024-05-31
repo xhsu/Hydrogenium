@@ -568,7 +568,12 @@ namespace Hydrogenium
 #endif
 		}
 
-		// Luna's extension
+		/// <summary>
+		/// Luna's extension.
+		/// Inspect a character type on it's UTF status.
+		/// </summary>
+		/// <param name="c">: data point.</param>
+		/// <returns>CodePoint</returns>
 		[[nodiscard]] static constexpr auto CodePointOf(param_type c) noexcept -> CodePoint
 		{
 			auto const u = static_cast<uint32_t>(c);
@@ -626,7 +631,12 @@ namespace Hydrogenium
 			}
 		}
 
-		// Luna's extension
+		/// <summary>
+		/// Luna's extension.
+		/// Converts a UTF-8 or UTF-16 sequence into its UTF-32 form.
+		/// </summary>
+		/// <param name="bytes">: Span of the UTF sequence.</param>
+		/// <returns>char32_t</returns>
 		[[nodiscard]] static constexpr auto ToFullWidth(const_span_t bytes) noexcept -> fchar_t
 		{
 #ifndef _DEBUG
@@ -707,7 +717,12 @@ namespace Hydrogenium
 			}
 		}
 
-		// Luna's extension
+		/// <summary>
+		/// Luna's extension.
+		/// Converts a UTF-32 character into its UTF-16 or UTF-8 form.
+		/// </summary>
+		/// <param name="wc">: The UTF-32 represented char.</param>
+		/// <returns>Hydrogenium::multibytes_t</returns>
 		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> multibytes_type requires (is_utf8 || is_utf16)
 		{
 			multibytes_type res{};
