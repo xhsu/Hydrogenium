@@ -81,24 +81,13 @@ namespace Hydrogenium::UnitTest
 namespace Hydrogenium
 {
 	template <typename T>
-	concept NonVoid = !std::is_same_v<T, void>;
+	concept NonVoid = !std::is_void_v<T>;
 
 	template <typename T, typename C>
 	concept IteratorOf = requires (T iter)
 	{
 		{ *iter } -> std::convertible_to<C>;
 		requires std::bidirectional_iterator<std::remove_cvref_t<T>>;
-
-		//std::is_same_v<std::remove_cvref_t<T>, std::add_pointer_t<std::remove_cvref_t<C>>>
-		//|| std::is_same_v<std::remove_cvref_t<T>, std::add_pointer_t<std::add_const_t<std::remove_cvref_t<C>>>>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::const_iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::reverse_iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string<std::remove_cvref_t<C>>::const_reverse_iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::const_iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::reverse_iterator>
-		//|| std::is_same_v<std::remove_cvref_t<T>, typename std::basic_string_view<std::remove_cvref_t<C>>::const_reverse_iterator>;
 	};
 
 	template <typename T>
@@ -193,12 +182,16 @@ namespace Hydrogenium
 		[[nodiscard]] constexpr auto cbegin(this auto&& self) noexcept -> decltype(self.begin()) { return self.begin(); }
 		[[nodiscard]] constexpr auto cend(this auto&& self) noexcept -> decltype(self.end()) { return self.end(); }
 
-		[[nodiscard]] constexpr size_t size(this auto&& self) noexcept
+		[[nodiscard]] constexpr size_t size() const noexcept
 		{
-			if (self.m_data[BACK] <= BACK)
-				return self.m_data[BACK];
+			if (m_data[BACK] <= BACK)
+				return m_data[BACK];
 
 			return MAX_SIZE;
+		}
+		[[nodiscard]] constexpr auto ssize() const noexcept -> std::make_signed_t<size_t>
+		{
+			return static_cast<std::make_signed_t<size_t>>(size());
 		}
 
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_data[BACK] == 0 || (m_data[0] == 0 && m_data[BACK] == static_cast<C>(-1)); }
@@ -223,6 +216,8 @@ namespace Hydrogenium
 
 			return true;
 		}
+
+		[[nodiscard]] constexpr auto to_string() const noexcept -> std::basic_string_view<C> { return { data(), size() }; }
 
 		C m_data[MAX_SIZE]{};
 	};
