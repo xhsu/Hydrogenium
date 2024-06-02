@@ -7,9 +7,7 @@
     <IntDir>$(SolutionDir)Bin\$(ProjectName)-$(PlatformName)-$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(PlatformName)</TargetName>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration">
-    <EnableASAN>true</EnableASAN>
-  </PropertyGroup>
+  <PropertyGroup Label="Configuration" />
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
