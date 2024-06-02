@@ -1,6 +1,9 @@
 /*
-Oct. 02 2023
+* Created at: Oct. 02 2023
 */
+
+#pragma once
+#define HYDROGENIUM_UTL_PATTERN_MATCHING 20240602L
 
 #include <any>
 #include <bit>
@@ -119,7 +122,7 @@ inline constexpr decltype(auto) operator/ (auto&& lhs, as_t<to_t>) noexcept
 			using SharedPtr = std::shared_ptr<rmptr_to_t>;
 
 			if (auto p = lhs.get() / as<typename SharedPtr::element_type*>)
-				return SharedPtr{ std::forward<from_t>(lhs), p };
+				return std::static_pointer_cast<rmptr_to_t>(lhs);
 
 			return SharedPtr{ nullptr };
 		}

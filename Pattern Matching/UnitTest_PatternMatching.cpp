@@ -22,7 +22,7 @@ static_assert(!std::is_base_of_v<Base&, Derived&>);
 static_assert(!std::is_base_of_v<Base&&, Derived&&>);
 
 
-void unit_test_stl_types() noexcept
+static void unit_test_stl_types() noexcept
 {
 	variant<monostate, int, double, string_view> v{ 1 };
 	assert(v / is<int>);
@@ -121,7 +121,7 @@ void unit_test_stl_types() noexcept
 	assert(f / as<int> == 8);
 }
 
-void unit_test_ranges() noexcept
+static void unit_test_ranges() noexcept
 {
 	string s1{ "hello" };
 	string_view sV{ "world" };
@@ -155,7 +155,7 @@ void unit_test_ranges() noexcept
 	assert(no_numbers / is_null);
 }
 
-void unit_test_native_ptr() noexcept
+static void unit_test_native_ptr() noexcept
 {
 	using B = Base;
 	using D = Derived;
@@ -239,7 +239,7 @@ void unit_test_native_ptr() noexcept
 	assert(p2 / is_null);
 }
 
-void unit_test_unique_ptr() noexcept
+static void unit_test_unique_ptr() noexcept
 {
 	using B = Base;
 	using D = Derived;
@@ -321,7 +321,7 @@ void unit_test_unique_ptr() noexcept
 	assert(p2 / as<D*> == nullptr);
 }
 
-void unit_test_shared_ptr() noexcept
+static void unit_test_shared_ptr() noexcept
 {
 	using B = Base;
 	using D = Derived;
@@ -401,7 +401,7 @@ void unit_test_shared_ptr() noexcept
 	assert(p2 / is_null);
 }
 
-void unit_test_weak_ptr() noexcept
+static void unit_test_weak_ptr() noexcept
 {
 	using B = Base;
 	using D = Derived;
