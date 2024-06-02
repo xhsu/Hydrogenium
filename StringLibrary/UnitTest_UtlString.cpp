@@ -2,6 +2,7 @@
 #include "UtlString.hpp"
 #include "UtlCharConv.hpp"
 
+using namespace Hydrogenium::String::Functors;
 using namespace Hydrogenium::String;
 using namespace Hydrogenium::UnitTest;
 using namespace Hydrogenium;
@@ -14,6 +15,7 @@ namespace Hydrogenium::String::UnitTest
 }
 
 extern void UnitTest_Runtime();
+extern void UnitTest_UtlString_PerformanceTest() noexcept;
 
 static constexpr bool UnitTest_Trim() noexcept
 {
