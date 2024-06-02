@@ -89,7 +89,7 @@ inline constexpr decltype(auto) operator/ (auto&& lhs, as_t<to_t>) noexcept
 		}
 		else
 		{
-			static_assert(!sizeof(from_t), "Unknown or unsupported STL type!");
+			static_assert(false, "Unknown or unsupported STL type!");
 		}
 	}
 
@@ -131,7 +131,7 @@ inline constexpr decltype(auto) operator/ (auto&& lhs, as_t<to_t>) noexcept
 			return lhs.lock() / as<to_t>;
 		}
 		else
-			static_assert(!sizeof(from_t), "Unsupported smart pointer type!");
+			static_assert(false, "Unsupported smart pointer type!");
 	}
 
 	// Case 3: raw pointers
@@ -179,7 +179,7 @@ inline constexpr decltype(auto) operator/ (auto&& lhs, as_t<to_t>) noexcept
 
 		else
 		{
-			static_assert(!sizeof(from_t), "Unsupported casting behaviour!!!");
+			static_assert(false, "Unsupported casting behaviour!!!");
 			return reinterpret_cast<to_t>(lhs);
 		}
 	}
@@ -281,7 +281,7 @@ inline constexpr bool operator/ (auto&& lhs, is_t<to_t>) noexcept
 		}
 		else
 		{
-			static_assert(!sizeof(from_t), "Unknown or unsupported STL type!");
+			static_assert(false, "Unknown or unsupported STL type!");
 		}
 	}
 
@@ -300,7 +300,7 @@ inline constexpr bool operator/ (auto&& lhs, is_t<to_t>) noexcept
 			return !lhs.expired() && lhs.lock().get() / is<to_t>;
 		}
 		else
-			static_assert(!sizeof(from_t), "Unsupported smart pointer type!");
+			static_assert(false, "Unsupported smart pointer type!");
 	}
 
 	// Cast 3: pointers
@@ -442,7 +442,7 @@ inline constexpr bool operator/ (auto&& lhs, is_null_t) noexcept
 
 	else
 	{
-		static_assert(!sizeof(lhs), "Will never be null.");
+		static_assert(false, "Will never be null.");
 		return false;
 	}
 }
