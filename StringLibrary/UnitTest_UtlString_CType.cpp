@@ -84,7 +84,7 @@ namespace Hydrogenium::UnitTest
 	inline constexpr unsigned char CHSET_IsDigit[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', };
 	inline constexpr unsigned char CHSET_IsXDigit[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'a', 'b', 'c', 'd', 'e', 'f', };
 
-	constexpr bool UnitTest_CTypeFunctionWrapper(auto&& pfn, std::span<unsigned char const> chset) noexcept
+	static constexpr bool UnitTest_CTypeFunctionWrapper(auto&& pfn, std::span<unsigned char const> chset) noexcept
 	{
 		for (unsigned char i = 0; i < 128; ++i)
 		{
@@ -146,16 +146,24 @@ namespace Hydrogenium::UnitTest
 	static_assert(CType<char16_t>::ToFullWidth(u"あ") == U'あ');
 	static_assert(CType<char16_t>::ToFullWidth(u"𐒰") == U'𐒰');
 
-	constexpr auto operator== (std::array<char16_t, 2> const& lhs, std::array<wchar_t, 2> const& rhs) noexcept
-	{
-		return lhs[0] == rhs[0] && lhs[1] == rhs[1];
-	}
-
 	using U16MBARR = std::array<char16_t, 2>;
 	static_assert(CType<char16_t>::ToMultiBytes(U'A') == U16MBARR{ u'A', 0 });
 	static_assert(CType<char16_t>::ToMultiBytes(U'Á') == U16MBARR{ u'Á', 0 });
 	static_assert(CType<char16_t>::ToMultiBytes(U'あ') == U16MBARR{ u'あ', 0 });
 	static_assert(CType<char16_t>::ToMultiBytes(U'𐒰') == U16MBARR{ 0xD801, 0xDCB0 });
+}
+
+// Unit tests for multibytes_t
+namespace Hydrogenium::UnitTest
+{
+	static_assert(std::ranges::contiguous_range<multibytes_t<char>>);
+	static_assert(std::ranges::contiguous_range<multibytes_t<u16char>>);
+
+	static_assert(U'𐒰' == CType<char16_t>::ToMultiBytes(U'𐒰'));
+	static_assert(U'𐒰' == CType<char>::ToMultiBytes(U'𐒰'));
+
+	static_assert(CType<char16_t>::ToMultiBytes(U'𐒰') == CType<char>::ToMultiBytes(U'𐒰'));
+	static_assert(CType<char>::ToMultiBytes(U'𐒰') == CType<char16_t>::ToMultiBytes(U'𐒰'));
 }
 
 // Code conversion test
