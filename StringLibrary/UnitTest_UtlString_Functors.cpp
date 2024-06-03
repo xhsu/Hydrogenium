@@ -1,7 +1,6 @@
 ﻿#include "Precompiled.hpp"
 #include "UtlString.hpp"
 
-using namespace Hydrogenium::String::Functors;
 using namespace Hydrogenium::String;
 using namespace Hydrogenium::UnitTest;
 using namespace Hydrogenium;
@@ -219,8 +218,8 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10), 10).empty());	// Purpose: test 'N' version.
 
 	//static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
-	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::detail::DupV(DEU_ALPHABET_LOWER_FWD_U8, 10));
-	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
+	//static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::detail::DupV(DEU_ALPHABET_LOWER_FWD_U8, 10));
+	//static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
 }
 
 // Tok

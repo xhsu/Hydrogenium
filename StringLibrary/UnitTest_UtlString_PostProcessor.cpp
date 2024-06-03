@@ -1,8 +1,7 @@
 ﻿#include "Precompiled.hpp"
 #include "UtlString.hpp"
 
-using namespace Hydrogenium::String::Functors::Components;
-using namespace Hydrogenium::String::Functors;
+using namespace Hydrogenium::String::Components;
 using namespace Hydrogenium::StringPolicy::Result;
 using namespace Hydrogenium::StringPolicy;
 using namespace Hydrogenium::UnitTest;

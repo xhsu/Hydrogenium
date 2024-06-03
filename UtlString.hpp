@@ -1039,8 +1039,11 @@ namespace Hydrogenium::StringPolicy
 		static inline constexpr bool is_reverse = false;
 	};
 
-	template <typename T>
-	concept IteratingPolicy = requires (char* p, char const* cp, char* const pc, std::string_view view)
+	// Why does these concepts requires a character type to function?
+	// Because when doing CRTP, the static_assert will fail because we try to pass-in a char* for wchar_t* param.
+
+	template <typename T, typename C>
+	concept IteratingPolicy = requires (C* p, C const* cp, C* const pc, std::basic_string_view<C> view)
 	{
 		T::normal_pointer;	// enables random-access-iterator optimization.
 		requires (requires{ T::Get(view, dummy_dir_mgr_t{}, ptrdiff_t{}); } || requires{ T::Get(view, ptrdiff_t{}); });	// dummy2 represents range policy.
@@ -1049,19 +1052,19 @@ namespace Hydrogenium::StringPolicy
 		{ T::Arithmetic(p, pc, pc, ptrdiff_t{}) } -> std::same_as<Iterating::APRES>;
 		{ T::NativeSize(p, pc) } -> std::integral;
 
-		requires !requires{ T::Arithmetic(std::declval<char*>(), pc, pc, ptrdiff_t{}); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
-		{ T::ArithCpy(std::declval<char*>(), pc, pc, ptrdiff_t{}) } -> std::same_as<char*>;	// This one gives you a copy.
+		requires !requires{ T::Arithmetic(std::declval<C*>(), pc, pc, ptrdiff_t{}); }; // must not be able to handle xvalue or rvalue, as this is treat as if lvalue increment.
+		{ T::ArithCpy(std::declval<C*>(), pc, pc, ptrdiff_t{}) } -> std::same_as<C*>;	// This one gives you a copy.
 	};
 
-	template <typename T>
-	concept ComparingPolicy = requires (unsigned char c)
+	template <typename T, typename C>
+	concept ComparingPolicy = requires (C c)
 	{
 		{ T{}.ChCmp(c, c) } -> std::same_as<int>;
 		{ T{}.ChEql(c, c) } -> std::same_as<bool>;
 	};
 
-	template <typename T>
-	concept DirectionPolicy = requires (std::string_view view)
+	template <typename T, typename C>
+	concept DirectionPolicy = requires (std::basic_string_view<C> view)
 	{
 		{ T::Begin(view) } -> std::bidirectional_iterator;
 		{ T::End(view) } -> std::bidirectional_iterator;
@@ -1069,24 +1072,17 @@ namespace Hydrogenium::StringPolicy
 		{ T::End(view) } -> std::input_iterator;
 		T::is_reverse;
 	};
-	static_assert(DirectionPolicy<dummy_dir_mgr_t>);
+	static_assert(DirectionPolicy<dummy_dir_mgr_t, char>);
 
 	// Result post-processing
-	template <typename R>
-	concept ResultProcessor = requires (std::string_view sv, std::string s)
-	{
-		//R::Query(sv, sv, nullptr);	// it seems like there is no way we can fit a generalized 'iter policy' in.
-		R::Test(int{});
-		R::Counting(size_t{});
-		{ R::Modify(s) } -> std::convertible_to<decltype(sv)>;
-	};
 
+	template <typename C>
 	struct dummy_iter_policy_t final
 	{
 		static inline constexpr bool normal_pointer = false;
 		static constexpr void Get(auto&&...) noexcept {}
 
-		static constexpr char ValueOf(auto&&...) noexcept { return 0; }
+		static constexpr C ValueOf(auto&&...) noexcept { return 0; }
 		static constexpr Iterating::APRES Arithmetic(auto&, auto&&...) noexcept { return Iterating::APRES{}; }
 		static constexpr int NativeSize(auto&&...) noexcept { return 0; }
 
@@ -1096,15 +1092,15 @@ namespace Hydrogenium::StringPolicy
 	template <typename T>
 	concept CountingPostProcessor = requires(size_t n) { { T::Transform(n) } -> NonVoid; };
 
-	template <typename T>
+	template <typename T, typename C>
 	concept ModifyPostProcessor =
-		requires(char const* const boundary) { { T::Transform(boundary, boundary, dummy_iter_policy_t{}, std::identity{}) } -> std::convertible_to<std::string_view>; }	// free style
-		|| requires(char const* const boundary) { { T::Transform(boundary, boundary, std::identity{}) } -> std::convertible_to<std::string_view>; };	// component style
+		requires(C const* const boundary) { { T::Transform(boundary, boundary, dummy_iter_policy_t<C>{}, std::identity{}) } -> std::convertible_to<std::basic_string_view<C>>; }	// free style
+		|| requires(C const* const boundary) { { T::Transform(boundary, boundary, std::identity{}) } -> std::convertible_to<std::basic_string_view<C>>; };	// component style
 
-	template <typename T>
+	template <typename T, typename C>
 	concept QueryPostProcessor =
-		requires(char const* const iter) { { T::Transform(iter, iter, iter, iter, iter, dummy_iter_policy_t{}) } -> NonVoid; }	// free style
-		|| requires(char const* const iter) { { T::Transform(iter, iter, iter, iter, iter) } -> NonVoid; };	// component style
+		requires(C const* const iter) { { T::Transform(iter, iter, iter, iter, iter, dummy_iter_policy_t<C>{}) } -> NonVoid; }	// free style
+		|| requires(C const* const iter) { { T::Transform(iter, iter, iter, iter, iter) } -> NonVoid; };	// component style
 
 	template <typename T>
 	concept TestPostProcessor = requires(int t) { { T::Transform(t) } -> NonVoid; };
@@ -1143,7 +1139,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 	{
 		static inline constexpr bool normal_pointer = true;
 
-		[[nodiscard]] static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
+		[[nodiscard]] static constexpr auto Get(auto&& view, auto RangePolicy, ptrdiff_t size) noexcept
 		{
 			auto abs_begin = RangePolicy.Begin(view);
 			auto abs_end = RangePolicy.End(view);
@@ -1460,7 +1456,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 		// End of not required functions
 
 		[[nodiscard]]
-		static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
+		static constexpr auto Get(auto&& view, auto RangePolicy, ptrdiff_t size) noexcept
 		{
 			auto abs_begin = RangePolicy.Begin(view);
 			auto const abs_end = RangePolicy.End(view);
@@ -1569,8 +1565,8 @@ namespace Hydrogenium::StringPolicy::Iterating
 
 	inline constexpr auto as_multibytes = as_multibytes_t{};
 
-	static_assert(IteratingPolicy<as_normal_ptr_t>);
-	static_assert(IteratingPolicy<as_multibytes_t>);
+	static_assert(IteratingPolicy<as_normal_ptr_t, char>);
+	static_assert(IteratingPolicy<as_multibytes_t, char>);
 
 	// Unit testing at: UnitTest_UtlString_IterPolicy.cpp
 }
@@ -1656,8 +1652,8 @@ namespace Hydrogenium::StringPolicy::Comparing
 
 	inline constexpr auto regular = regular_t{};
 
-	static_assert(ComparingPolicy<case_ignored_t>);
-	static_assert(ComparingPolicy<regular_t>);
+	static_assert(ComparingPolicy<case_ignored_t, char>);
+	static_assert(ComparingPolicy<regular_t, char>);
 }
 
 namespace Hydrogenium::StringPolicy::Direction
@@ -1696,8 +1692,8 @@ namespace Hydrogenium::StringPolicy::Direction
 
 	inline constexpr auto back_to_front = backwards_t{};
 
-	static_assert(DirectionPolicy<StringPolicy::Direction::forwards_t>);
-	static_assert(DirectionPolicy<StringPolicy::Direction::backwards_t>);
+	static_assert(DirectionPolicy<StringPolicy::Direction::forwards_t, char>);
+	static_assert(DirectionPolicy<StringPolicy::Direction::backwards_t, char>);
 }
 
 namespace Hydrogenium::StringPolicy::Result
@@ -1793,7 +1789,7 @@ namespace Hydrogenium::StringPolicy::Result
 	struct as_position_t	// intend to be used with Hydrogenium::UtfAt()
 	{
 		[[nodiscard]]
-		static constexpr auto Transform(auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
+		static constexpr auto Transform(auto&& /*abs_begin*/, auto&& /*abs_end*/, auto&& rel_begin, auto&& result_loc, auto&& rel_end, auto IterPolicy) noexcept
 		{
 			// cvref ignored.
 			static_assert(typeid(rel_begin) == typeid(rel_end));
@@ -1834,7 +1830,7 @@ namespace Hydrogenium::StringPolicy::Result
 			return count;
 		}
 
-		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end, StringPolicy::IteratingPolicy auto IterPolicy) noexcept
+		static constexpr auto UnitTestInvoke(auto&& rel_begin, auto&& result_loc, auto&& rel_end, auto IterPolicy) noexcept
 		{
 			return Transform(
 				nullptr,
@@ -1880,11 +1876,11 @@ namespace Hydrogenium::StringPolicy::Result
 		}
 	};
 
-	static_assert(QueryPostProcessor<as_it_is_t>);
-	static_assert(QueryPostProcessor<as_pointer_t>);
-	static_assert(QueryPostProcessor<as_indexing_t>);
-	static_assert(QueryPostProcessor<as_position_t>);
-	static_assert(QueryPostProcessor<as_view_t>);
+	static_assert(QueryPostProcessor<as_it_is_t, char>);
+	static_assert(QueryPostProcessor<as_pointer_t, char>);
+	static_assert(QueryPostProcessor<as_indexing_t, char>);
+	static_assert(QueryPostProcessor<as_position_t, char>);
+	static_assert(QueryPostProcessor<as_view_t, char>);
 
 	// Cmp
 	struct as_lexic_t
@@ -2017,8 +2013,8 @@ namespace Hydrogenium::StringPolicy::Result
 		}
 	};
 
-	static_assert(ModifyPostProcessor<as_unmanaged_t>);
-	static_assert(ModifyPostProcessor<as_marshaled_t>);	// this one is the default, as_it_is_t doesn't applys here.
+	static_assert(ModifyPostProcessor<as_unmanaged_t, char>);
+	static_assert(ModifyPostProcessor<as_marshaled_t, char>);	// this one is the default, as_it_is_t doesn't applys here.
 
 	// Tok
 	struct as_generator_t final {};	// #UPDATE_AT_CPP23 generator
@@ -2027,7 +2023,7 @@ namespace Hydrogenium::StringPolicy::Result
 	inline constexpr auto as_vector = as_vector_t{};
 }
 
-namespace Hydrogenium::String::Functors::Components
+namespace Hydrogenium::String::Components
 {
 	struct base_comp_t
 	{
@@ -2062,15 +2058,19 @@ namespace Hydrogenium::String::Functors::Components
 	};
 
 	template <typename CFinal, typename Base>
-	using info_u8 = wrapper_info<CFinal, Base, char>;
+	using info_narrow = wrapper_info<CFinal, Base, char>;
+
+	template <typename CFinal, typename Base>
+	using info_wide = wrapper_info<CFinal, Base, wchar_t>;
+
+	template <typename CFinal, typename Base>
+	using info_u8 = wrapper_info<CFinal, Base, u8char>;
 
 	template <typename CFinal, typename Base>
 	using info_u16 = wrapper_info<CFinal, Base, u16char>;
 
 	template <typename CFinal, typename Base>
 	using info_u32 = wrapper_info<CFinal, Base, u32char>;
-
-	// #TODO info_wchar?
 
 	static_assert(StringPolicy::TypingPolicy<info_u8<base_comp_t, base_comp_t>>);
 	static_assert(StringPolicy::TypingPolicy<info_u16<base_comp_t, base_comp_t>>);
@@ -2080,7 +2080,7 @@ namespace Hydrogenium::String::Functors::Components
 
 #pragma region Iterating
 
-	template <typename CFinal, typename Base, StringPolicy::IteratingPolicy CWrapped>
+	template <typename CFinal, typename Base, typename CWrapped>
 	struct wrapper_iter : Base, CWrapped
 	{
 		static_assert(!requires{ typename Base::policy_iter; }, "Only one iterator policy allowed!");
@@ -2117,7 +2117,7 @@ namespace Hydrogenium::String::Functors::Components
 
 #pragma region Comparing
 
-	template <typename CFinal, typename Base, StringPolicy::ComparingPolicy CWrapped>
+	template <typename CFinal, typename Base, typename CWrapped>
 	struct wrapper_cmp : Base, CWrapped
 	{
 		static_assert(!requires{ typename Base::policy_cmp; }, "Only one comparing policy allowed!");
@@ -2137,7 +2137,7 @@ namespace Hydrogenium::String::Functors::Components
 
 #pragma region Direction
 
-	template <typename CFinal, typename Base, StringPolicy::DirectionPolicy CWrapped>
+	template <typename CFinal, typename Base, typename CWrapped>
 	struct wrapper_dir : Base, CWrapped
 	{
 		static_assert(!requires{ typename Base::policy_dir; }, "Only one directional policy allowed!");
@@ -2251,14 +2251,14 @@ namespace Hydrogenium::String::Functors::Components
 
 }
 
-namespace Hydrogenium::String::Functors::Components
+namespace Hydrogenium::String::Components
 {
 #define REQ_TYPE_INFO	static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!")
-#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base>, "Requires a direction manager component!")
-#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base>, "Requires a iterator manager component!")
-#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base>, "Requires a comparator!")
-#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base>, "Requires a query-functor compatible postprocessor!")
-#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base>, "Requires a modifying-functor compatible postprocessor!")
+#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base, Base::char_type>, "Requires a direction manager component!")
+#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base, Base::char_type>, "Requires a iterator manager component!")
+#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base, Base::char_type>, "Requires a comparator!")
+#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base, Base::char_type>, "Requires a query-functor compatible postprocessor!")
+#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base, Base::char_type>, "Requires a modifying-functor compatible postprocessor!")
 
 	inline constexpr auto MAX_COUNT = std::numeric_limits<std::ptrdiff_t>::max();
 
@@ -2561,6 +2561,7 @@ namespace Hydrogenium::String::Functors::Components
 
 		REQ_ITER_MGR;
 		using Base::Arithmetic;
+		using Base::ArithCpy;
 		using Base::Get;
 		using Base::ValueOf;
 
@@ -2587,10 +2588,13 @@ namespace Hydrogenium::String::Functors::Components
 
 		static constexpr int detail_cmp(view_type str, view_type const& substr) noexcept
 		{
+			// The comparing length must be the length of substr.
 			auto const iSubstrCount = detail_cnt(substr);
 
-			auto [b1, s1, e1] = Get(str, iSubstrCount);
-			auto [b2, s2, e2] = Get(substr, iSubstrCount);
+			// The comparison must be performed as forwarding direction.
+			auto const b1 = str.begin(), e1 = ArithCpy(b1, b1, str.end(), iSubstrCount);
+			auto const b2 = substr.begin(), e2 = ArithCpy(b2, b2, substr.end(), iSubstrCount);
+			auto s1 = b1, s2 = b2;
 
 			while (
 				s1 < e1 && s2 < e2
@@ -2815,13 +2819,13 @@ namespace Hydrogenium::String
 {
 	template <
 		typename char_type = char,
-		StringPolicy::IteratingPolicy IterPolicy = StringPolicy::Iterating::as_normal_ptr_t,
-		StringPolicy::ComparingPolicy Comparator = StringPolicy::Comparing::regular_t,
-		StringPolicy::DirectionPolicy RangePolicy = StringPolicy::Direction::forwards_t,
-		StringPolicy::QueryPostProcessor QueryPostProc = StringPolicy::Result::as_view_t,
+		StringPolicy::IteratingPolicy<char_type> IterPolicy = StringPolicy::Iterating::as_normal_ptr_t,
+		StringPolicy::ComparingPolicy<char_type> Comparator = StringPolicy::Comparing::regular_t,
+		StringPolicy::DirectionPolicy<char_type> RangePolicy = StringPolicy::Direction::forwards_t,
+		StringPolicy::QueryPostProcessor<char_type> QueryPostProc = StringPolicy::Result::as_view_t,
 		StringPolicy::TestPostProcessor TestPostProc = StringPolicy::Result::as_it_is_t,
 		StringPolicy::CountingPostProcessor CountingPostProc = StringPolicy::Result::as_it_is_t,
-		StringPolicy::ModifyPostProcessor ModifyPostProc = StringPolicy::Result::as_marshaled_t
+		StringPolicy::ModifyPostProcessor<char_type> ModifyPostProc = StringPolicy::Result::as_marshaled_t
 	>
 	struct Utils final
 	{
@@ -3271,7 +3275,7 @@ namespace Hydrogenium
 	{
 		using namespace String;
 		using namespace StringPolicy;
-		using namespace String::Functors::Components;
+		using namespace String::Components;
 
 		using Str	= Utils<>;
 		using StrI	= Utils<char,		Iterating::as_normal_ptr_t,	Comparing::case_ignored_t>;
