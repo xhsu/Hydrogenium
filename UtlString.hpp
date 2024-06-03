@@ -83,6 +83,15 @@ namespace Hydrogenium
 	template <typename T>
 	concept NonVoid = !std::is_void_v<T>;
 
+	template <typename C>
+	concept CharacterType =
+		std::is_same_v<C, char> || std::is_same_v<C, signed char> || std::is_same_v<C, unsigned char>
+#ifdef __cpp_char8_t
+		|| std::is_same_v<C, char8_t>
+#endif
+		|| std::is_same_v<C, wchar_t> || std::is_same_v<C, char16_t>
+		|| std::is_same_v<C, char32_t>;
+
 	template <typename T, typename C>
 	concept IteratorOf = requires (T iter)
 	{
@@ -154,7 +163,7 @@ namespace Hydrogenium
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
 
-// u8 and u16buffer
+// u8 and u16 buffer, Part I
 namespace Hydrogenium
 {
 	template <typename C>
@@ -163,6 +172,7 @@ namespace Hydrogenium
 		static_assert(sizeof(C) < 4, "Use with char8_t or char16_t!");
 		static inline constexpr auto MAX_SIZE = sizeof(uint32_t) / sizeof(C);
 		static inline constexpr auto BACK = MAX_SIZE - 1;
+		static inline constexpr bool is_multibyte_type = true;
 
 		[[nodiscard]]
 		constexpr auto begin(this auto&& self) noexcept -> decltype(std::ranges::begin(self.m_data))
@@ -197,27 +207,16 @@ namespace Hydrogenium
 		[[nodiscard]] constexpr bool empty() const noexcept { return m_data[BACK] == 0 || (m_data[0] == 0 && m_data[BACK] == static_cast<C>(-1)); }
 		[[nodiscard]] constexpr auto data(this auto&& self) noexcept -> decltype(&self.m_data[0]) { return &self.m_data[0]; }
 
+		[[nodiscard]] constexpr auto front(this auto&& self) noexcept -> decltype(auto) { assert(self.size() > 0); return self.m_data[0]; }
+		[[nodiscard]] constexpr auto back(this auto&& self) noexcept -> decltype(auto) { assert(self.size() > 0); return self.m_data[self.size() - 1]; }
+
 		[[nodiscard]] constexpr auto operator[](this auto&& self, size_t n) noexcept -> decltype(self.m_data[n]) { return self.m_data[n]; }
 
-		[[nodiscard]] constexpr bool operator==(this auto&& lhs, multibytes_t rhs) noexcept
-		{
-			return std::bit_cast<uint32_t>(lhs) == std::bit_cast<uint32_t>(rhs);
-		}
-		[[nodiscard]] constexpr bool operator==(this auto&& lhs, auto&& rhs) noexcept requires(requires{ { rhs[0] } -> std::convertible_to<C>; })
-		{
-			if (std::ranges::size(rhs) < lhs.size())
-				return false;
+		[[nodiscard]] constexpr auto to_view() const noexcept -> std::basic_string_view<C> { return { data(), size() }; }
+		[[nodiscard]] constexpr auto to_span() const noexcept -> std::span<C> { return { data(), size() }; }
 
-			for (auto&& [l, r] : std::views::zip(lhs, rhs))
-			{
-				if (l != static_cast<C>(r))
-					return false;
-			}
-
-			return true;
-		}
-
-		[[nodiscard]] constexpr auto to_string() const noexcept -> std::basic_string_view<C> { return { data(), size() }; }
+		[[nodiscard]] constexpr operator std::basic_string_view<C>() const noexcept { return to_view(); }
+		[[nodiscard]] constexpr operator std::span<C>() const noexcept { return to_span(); }
 
 		C m_data[MAX_SIZE]{};
 	};
@@ -241,37 +240,36 @@ namespace Hydrogenium
 		return std::to_underlying(lhs) <=> std::to_underlying(rhs);
 	}
 
-	// Full Unicode character type
-	using fchar_t = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
-	using u16char_t = std::conditional_t<sizeof(wchar_t) == sizeof(char16_t), wchar_t, char16_t>;
+	// Unicode character types
+
+#ifdef __cpp_lib_char8_t
+	using u8char = char8_t;
+#else
+	using u8char = char;
+#endif
+	using u16char = std::conditional_t<sizeof(wchar_t) == sizeof(char16_t), wchar_t, char16_t>;
+	using u32char = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
 
 	template <typename T>
 	struct CType final
 	{
 		using char_type = std::remove_cvref_t<T>;
-		static inline constexpr bool is_char_type =
-			std::is_same_v<char_type, char> || std::is_same_v<char_type, signed char> || std::is_same_v<char_type, unsigned char>
-#ifdef __cpp_char8_t
-			|| std::is_same_v<char_type, char8_t>
-#endif
-			|| std::is_same_v<char_type, wchar_t> || std::is_same_v<char_type, char16_t>
-			|| std::is_same_v<char_type, char32_t>;
-		static_assert(is_char_type, "Must be one of char, signed char, unsigned char, char8_t, char16_t, wchar_t, char32_t.");
+		static_assert(CharacterType<char_type>, "Must be one of char, signed char, unsigned char, char8_t, char16_t, wchar_t, char32_t.");
 
 		static inline constexpr bool is_narrow = sizeof(char_type) == sizeof(char);
 		static inline constexpr bool is_wide = sizeof(char_type) == sizeof(wchar_t);
 		static inline constexpr bool no_builtin_ctype_support = !is_narrow && !is_wide;
 
-		static inline constexpr bool is_utf8 = sizeof(char_type) == sizeof(unsigned char);
-		static inline constexpr bool is_utf16 = sizeof(char_type) == sizeof(char16_t);
-		static inline constexpr bool is_utf32 = sizeof(char_type) == sizeof(char32_t);
+		static inline constexpr bool is_utf8 = sizeof(char_type) == sizeof(u8char);
+		static inline constexpr bool is_utf16 = sizeof(char_type) == sizeof(u16char);
+		static inline constexpr bool is_utf32 = sizeof(char_type) == sizeof(u32char);
 
 		using param_type = std::conditional_t<is_narrow, unsigned char, std::conditional_t<is_wide, wchar_t, std::conditional_t<is_utf8, unsigned char, std::conditional_t<is_utf16, char16_t, std::conditional_t<is_utf32, char32_t, void>>>>>;
 		using eof_type = std::common_type_t<decltype(EOF), decltype(WEOF)>;
-		using view_type = std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
-		using owner_type = std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
-		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
-		using multibytes_type = std::conditional_t<is_utf8, multibytes_t<char>, std::conditional_t<is_utf16, multibytes_t<u16char_t>, void>>;
+		using view_type = std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
+		using owner_type = std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
+		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
+		using multibytes_type = std::conditional_t<is_utf8, multibytes_t<char>, std::conditional_t<is_utf16, multibytes_t<u16char>, void>>;
 		using mutable_span_t = std::span<char_type>;
 		using const_span_t = std::span<std::add_const_t<char_type>>;
 
@@ -569,7 +567,7 @@ namespace Hydrogenium
 		/// </summary>
 		/// <param name="c">: data point.</param>
 		/// <returns>CodePoint</returns>
-		[[nodiscard]] static constexpr auto CodePointOf(param_type c) noexcept -> CodePoint
+		[[nodiscard]] static constexpr CodePoint CodePointOf(param_type c) noexcept
 		{
 			auto const u = static_cast<uint32_t>(c);
 
@@ -632,7 +630,7 @@ namespace Hydrogenium
 		/// </summary>
 		/// <param name="bytes">: Span of the UTF sequence.</param>
 		/// <returns>char32_t</returns>
-		[[nodiscard]] static constexpr auto ToFullWidth(const_span_t bytes) noexcept -> fchar_t
+		[[nodiscard]] static constexpr u32char ToFullWidth(const_span_t bytes) noexcept
 		{
 #ifndef _DEBUG
 			if (std::ranges::empty(bytes))
@@ -644,7 +642,7 @@ namespace Hydrogenium
 			switch (CodePointOf(bytes.front()))
 			{
 			case CodePoint::WHOLE:
-				return static_cast<fchar_t>(bytes.front());
+				return static_cast<u32char>(bytes.front());
 
 			case CodePoint::BEGIN_OF_2:
 			{
@@ -652,11 +650,11 @@ namespace Hydrogenium
 
 				if constexpr (is_utf8)
 				{
-					fchar_t ret = (bytes[0] & 0b00011111) << 6 | (bytes[1] & 0b00111111);
+					u32char ret = (bytes[0] & 0b00011111) << 6 | (bytes[1] & 0b00111111);
 
-					if (ret < (fchar_t)0x80)		// Not a valid result, Wrong encoding
+					if (ret < (u32char)0x80)		// Not a valid result, Wrong encoding
 						ret = 0;					// Out of UTF8 bound, skip data  
-					else if (ret > (fchar_t)0x7FF)	// Not a valid result, Wrong encoding
+					else if (ret > (u32char)0x7FF)	// Not a valid result, Wrong encoding
 						ret = 0;					// Out of UTF8 bound, skip data
 
 					return ret;
@@ -674,11 +672,11 @@ namespace Hydrogenium
 				if constexpr (is_utf8)
 				{
 					assert(bytes.size() == 3 || (bytes.size() == 4 && bytes.back() == '\0'));
-					fchar_t ret = (bytes[0] & 0b00001111) << 12 | (bytes[1] & 0b00111111) << 6 | (bytes[2] & 0b00111111);
+					u32char ret = (bytes[0] & 0b00001111) << 12 | (bytes[1] & 0b00111111) << 6 | (bytes[2] & 0b00111111);
 
-					if (ret < (fchar_t)0x800)		// Not a valid result, Wrong encoding
+					if (ret < (u32char)0x800)		// Not a valid result, Wrong encoding
 						ret = 0;					// Out of UTF8 bound, skip data  
-					else if (ret > (fchar_t)0xFFFF)	// Not a valid result, Wrong encoding
+					else if (ret > (u32char)0xFFFF)	// Not a valid result, Wrong encoding
 						ret = 0;					// Out of UTF8 bound, skip data  
 
 					return ret;
@@ -692,12 +690,12 @@ namespace Hydrogenium
 				if constexpr (is_utf8)
 				{
 					assert(bytes.size() == 4 || (bytes.size() == 5 && bytes.back() == '\0'));
-					fchar_t ret =
+					u32char ret =
 						(bytes[0] & 0b00000111) << 18 | (bytes[1] & 0b00111111) << 12 | (bytes[2] & 0b00111111) << 6 | (bytes[3] & 0b00111111);
 
-					if (ret < (fchar_t)0x10000)			// Not a valid result, Wrong encoding
+					if (ret < (u32char)0x10000)			// Not a valid result, Wrong encoding
 						ret = 0;						// Out of UTF8 bound, skip data  
-					else if (ret > (fchar_t)0x10FFFF)	// Not a valid result, Wrong encoding 
+					else if (ret > (u32char)0x10FFFF)	// Not a valid result, Wrong encoding 
 						ret = 0;						// Out of UTF8 bound, skip data  
 
 					return ret;
@@ -718,7 +716,7 @@ namespace Hydrogenium
 		/// </summary>
 		/// <param name="wc">: The UTF-32 represented char.</param>
 		/// <returns>Hydrogenium::multibytes_t</returns>
-		[[nodiscard]] static constexpr auto ToMultiBytes(fchar_t wc) noexcept -> multibytes_type requires (is_utf8 || is_utf16)
+		[[nodiscard]] static constexpr multibytes_type ToMultiBytes(u32char wc) noexcept requires (is_utf8 || is_utf16)
 		{
 			multibytes_type res{};
 			auto& ret = res.m_data;
@@ -726,27 +724,27 @@ namespace Hydrogenium
 
 			if constexpr (is_utf8)
 			{
-				if (wc <= (fchar_t)0x7F)
+				if (wc <= (u32char)0x7F)
 				{
 					ret[0] = static_cast<param_type>(wc);
 
 					cnt = 1;
 				}
-				else if (wc <= (fchar_t)0x7FF)
+				else if (wc <= (u32char)0x7FF)
 				{
 					ret[0] = static_cast<param_type>(0xC0u | (wc >> 6));			/* 110xxxxx */
 					ret[1] = static_cast<param_type>(0x80u | (wc & 0x3Fu));			/* 10xxxxxx */
 
 					cnt = 2;
 				}
-				else if (wc <= (fchar_t)0xFFFF) {
+				else if (wc <= (u32char)0xFFFF) {
 					ret[0] = static_cast<param_type>(0xE0u | (wc >> 12));			/* 1110xxxx */
 					ret[1] = static_cast<param_type>(0x80u | ((wc >> 6) & 0x3Fu));	/* 10xxxxxx */
 					ret[2] = static_cast<param_type>(0x80u | (wc & 0x3Fu));			/* 10xxxxxx */
 
 					cnt = 3;
 				}
-				else if (wc <= (fchar_t)0x10FFFF) {
+				else if (wc <= (u32char)0x10FFFF) {
 					ret[0] = static_cast<param_type>(0xF0u | (wc >> 18));			/* 11110xxx */
 					ret[1] = static_cast<param_type>(0x80u | ((wc >> 12) & 0x3Fu));	/* 10xxxxxx */
 					ret[2] = static_cast<param_type>(0x80u | ((wc >> 6) & 0x3Fu));	/* 10xxxxxx */
@@ -759,13 +757,13 @@ namespace Hydrogenium
 			}
 			else if constexpr (is_utf16)
 			{
-				if (wc < (fchar_t)0x10000)
+				if (wc < (u32char)0x10000)
 				{
 					ret[0] = static_cast<param_type>(wc);
 
 					cnt = 1;
 				}
-				else if (wc <= (fchar_t)0x10FFFF)
+				else if (wc <= (u32char)0x10FFFF)
 				{
 					ret[0] = static_cast<param_type>(((((uint32_t)wc - 0x10000u) << 12) >> 22) + 0xD800u);
 					ret[1] = static_cast<param_type>(((((uint32_t)wc - 0x10000u) << 22) >> 22) + 0xDC00u);
@@ -786,6 +784,75 @@ namespace Hydrogenium
 	};
 
 	// Unit testing at: UnitTest_UtlString_CType.cpp
+}
+
+// u8 and u16 buffer, Part II (Comparing operators)
+namespace Hydrogenium
+{
+	template <typename C>
+	[[nodiscard]]
+	constexpr auto BuildMultibyteCell(C const* ptr) noexcept -> multibytes_t<C>
+	{
+		auto const cp = std::to_underlying(CType<C>::CodePointOf(*ptr));
+		assert(cp <= multibytes_t<C>::MAX_SIZE);
+
+		multibytes_t<C> ret{};
+		for (uint8_t i = 0; i < cp; ++i)
+			ret[i] = ptr[i];
+
+		if (cp < multibytes_t<C>::MAX_SIZE)
+			ret[multibytes_t<C>::BACK] = cp;
+
+		return ret;
+	}
+
+	template <typename C>
+	[[nodiscard]]
+	constexpr auto operator<=>(multibytes_t<C> lhs, u32char rhs) noexcept -> decltype(u32char{} <=> rhs)
+	{
+		return CType<C>::ToFullWidth(lhs) <=> rhs;
+	}
+
+	template <typename C1, typename C2>
+	[[nodiscard]]
+	constexpr auto operator<=>(multibytes_t<C1> lhs, multibytes_t<C2> rhs) noexcept -> decltype(u32char{} <=> u32char{})
+	{
+		return CType<C1>::ToFullWidth(lhs) <=> CType<C2>::ToFullWidth(rhs);
+	}
+
+	template <typename C, std::ranges::contiguous_range R>
+	[[nodiscard]]
+	constexpr auto operator<=>(multibytes_t<C> lhs, R const& rhs) noexcept -> decltype(u32char{} <=> u32char{})
+	{
+		auto const bytes = BuildMultibyteCell(std::ranges::cdata(rhs));
+
+		return
+			CType<C>::ToFullWidth(lhs) <=> CType<std::ranges::range_value_t<R>>::ToFullWidth(bytes);
+	}
+
+	template <typename C>
+	[[nodiscard]]
+	constexpr bool operator==(multibytes_t<C> lhs, u32char rhs) noexcept
+	{
+		return CType<C>::ToFullWidth(lhs) == rhs;
+	}
+
+	template <typename C1, typename C2>
+	[[nodiscard]]
+	constexpr bool operator==(multibytes_t<C1> lhs, multibytes_t<C2> rhs) noexcept
+	{
+		return CType<C1>::ToFullWidth(lhs) == CType<C2>::ToFullWidth(rhs);
+	}
+
+	template <typename C, std::ranges::contiguous_range R>
+	[[nodiscard]]
+	constexpr bool operator==(multibytes_t<C> lhs, R const& rhs) noexcept
+	{
+		auto const bytes = BuildMultibyteCell(std::ranges::cdata(rhs));
+
+		return
+			CType<C>::ToFullWidth(lhs) == CType<std::ranges::range_value_t<R>>::ToFullWidth(bytes);
+	}
 }
 
 // Misc, Part II
@@ -899,7 +966,7 @@ namespace Hydrogenium
 		std::unreachable();
 	}
 
-	constexpr fchar_t UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
+	constexpr u32char UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
 	{
 		using CT = CType<decltype(str[0])>;
 
@@ -927,13 +994,13 @@ namespace Hydrogenium
 	inline constexpr auto UTF8_TO_UTF16 =
 		std::views::chunk_by([](auto, char rhs) { return CType<char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
 		| std::views::transform(&CType<char>::ToFullWidth)
-		| std::views::transform(&CType<u16char_t>::ToMultiBytes)
+		| std::views::transform(&CType<u16char>::ToMultiBytes)
 		| std::views::join
 		| std::ranges::to<std::basic_string>();
 
 	inline constexpr auto UTF16_TO_UTF8 =
-		std::views::chunk_by([](auto, u16char_t rhs) { return CType<u16char_t>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
-		| std::views::transform(&CType<u16char_t>::ToFullWidth)
+		std::views::chunk_by([](auto, u16char rhs) { return CType<u16char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
+		| std::views::transform(&CType<u16char>::ToFullWidth)
 		| std::views::transform(&CType<char>::ToMultiBytes)
 		| std::views::join
 		| std::ranges::to<std::basic_string>();
@@ -1046,8 +1113,8 @@ namespace Hydrogenium::StringPolicy
 namespace Hydrogenium::StringPolicy::Typing
 {
 	static_assert(TypingPolicy<CType<char>>);
-	static_assert(TypingPolicy<CType<u16char_t>>);
-	static_assert(TypingPolicy<CType<fchar_t>>);
+	static_assert(TypingPolicy<CType<u16char>>);
+	static_assert(TypingPolicy<CType<u32char>>);
 }
 
 namespace Hydrogenium::StringPolicy::Iterating
@@ -1076,7 +1143,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 	{
 		static inline constexpr bool normal_pointer = true;
 
-		static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
+		[[nodiscard]] static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
 		{
 			auto abs_begin = RangePolicy.Begin(view);
 			auto abs_end = RangePolicy.End(view);
@@ -1085,7 +1152,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 			return std::make_tuple(abs_begin, abs_begin, std::move(logical_end));
 		}
 
-		static constexpr auto ValueOf(auto&& iter) noexcept
+		[[nodiscard]] static constexpr auto ValueOf(auto&& iter) noexcept
 		{
 			using CT = CType<decltype(*iter)>;	// #MSVC_BUGGED_tailing_return_type_namespace_error
 			return static_cast<CT::param_type>(*iter);
@@ -1392,6 +1459,7 @@ namespace Hydrogenium::StringPolicy::Iterating
 		};
 		// End of not required functions
 
+		[[nodiscard]]
 		static constexpr auto Get(auto&& view, StringPolicy::DirectionPolicy auto RangePolicy, ptrdiff_t size) noexcept
 		{
 			auto abs_begin = RangePolicy.Begin(view);
@@ -1405,7 +1473,8 @@ namespace Hydrogenium::StringPolicy::Iterating
 			return std::make_tuple(std::move(abs_begin), std::move(it), std::move(logical_end));
 		}
 
-		static constexpr auto ValueOf(auto&& iter) noexcept -> fchar_t
+		[[nodiscard]]
+		static constexpr auto ValueOf(auto&& iter) noexcept -> u32char
 		{
 			using CT = CType<decltype(*iter)>;
 
@@ -1898,7 +1967,7 @@ namespace Hydrogenium::StringPolicy::Result
 				// bad, very bad.
 				else
 				{
-					static_assert(typeid(fchar_t) == typeid(value_type));
+					static_assert(typeid(u32char) == typeid(value_type));
 
 					auto const bytes = CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)));
 
@@ -1936,7 +2005,7 @@ namespace Hydrogenium::StringPolicy::Result
 				// bad, very bad.
 				else
 				{
-					static_assert(typeid(fchar_t) == typeid(value_type));
+					static_assert(typeid(u32char) == typeid(value_type));
 
 					ret.append_range(
 						CType<char_type>::ToMultiBytes(proj(IterPolicy.ValueOf(it)))
@@ -1986,20 +2055,20 @@ namespace Hydrogenium::String::Functors::Components
 
 		using ctype_info = CType<T>;
 		using char_type = std::remove_cvref_t<T>;
-		using param_type = std::conditional_t<sizeof(char_type) == 1, unsigned char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>;
-		using view_type = ::std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
-		using owner_type = ::std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
-		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char_t, fchar_t>>>;
+		using param_type = std::conditional_t<sizeof(char_type) == 1, unsigned char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>;
+		using view_type = ::std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
+		using owner_type = ::std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
+		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
 	};
 
 	template <typename CFinal, typename Base>
 	using info_u8 = wrapper_info<CFinal, Base, char>;
 
 	template <typename CFinal, typename Base>
-	using info_u16 = wrapper_info<CFinal, Base, u16char_t>;
+	using info_u16 = wrapper_info<CFinal, Base, u16char>;
 
 	template <typename CFinal, typename Base>
-	using info_u32 = wrapper_info<CFinal, Base, fchar_t>;
+	using info_u32 = wrapper_info<CFinal, Base, u32char>;
 
 	// #TODO info_wchar?
 
@@ -2130,7 +2199,7 @@ namespace Hydrogenium::String::Functors::Components
 		[[nodiscard]]
 		__forceinline static constexpr auto Transform(
 			std::bidirectional_iterator auto const& first, std::bidirectional_iterator auto const& last, proj_t&& proj = {}
-		) noexcept -> decltype(CWrapped::Transform(first, last, policy_iter{}, std::move(proj))) requires (requires{ std::invoke(proj, policy_iter::ValueOf(*first)); })
+		) noexcept -> decltype(CWrapped::Transform(first, last, policy_iter{}, std::move(proj))) requires (requires{ std::invoke(proj, policy_iter::ValueOf(first)); })
 		{
 			return CWrapped::Transform(first, last, policy_iter{}, std::move(proj));
 		}
@@ -2217,7 +2286,7 @@ namespace Hydrogenium::String::Functors::Components
 
 		[[nodiscard]]
 		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = MAX_COUNT) const noexcept
-			-> decltype(Transform(str.begin(), str.end(), str.end()))
+			-> decltype(Transform(str.begin(), str.end(), str.begin(), str.end(), str.end()))
 		{
 			auto [begin, it, end] = Get(str, until);
 
@@ -2276,7 +2345,7 @@ namespace Hydrogenium::String::Functors::Components
 
 			if constexpr (HAS_TEST_POSTPROCESSOR)
 			{
-				return Transform(ChCmp(c1, c2));
+				return Base::Transform(ChCmp(c1, c2));
 			}
 			else
 			{
@@ -2405,6 +2474,7 @@ namespace Hydrogenium::String::Functors::Components
 		REQ_TYPE_INFO;
 		using typename Base::char_type;
 
+		/// <summary>psz must be a marshaled object, like std::string</summary>
 		template <typename T> requires(std::convertible_to<T&, std::span<char_type>>)
 		T* operator()(T* psz, ptrdiff_t until = MAX_COUNT) const noexcept
 		{
@@ -2431,9 +2501,9 @@ namespace Hydrogenium::String::Functors::Components
 	struct alg_lwr : Base
 	{
 		REQ_TYPE_INFO;
-		using typename Base::ctype_info;
 		using typename Base::owner_type;
 		using typename Base::view_type;
+		using deref_type = decltype(Base::ValueOf(typename view_type::iterator{}));
 
 		REQ_ITER_MGR;
 		using Base::Get;
@@ -2445,11 +2515,11 @@ namespace Hydrogenium::String::Functors::Components
 
 		[[nodiscard]]
 		constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
-			-> decltype(Transform(str.begin(), str.end(), &ctype_info::ToLower))
+			-> decltype(Transform(str.begin(), str.end(), &CType<deref_type>::ToLower))
 		{
 			auto [_, it, end] = Get(str, count);
 
-			return Transform(it, end, &ctype_info::ToLower);
+			return Transform(it, end, &CType<deref_type>::ToLower);
 		}
 
 		// return type is void, in the case of in-place mode.
@@ -2460,11 +2530,11 @@ namespace Hydrogenium::String::Functors::Components
 			auto [_, it, end] = Get(str, count);
 
 			static_assert(
-				typeid(Transform(it, end, &ctype_info::ToLower)) == typeid(owner_type),
+				typeid(Transform(it, end, &CType<deref_type>::ToLower)) == typeid(owner_type),
 				"Lwr() in-place mode must be used with marshaled returning types."
 			);
 
-			*pstr = Transform(it, end, &ctype_info::ToLower);
+			*pstr = Transform(it, end, &CType<deref_type>::ToLower);
 		}
 	};
 
@@ -2696,9 +2766,9 @@ namespace Hydrogenium::String::Functors::Components
 	struct alg_upr : Base
 	{
 		REQ_TYPE_INFO;
-		using typename Base::ctype_info;
 		using typename Base::owner_type;
 		using typename Base::view_type;
+		using deref_type = decltype(Base::ValueOf(typename view_type::iterator{}));
 
 		REQ_ITER_MGR;
 		using Base::Get;
@@ -2710,11 +2780,11 @@ namespace Hydrogenium::String::Functors::Components
 
 		[[nodiscard]]
 		constexpr auto operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
-			-> decltype(Transform(str.begin(), str.end(), &ctype_info::ToUpper))
+			-> decltype(Transform(str.begin(), str.end(), &CType<deref_type>::ToUpper))
 		{
 			auto [_, it, end] = Get(str, count);
 
-			return Transform(it, end, &ctype_info::ToUpper);
+			return Transform(it, end, &CType<deref_type>::ToUpper);
 		}
 
 		// return type is void, in the case of in-place mode.
@@ -2725,11 +2795,11 @@ namespace Hydrogenium::String::Functors::Components
 			auto [_, it, end] = Get(str, count);
 
 			static_assert(
-				typeid(Transform(it, end, &ctype_info::ToUpper)) == typeid(owner_type),
+				typeid(Transform(it, end, &CType<deref_type>::ToUpper)) == typeid(owner_type),
 				"Upr() in-place mode must be used with marshaled returning types."
 			);
 
-			*pstr = Transform(it, end, &ctype_info::ToUpper);
+			*pstr = Transform(it, end, &CType<deref_type>::ToUpper);
 		}
 	};
 
