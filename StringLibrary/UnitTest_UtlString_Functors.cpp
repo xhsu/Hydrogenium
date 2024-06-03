@@ -90,12 +90,12 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Cmp(Mbs::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_FWD_U8, 5) == 0);	// Purpose: test 'N' version.
 	static_assert(Mbs::Cmp(MbsR::Dup(CJK_NUMBERS_FWD_U8, 5), CJK_NUMBERS_BWD_U8, 5) == 0);	// Purpose: test 'N' version.
 
-	// Internal DupV(), mostly for 'N' version.
+	// Internal DupV(), mostly for 'N' version. (Formalized as Sub()).
 
-	static_assert(StrR::detail::DupV(ASCII_NUMBERS_FWD, 5) == "56789");	// purpose: take last five graphemes.
-	static_assert(Wcs::detail::DupV(RMN_NUMBERS_FWD_W, 5) == L"ⅠⅡⅢⅣⅤ");	// purpose: take first five graphemes.
-	static_assert(Mbs::detail::DupV(CJK_NUMBERS_FWD_U8, 5) == u8"零一二三四");	// purpose: verify multibyte case.
-	static_assert(MbsR::detail::DupV(CJK_NUMBERS_FWD_U8, 20) == CJK_NUMBERS_FWD_U8);	// purpose: verify the meaning of 'count' parameter here, as grapheme count, not byte count.
+	static_assert(StrR::Sub(ASCII_NUMBERS_FWD, 5) == "56789");	// purpose: take last five graphemes.
+	static_assert(Wcs::Sub(RMN_NUMBERS_FWD_W, 5) == L"ⅠⅡⅢⅣⅤ");	// purpose: take first five graphemes.
+	static_assert(Mbs::Sub(CJK_NUMBERS_FWD_U8, 5) == u8"零一二三四");	// purpose: verify multibyte case.
+	static_assert(MbsR::Sub(CJK_NUMBERS_FWD_U8, 20) == CJK_NUMBERS_FWD_U8);	// purpose: verify the meaning of 'count' parameter here, as grapheme count, not byte count.
 }
 
 // Fry
@@ -106,8 +106,8 @@ namespace Hydrogenium::String::UnitTest
 		std::string test1(0x20, '\0');
 		std::wstring test2(0x10, L'\0');
 
-		StrFry(&test1, 0x10);
-		WcsFry(&test2);
+		Str::Fry(&test1, 0x10);
+		Wcs::Fry(&test2);
 
 		assert(test1.size() == 0x20);
 		assert(test2.size() == 0x10);
@@ -180,12 +180,6 @@ namespace Hydrogenium::String::UnitTest
 	//                     └───────┘
 	static_assert(MbsSpn("abcde312$#@", "qwertyuiopasdfghjklzxcvbnm") == 5);
 	//                    └────┘
-	static_assert(MbsR::detail::CSpnR(u8"吃葡萄不吐葡萄皮", u8"吐葡") == 2);
-	//                                            └───┘  ← searching & indexing dir.
-	static_assert(MbsR::detail::CSpnR(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"äöüß") == 5);
-	//                                                           └────┘  ← searching & indexing dir.
-	static_assert(Mbs::detail::CSpnR(u8"aäbcdefghijklmnoöpqrsßtuüvwxyz", u8"äöüß") == 1);
-	//                                  └┘                               ← searching & indexing dir.
 
 	// 'N' Version
 
@@ -213,13 +207,13 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(Mbs::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄");	// purpose: verify the multibytes can be correctly parsed as groups.
 	static_assert(MbsR::Str(u8"吃葡萄不吐葡萄皮", u8"葡萄", 3) == u8"葡萄皮");	// Purpose: test 'N' version.
 
-	//static_assert(WcsR::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_LOWER_BWD_W).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
+	static_assert(WcsR::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_LOWER_BWD_W).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
 	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10)) == ELL_ALPHABET_LOWER_FWD_W.substr(10));
 	static_assert(WcsI::Str(ELL_ALPHABET_LOWER_FWD_W, ELL_ALPHABET_UPPER_FWD_W.substr(10), 10).empty());	// Purpose: test 'N' version.
 
-	//static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
-	//static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::detail::DupV(DEU_ALPHABET_LOWER_FWD_U8, 10));
-	//static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::detail::DupV(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
+	static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
+	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::Sub(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::Sub(DEU_ALPHABET_LOWER_FWD_U8, 10));
+	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::Sub(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
 }
 
 // Tok

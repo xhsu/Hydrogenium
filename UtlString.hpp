@@ -1008,6 +1008,7 @@ namespace Hydrogenium
 	// Unit testing at: UnitTest_UtlString_Misc.cpp
 }
 
+// Policy Concepts
 namespace Hydrogenium::StringPolicy
 {
 	template <typename T>
@@ -2023,6 +2024,7 @@ namespace Hydrogenium::StringPolicy::Result
 	inline constexpr auto as_vector = as_vector_t{};
 }
 
+// Auxiliary components
 namespace Hydrogenium::String::Components
 {
 	struct base_comp_t
@@ -2251,6 +2253,7 @@ namespace Hydrogenium::String::Components
 
 }
 
+// Algorithm components
 namespace Hydrogenium::String::Components
 {
 #define REQ_TYPE_INFO	static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!")
@@ -2646,6 +2649,42 @@ namespace Hydrogenium::String::Components
 		}
 	};
 
+	/// <summary>Slice a view from a string.</summary>
+	/// <returns>Range.</returns>
+	template <typename, typename Base>
+	struct alg_sub : Base
+	{
+		REQ_TYPE_INFO;
+		using typename Base::view_type;
+
+		REQ_DIR_MGR;
+		using Base::is_reverse;
+
+		REQ_ITER_MGR;
+		using Base::Get;
+
+		using Base::operator();	// Just watch out for overload resolution
+
+		[[nodiscard]]
+		constexpr view_type operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			// the moving iter is already included in this function. No additional loop needed!
+			auto [begin, it, end] = Get(str, count);
+
+			if constexpr (!is_reverse)
+			{
+				return { begin, end };	// in the case of multibyte: begin always pointing to the head of UTF stream, if not reversed.
+			}
+			else
+			{
+				auto const fwit1 = ToForwardIter(end, false);	// we are taking last N characters, so including the 'ending' one just defeat the purpose.
+				auto const fwed1 = ToForwardIter(begin, false);	// in reverse_iter, rbegin is the actual end.
+
+				return { fwit1, fwed1 };
+			}
+		}
+	};
+
 	/// <summary>Split up the string with provided token set.</summary>
 	/// <returns>Range.</returns>
 	template <typename, typename Base>
@@ -2818,454 +2857,39 @@ namespace Hydrogenium::String::Components
 namespace Hydrogenium::String
 {
 	template <
-		typename char_type = char,
-		StringPolicy::IteratingPolicy<char_type> IterPolicy = StringPolicy::Iterating::as_normal_ptr_t,
-		StringPolicy::ComparingPolicy<char_type> Comparator = StringPolicy::Comparing::regular_t,
-		StringPolicy::DirectionPolicy<char_type> RangePolicy = StringPolicy::Direction::forwards_t,
-		StringPolicy::QueryPostProcessor<char_type> QueryPostProc = StringPolicy::Result::as_view_t,
-		StringPolicy::TestPostProcessor TestPostProc = StringPolicy::Result::as_it_is_t,
-		StringPolicy::CountingPostProcessor CountingPostProc = StringPolicy::Result::as_it_is_t,
-		StringPolicy::ModifyPostProcessor<char_type> ModifyPostProc = StringPolicy::Result::as_marshaled_t
+		template <typename, typename> class TInfo = Components::info_narrow,
+		template <typename, typename> class TIterPolicy = Components::iter_default,
+		template <typename, typename> class TComparator = Components::cmp_default,
+		template <typename, typename> class TRangePolicy = Components::dir_forward,
+		template <typename, typename> class TQueryPP = Components::ret_as_view,
+		template <typename, typename> class TTestPP = Components::ret_as_it_is,
+		template <typename, typename> class TCountingPP = Components::ret_as_signed,
+		template <typename, typename> class TModifyPP = Components::ret_as_marshaled
 	>
 	struct Utils final
 	{
-		using ctype_info = CType<char_type>;
-		using nullable_type = std::optional<typename ctype_info::view_type>;
-		using owner_type = ctype_info::owner_type;
-		using owner_iter = decltype(RangePolicy::Begin(owner_type{}));
-		using param_type = ctype_info::param_type;
-		using value_type = decltype(IterPolicy::ValueOf(owner_iter{}));
-		using view_type = ctype_info::view_type;
-		using view_iter = decltype(RangePolicy::Begin(view_type{}));
-
-		struct detail final
-		{
-			static inline constexpr auto default_search_len = std::numeric_limits<ptrdiff_t>::max();
-
-			// Chr - v, c -> string_view; No internal impl needed.
-			// Cmp - v, v -> int; No internal impl needed.
-
-			// Cnt - v -> size_t; Counting graphemes in a char[] range.
-			__forceinline static constexpr size_t Cnt(view_type const& str, ptrdiff_t count = default_search_len) noexcept
-			{
-				auto [begin, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				size_t n = begin == end ? 0 : 1;	// #UPDATE_AT_CPP23 size type literal
-				for (; IterPolicy::Arithmetic(it, begin, end, 1) & StringPolicy::Iterating::APRES::MOVED; ++n) {}
-
-				return n;
-			}
-
-			// CSpn - v, v -> size_t; Use PBrk instead. This one will count distance from RangePolicy.Begin() instead of from absolute start. 'R' stands for 'relative'.
-			static constexpr ptrdiff_t CSpnR(view_type const& dest, view_type const& src, ptrdiff_t count = default_search_len, bool bSpnMode = false) noexcept
-			{
-				// the src is NOT order-sensitive, it's no more than a set of what to search.
-				// hence no range function put onto src.
-
-				auto [b1, s1, e1] = IterPolicy::Get(dest, RangePolicy{}, count);
-				auto [b2, s2, e2] = IterPolicy::Get(src, StringPolicy::Direction::front_to_back, default_search_len);
-				ptrdiff_t counter = 0;
-
-				for (; s1 < e1; IterPolicy::Arithmetic(s1, b1, e1, 1), ++counter)
-				{
-					bool found_in_src = false;
-					auto const ch1 = IterPolicy::ValueOf(s1);
-
-					for (s2 = b2; s2 < e2; IterPolicy::Arithmetic(s2, b2, e2, 1))
-					{
-						auto const ch2 = IterPolicy::ValueOf(s2);
-
-						if (Comparator::ChEql(ch1, ch2))
-						{
-							found_in_src = true;
-							break;
-						}
-					}
-
-					if (found_in_src == !bSpnMode)
-						break;
-				}
-
-				return counter;
-			}
-
-			// Dup - v -> string; No interal impl needed. This one is for getting a view of first N graphemes.
-			static constexpr auto DupV(view_type const& str, ptrdiff_t count) noexcept -> ctype_info::view_type
-			{
-				using StringPolicy::Iterating::APRES;
-
-				// the moving iter is already included in this function. No additional loop needed!
-				auto [begin, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				if constexpr (!RangePolicy::is_reverse)
-				{
-					return { begin, end };	// in the case of multibyte: begin always pointing to the head of UTF stream, if not reversed.
-				}
-				else
-				{
-					auto const fwit1 = ToForwardIter(end, false);	// we are taking last N characters, so including the 'ending' one just defeat the purpose.
-					auto const fwed1 = ToForwardIter(begin, false);	// in reverse_iter, rbegin is the actual end.
-
-					return { fwit1, fwed1 };
-				}
-			}
-
-			// Fry - o -> string; WTF???? WHO NEEDS THIS? WHAT'S WRONG WITH YOU?
-			static auto Fry(owner_type* psz, ptrdiff_t until = default_search_len) noexcept -> decltype(psz)
-			{
-				using int_type = std::conditional_t<sizeof(char_type) == 1, int8_t, std::conditional_t<sizeof(char_type) == 2, int16_t, int32_t>>;
-				constexpr auto UTF_MAX = std::min<int32_t>(std::numeric_limits<int_type>::max(), 0x10FFFF);
-
-				thread_local static std::random_device PureRD;
-				thread_local static std::mt19937 gen{ PureRD() };
-				thread_local static std::uniform_int_distribution<int32_t> distrb(1, UTF_MAX);	// avoid '\0' causing C bug.
-
-				// we are just filling random garbage, the order doesn't matter.
-				for (auto& ch : *psz | std::views::take(until))
-				{
-					ch = distrb(gen);
-				}
-
-				return psz;
-			}
-
-			// Len - v -> size_t; Use Cnt instead.
-			// Lwr - o -> string; No internal impl needed.
-
-			// PBrk - v, v -> string_view; served as CSpn, Spn, SpnP as well.
-			__forceinline static constexpr auto PBrk(view_type const& dest, view_type const& src, ptrdiff_t count = default_search_len, bool bSpnPMode = false) noexcept
-			{
-				// the src is NOT order-sensitive, it's no more than a set of what to search.
-				// hence no range function put onto src.
-
-				auto [b1, s1, e1] = IterPolicy::Get(dest, RangePolicy{}, count);
-				auto [b2, s2, e2] = IterPolicy::Get(src, StringPolicy::Direction::front_to_back, default_search_len);
-
-				for (; s1 < e1; IterPolicy::Arithmetic(s1, b1, e1, 1))
-				{
-					bool found_in_src = false;
-					auto const ch1 = IterPolicy::ValueOf(s1);
-
-					for (s2 = b2; s2 < e2; IterPolicy::Arithmetic(s2, b2, e2, 1))
-					{
-						auto const ch2 = IterPolicy::ValueOf(s2);
-
-						if (Comparator::ChEql(ch1, ch2))
-						{
-							found_in_src = true;
-							break;
-						}
-					}
-
-					if (found_in_src == !bSpnPMode)
-						break;
-				}
-
-				// why can't I use goto in constexpr?!
-			//LAB_POST_FINDING:;
-
-				return std::make_tuple(std::move(b1), std::move(e1), std::move(s1));
-			}
-
-			// Rev - o -> string; Use Dup instead.
-			// Sep - o, v -> string; Use Tok instead.
-			// Spn - v, v -> size_t; Use PBrk instead.
-			// SpnP - v, v -> string_view; Use PBrk instead.
-			// Str - v, v -> string_view; No internal impl needed.
-
-			// Tok - n, v -> string_view; The second argument filled in will be altered!
-			__forceinline static constexpr auto Tok(auto&& begin, auto& it, auto&& end, view_type const& delim) noexcept
-				-> decltype(BuildStringView(begin, it, end, false))
-			{
-				// I. Move pointer to the next non-delim position.
-				auto const org_before_comp = CSpnR(BuildStringView(it, end, end, false), delim, default_search_len, true);
-				IterPolicy::Arithmetic(it, begin, end, org_before_comp);
-
-				if (it >= end)
-					return BuildStringView(end, end, end, false);
-
-				// II. Move pointer to next delim position. And now 'it' serves as end.
-				auto const tokenBegin = it;
-				auto const org_before_comp2 = CSpnR(BuildStringView(it, end, end, false), delim);
-				IterPolicy::Arithmetic(it, begin, end, org_before_comp2);
-
-				// buffer is the end in this section as it is going to be assigned as '\0' in original strtok().
-				return BuildStringView(tokenBegin, it, end, false);
-			}
-
-			// Upr - o -> string; No internal impl needed.
-		};
-
-#pragma region Chr
-		struct chr_fn_t
-		{
-			constexpr auto operator()(view_type const& str, param_type ch, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> decltype(QueryPostProc::Transform(str.begin(), str.end(), RangePolicy::Begin(str), RangePolicy::End(str), RangePolicy::End(str), IterPolicy{}))
-			{
-				auto [begin, it, end] = IterPolicy::Get(str, RangePolicy{}, until);
-
-				for (; it < end; IterPolicy::Arithmetic(it, begin, end, 1))
-				{
-					if (Comparator::ChEql(IterPolicy::ValueOf(it), ch))
-						break;
-				}
-
-				// This is absolute begin and end.
-				return QueryPostProc::Transform(
-					str.begin(), str.end(), begin, it, end,
-					IterPolicy{}
-				);
-			}
-		};
-		static inline constexpr auto Chr = chr_fn_t{};
-#pragma endregion Chr
-
-#pragma region Cmp
-		struct cmp_fn_t
-		{
-			constexpr auto operator()(view_type const& lhs, view_type const& rhs, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(TestPostProc::Transform(0))
-			{
-				auto [b1, s1, e1] = IterPolicy::Get(lhs, RangePolicy{}, count);
-				auto [b2, s2, e2] = IterPolicy::Get(rhs, RangePolicy{}, count);
-
-				while (
-					s1 < e1 && s2 < e2
-					&& Comparator::ChEql(IterPolicy::ValueOf(s1), IterPolicy::ValueOf(s2))
-					)
-				{
-					IterPolicy::Arithmetic(s1, b1, e1, 1);
-					IterPolicy::Arithmetic(s2, b2, e2, 1);
-				}
-
-				// Preventing deducing as something like 'int32_t'
-				value_type const c1 = s1 == e1 ? '\0' : IterPolicy::ValueOf(s1);
-				value_type const c2 = s2 == e2 ? '\0' : IterPolicy::ValueOf(s2);
-
-				return TestPostProc::Transform(
-					Comparator::ChCmp(c1, c2)
-				);
-			}
-		};
-		static inline constexpr auto Cmp = cmp_fn_t{};
-#pragma endregion Cmp
-
-#pragma region Cnt
-		struct cnt_fn_t
-		{
-			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(CountingPostProc::Transform(size_t{}))
-			{
-				return CountingPostProc::Transform(
-					detail::Cnt(str, count)
-				);
-			}
-		};
-		static inline constexpr auto Cnt = cnt_fn_t{};
-#pragma endregion Cnt
-
-#pragma region Dup
-		struct dup_fn_t
-		{
-			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(ModifyPostProc::Transform(RangePolicy::Begin(str), RangePolicy::End(str), IterPolicy{}))
-			{
-				auto [_, it, logical_end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				// the count param is for size in the native type. Not count of graphemes.
-				return ModifyPostProc::Transform(it, logical_end, IterPolicy{});
-			}
-		};
-		static inline constexpr auto Dup = dup_fn_t{};
-#pragma endregion Dup
-
-#pragma region Lwr
-		struct lwr_fn_t
-		{
-			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(ModifyPostProc::Transform(str.begin(), str.end(), IterPolicy{}))
-			{
-				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				return ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToLower);
-			}
-
-			// return type is void, in the case of in_place mode.
-			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
-			{
-			// explictly create a view, such that compiler won't complain about const& object expiring.
-				view_type const str{ *pstr };
-				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				static_assert(
-					typeid(ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToLower)) == typeid(owner_type),
-					"Lwr() method must be used with marshaled returning types."
-				);
-
-				*pstr = ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToLower);
-			}
-		};
-		static inline constexpr auto Lwr = lwr_fn_t{};
-#pragma endregion Lwr
-
-#pragma region PBrk
-		struct pbrk_fn_t
-		{
-			constexpr auto operator()(view_type const& dest, view_type const& src, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(QueryPostProc::Transform(dest.begin(), dest.end(), RangePolicy::Begin(dest), RangePolicy::End(dest), RangePolicy::End(dest), IterPolicy{}))
-			{
-				auto [begin, end, it] = detail::PBrk(dest, src, count, false);
-
-				return QueryPostProc::Transform(
-					dest.begin(), dest.end(), begin, it, end,
-					IterPolicy{}
-				);
-			}
-		};
-		static inline constexpr auto PBrk = pbrk_fn_t{};
-#pragma endregion PBrk
-
-#pragma region SpnP
-		struct spnp_fn_t
-		{
-			constexpr auto operator()(view_type const& dest, view_type const& src, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(QueryPostProc::Transform(dest.begin(), dest.end(), RangePolicy::Begin(dest), RangePolicy::End(dest), RangePolicy::End(dest), IterPolicy{}))
-			{
-				auto [begin, end, it] = detail::PBrk(dest, src, count, true);
-
-				return QueryPostProc::Transform(
-					dest.begin(), dest.end(), begin, it, end,
-					IterPolicy{}
-				);
-			}
-		};
-		static inline constexpr auto SpnP = spnp_fn_t{};
-#pragma endregion SpnP
-
-#pragma region Str
-		struct str_fn_t
-		{
-			constexpr auto operator()(view_type const& str, view_type const& substr, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> decltype(QueryPostProc::Transform(str.begin(), str.end(), RangePolicy::Begin(str), RangePolicy::End(str), RangePolicy::End(str), IterPolicy{}))
-			{
-				// Searching direction has nothing to do with comparing direction!!
-				// the substr is going to attempting to match with the forwarding order.
-				// hence no range function put onto src.
-
-				auto [b1, s1, e1] = IterPolicy::Get(str, RangePolicy{}, until);
-				auto const iSubstrCnt = detail::Cnt(substr);
-
-				constexpr auto FwdCmp = Utils<
-					char_type,
-					IterPolicy,
-					Comparator,
-					StringPolicy::Direction::forwards_t,
-					QueryPostProc,
-					StringPolicy::Result::as_it_is_t	// To guarantee a lexicographical result.
-				>::Cmp;
-
-				if constexpr (!RangePolicy::is_reverse)
-				{
-					for (; s1 < e1; IterPolicy::Arithmetic(s1, b1, e1, 1))
-					{
-						if (FwdCmp({ s1, e1 }, substr, iSubstrCnt) == 0)
-							break;
-					}
-				}
-				else
-				{
-					for (; s1 < e1; IterPolicy::Arithmetic(s1, b1, e1, 1))
-					{
-						auto const fwit1 = ToForwardIter(s1);
-						auto const fwed1 = ToForwardIter(b1, false);	// in reverse_iter, rbegin is the actual end.
-
-						if (FwdCmp({ fwit1, fwed1 }, substr, iSubstrCnt) == 0)
-							break;
-					}
-				}
-
-				return QueryPostProc::Transform(
-					str.begin(), str.end(), b1, s1, e1,
-					IterPolicy{}
-				);
-			}
-		};
-		static inline constexpr auto Str = str_fn_t{};
-#pragma endregion Str
-
-#pragma region Tok
-		struct tok_fn_t
-		{
-			auto operator()(nullable_type const& psz, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
-			{
-				static thread_local std::tuple_element_t<0, decltype(IterPolicy::Get(*psz, RangePolicy{}, until))> begin{};
-				static thread_local std::tuple_element_t<1, decltype(IterPolicy::Get(*psz, RangePolicy{}, until))> it{};
-				static thread_local std::tuple_element_t<2, decltype(IterPolicy::Get(*psz, RangePolicy{}, until))> end{};
-
-				if (psz.has_value())
-					std::tie(begin, it, end) = IterPolicy::Get(*psz, RangePolicy{}, until);	// in all other calling case, 'until' param will be ignored.
-
-				return detail::Tok(begin, it, end, delim);
-			}
-
-			auto operator()(StringPolicy::Result::as_generator_t, view_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> GENERATOR_TY<view_type>
-			{
-				auto [begin, it, end] = IterPolicy::Get(str, RangePolicy{}, until);
-
-				for (auto view = detail::Tok(begin, it, end, delim); !view.empty(); view = detail::Tok(begin, it, end, delim))
-				{
-					co_yield view;
-				}
-
-				co_return;
-			}
-
-			constexpr auto operator()(StringPolicy::Result::as_vector_t, view_type const& str, view_type const& delim, ptrdiff_t until = detail::default_search_len) const noexcept
-				-> std::vector<view_type>
-			{
-				auto [begin, it, end] = IterPolicy::Get(str, RangePolicy{}, until);
-				std::vector<view_type> ret{};
-
-				for (auto view = detail::Tok(begin, it, end, delim); !view.empty(); view = detail::Tok(begin, it, end, delim))
-				{
-					ret.emplace_back(std::move(view));
-				}
-
-				return ret;
-			}
-		};
-		static inline constexpr auto Tok = tok_fn_t{};
-#pragma endregion Tok
-
-#pragma region Upr
-		struct upr_fn_t
-		{
-			constexpr auto operator()(view_type const& str, ptrdiff_t count = detail::default_search_len) const noexcept
-				-> decltype(ModifyPostProc::Transform(str.begin(), str.end(), IterPolicy{}))
-			{
-				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				return ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToUpper);
-			}
-
-			// return type is void, in the case of in_place mode.
-			constexpr void operator()(owner_type* pstr, ptrdiff_t count = detail::default_search_len) const noexcept
-			{
-				// explictly create a view, such that compiler won't complain about const& object expiring.
-				view_type const str{ *pstr };
-				auto [_, it, end] = IterPolicy::Get(str, RangePolicy{}, count);
-
-				static_assert(
-					typeid(ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToUpper)) == typeid(typename ctype_info::owner_type),
-					"Upr() method must be used with marshaled returning types."
-				);
-
-				*pstr = ModifyPostProc::Transform(it, end, IterPolicy{}, &CType<value_type>::ToUpper);
-			}
-		};
-		static inline constexpr auto Upr = upr_fn_t{};
-#pragma endregion Upr
+		using base_comp_t = Components::base_comp_t;
+		using empty_comp_t = Components::empty_comp_t;
+
+		template <template <typename, typename> class TFirst, template <typename, typename> class... TRests>
+		struct Composer : TFirst<empty_comp_t, Composer<TRests...>> { using TFirst<empty_comp_t, Composer<TRests...>>::operator(); };
+
+		template <template <typename, typename> class TFirst>
+		struct Composer<TFirst> : TFirst<empty_comp_t, base_comp_t> { using TFirst<empty_comp_t, base_comp_t>::operator(); };
+
+
+		static inline constexpr auto Chr = Composer<Components::alg_chr, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
+		static inline constexpr auto Cmp = Composer<Components::alg_cmp, TTestPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
+		static inline constexpr auto Cnt = Composer<Components::alg_cnt, TCountingPP, TIterPolicy, TRangePolicy, TInfo>{};
+		static inline constexpr auto Dup = Composer<Components::alg_dup, TModifyPP, TIterPolicy, TRangePolicy, TInfo>{};
+		static inline constexpr auto Fry = Composer<Components::alg_fry, TInfo>{};
+		static inline constexpr auto Lwr = Composer<Components::alg_lwr, TModifyPP, TIterPolicy, TRangePolicy, TInfo>{};
+		static inline constexpr auto PBrk = Composer<Components::alg_pbrk, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
+		static inline constexpr auto SpnP = Composer<Components::alg_spnp, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
+		static inline constexpr auto Str = Composer<Components::alg_str, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
+		static inline constexpr auto Sub = Composer<Components::alg_sub, TIterPolicy, TRangePolicy, TInfo>{};
+		static inline constexpr auto Tok = Composer<Components::alg_tok, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
+		static inline constexpr auto Upr = Composer<Components::alg_upr, TModifyPP, TIterPolicy, TRangePolicy, TInfo>{};
 	};
 }
 
@@ -3278,31 +2902,19 @@ namespace Hydrogenium
 		using namespace String::Components;
 
 		using Str	= Utils<>;
-		using StrI	= Utils<char,		Iterating::as_normal_ptr_t,	Comparing::case_ignored_t>;
-		using StrR	= Utils<char,		Iterating::as_normal_ptr_t,	Comparing::regular_t,		Direction::backwards_t>;
-		using StrIR	= Utils<char,		Iterating::as_normal_ptr_t,	Comparing::case_ignored_t,	Direction::backwards_t>;
+		using StrI	= Utils<info_narrow,	iter_default,	cmp_case_ignored>;
+		using StrR	= Utils<info_narrow,	iter_default,	cmp_default,		dir_backward>;
+		using StrIR	= Utils<info_narrow,	iter_default,	cmp_case_ignored,	dir_backward>;
 
-		using Wcs	= Utils<wchar_t>;
-		using WcsI	= Utils<wchar_t,	Iterating::as_normal_ptr_t,	Comparing::case_ignored_t>;
-		using WcsR	= Utils<wchar_t,	Iterating::as_normal_ptr_t,	Comparing::regular_t,		Direction::backwards_t>;
-		using WcsIR	= Utils<wchar_t,	Iterating::as_normal_ptr_t,	Comparing::case_ignored_t,	Direction::backwards_t>;
+		using Wcs	= Utils<info_wide>;
+		using WcsI	= Utils<info_wide,	iter_default,	cmp_case_ignored>;
+		using WcsR	= Utils<info_wide,	iter_default,	cmp_default,		dir_backward>;
+		using WcsIR	= Utils<info_wide,	iter_default,	cmp_case_ignored,	dir_backward>;
 
-		using Mbs	= Utils<char,		Iterating::as_multibytes_t>;
-		using MbsI	= Utils<char,		Iterating::as_multibytes_t,	Comparing::case_ignored_t>;
-		using MbsR	= Utils<char,		Iterating::as_multibytes_t,	Comparing::regular_t,		Direction::backwards_t>;
-		using MbsIR	= Utils<char,		Iterating::as_multibytes_t,	Comparing::case_ignored_t,	Direction::backwards_t>;
-
-		inline constexpr auto StrFry = Linker<
-			empty_comp_t,
-			alg_fry,
-			info_u8
-		>{};
-
-		inline constexpr auto WcsFry = Linker<
-			empty_comp_t,
-			alg_fry,
-			info_u16
-		>{};
+		using Mbs	= Utils<info_u8,	iter_multibytes>;
+		using MbsI	= Utils<info_u8,	iter_multibytes,	cmp_case_ignored>;
+		using MbsR	= Utils<info_u8,	iter_multibytes,	cmp_default,		dir_backward>;
+		using MbsIR	= Utils<info_u8,	iter_multibytes,	cmp_case_ignored,	dir_backward>;
 
 		inline constexpr auto StrLen = Linker<
 			empty_comp_t,
@@ -3368,9 +2980,6 @@ namespace Hydrogenium
 	using detail::strutl_decl::MbsI;
 	using detail::strutl_decl::MbsR;
 	using detail::strutl_decl::MbsIR;
-
-	using detail::strutl_decl::StrFry;
-	using detail::strutl_decl::WcsFry;
 
 	using detail::strutl_decl::StrLen;
 

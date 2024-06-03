@@ -2,7 +2,7 @@
 #include "UtlString.hpp"
 #include "UtlCharConv.hpp"
 
-using namespace Hydrogenium::String::Functors;
+using namespace Hydrogenium::String::Components;
 using namespace Hydrogenium::String;
 using namespace Hydrogenium::UnitTest;
 using namespace Hydrogenium;
