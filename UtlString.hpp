@@ -2092,9 +2092,6 @@ namespace Hydrogenium::String::Components
 		using typename Base::char_type;
 		using typename Base::view_type;
 
-		static_assert(requires{ typename Base::policy_dir; }, "Requires a search direction component before introducing an iterator policy!");
-		using typename Base::policy_dir;
-
 		using CWrapped::normal_pointer;
 
 		using CWrapped::ValueOf;
@@ -2102,11 +2099,11 @@ namespace Hydrogenium::String::Components
 		using CWrapped::ArithCpy;
 		using CWrapped::NativeSize;
 
-		static inline constexpr auto Get =
-			[](view_type const& view, ptrdiff_t until = std::numeric_limits<ptrdiff_t>::max()) noexcept -> decltype(CWrapped::Get(view, policy_dir{}, until))
-			{
-				return CWrapped::Get(view, policy_dir{}, until);
-			};
+		static constexpr auto Get(view_type const& view, ptrdiff_t until = std::numeric_limits<ptrdiff_t>::max()) noexcept
+			requires(requires{ typename Base::policy_dir; })
+		{
+			return CWrapped::Get(view, typename Base::policy_dir{}, until);
+		}
 	};
 
 	template <typename CFinal, typename Base>
@@ -2694,6 +2691,7 @@ namespace Hydrogenium::String::Components
 		using typename Base::view_type;
 
 		REQ_ITER_MGR;
+		using Base::ArithCpy;
 		using Base::Arithmetic;
 		using Base::Get;
 		using Base::ValueOf;
@@ -2704,16 +2702,16 @@ namespace Hydrogenium::String::Components
 		// This one will count distance from RangePolicy.Begin() instead of from absolute start. 'R' stands for 'relative'.
 		static constexpr ptrdiff_t detail_CSpnR(view_type const& str, view_type const& charset, bool bSpnMode = false) noexcept
 		{
-			auto [b1, s1, e1] = Get(str, MAX_COUNT);
-			auto [b2, s2, e2] = Get(charset, MAX_COUNT);	// search everything in char set.
 			ptrdiff_t counter = 0;
+			auto [b1, s1, e1] = Get(str, MAX_COUNT);
+			auto const b2 = charset.begin(), e2 = ArithCpy(b2, b2, charset.end(), MAX_COUNT);
 
 			for (; s1 < e1; Arithmetic(s1, b1, e1, 1), ++counter)
 			{
 				bool found_in_src = false;
 				auto const ch1 = ValueOf(s1);
 
-				for (s2 = b2; s2 < e2; Arithmetic(s2, b2, e2, 1))
+				for (auto s2 = b2; s2 < e2; Arithmetic(s2, b2, e2, 1))
 				{
 					auto const ch2 = ValueOf(s2);
 
