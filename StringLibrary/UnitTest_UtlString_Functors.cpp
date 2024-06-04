@@ -293,6 +293,54 @@ namespace Hydrogenium::String::UnitTest
 	}
 }
 
+// Trm, originally UTIL_Trim()
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Str::Trm("").empty());
+	static_assert(Str::Trm(" \r\n\t").empty());
+	static_assert(Str::Trm(" abc ") == "abc");
+	static_assert(Str::Trm(" abc") == "abc");
+	static_assert(Str::Trm("abc ") == "abc");
+	static_assert(Str::Trm("abc") == "abc");
+
+	static_assert(Wcs::Trm(L"").empty());
+	static_assert(Wcs::Trm(L" \r\n\t").empty());
+	static_assert(Wcs::Trm(L" abc ") == L"abc");
+	static_assert(Wcs::Trm(L" abc") == L"abc");
+	static_assert(Wcs::Trm(L"abc ") == L"abc");
+	static_assert(Wcs::Trm(L"abc") == L"abc");
+
+	static_assert(Mbs::Trm(u8"").empty());
+	static_assert(Mbs::Trm(u8" \r\n\t").empty());
+	static_assert(Mbs::Trm(u8" あいうえお ") == u8"あいうえお");
+	static_assert(Mbs::Trm(u8" あいうえお") == u8"あいうえお");
+	static_assert(Mbs::Trm(u8"あいうえお ") == u8"あいうえお");
+	static_assert(Mbs::Trm(u8"あいうえお") == u8"あいうえお");
+
+	// Purpose: testing in-place mode.
+	template <typename U, typename T = std::vector<typename decltype(U::Trm)::owner_type>, typename A = std::vector<typename decltype(U::Trm)::view_type>>
+	consteval bool UnitTest_Trim(T rgszTestCases, A rgszAnswers) noexcept
+	{
+		for (auto&& [szTestCase, szAnswer] : std::views::zip(rgszTestCases, rgszAnswers))
+		{
+			U::Trm(&szTestCase);
+
+			if (szTestCase != szAnswer)
+				return false;
+		}
+
+		return true;
+	}
+	static_assert(UnitTest_Trim<Mbs>(
+		{ u8"", u8" \r\n\t",	u8" あいうえお ",	u8" あいうえお",	u8"あいうえお ",	u8"あいうえお", },
+		{ u8"", u8"",			u8"あいうえお",	u8"あいうえお",	u8"あいうえお",	u8"あいうえお", }
+	));
+	static_assert(UnitTest_Trim<Wcs>(
+		{ L"", L" \r\n\t",	L" あいうえお ",	L" あいうえお",	L"あいうえお ",	L"あいうえお", },
+		{ L"", L"",			L"あいうえお",	L"あいうえお",	L"あいうえお",	L"あいうえお", }
+	));
+}
+
 // Upr
 namespace Hydrogenium::String::UnitTest
 {

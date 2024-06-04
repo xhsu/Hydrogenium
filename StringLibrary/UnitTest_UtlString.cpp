@@ -17,26 +17,6 @@ namespace Hydrogenium::String::UnitTest
 extern void UnitTest_Runtime();
 extern void UnitTest_UtlString_PerformanceTest() noexcept;
 
-static constexpr bool UnitTest_Trim() noexcept
-{
-	static_assert(UTIL_Trim<char>("").empty());
-	static_assert(UTIL_Trim<char>(" \r\n\t").empty());
-	static_assert(UTIL_Trim<char>(" abc ") == "abc");
-	static_assert(UTIL_Trim<char>(" abc") == "abc");
-	static_assert(UTIL_Trim<char>("abc ") == "abc");
-	static_assert(UTIL_Trim<char>("abc") == "abc");
-
-	static_assert(UTIL_Trim<wchar_t>(L"").empty());
-	static_assert(UTIL_Trim<wchar_t>(L" \r\n\t").empty());
-	static_assert(UTIL_Trim<wchar_t>(L" abc ") == L"abc");
-	static_assert(UTIL_Trim<wchar_t>(L" abc") == L"abc");
-	static_assert(UTIL_Trim<wchar_t>(L"abc ") == L"abc");
-	static_assert(UTIL_Trim<wchar_t>(L"abc") == L"abc");
-
-	return true;
-}
-static_assert(UnitTest_Trim());
-
 
 
 int main(int, char* []) noexcept
