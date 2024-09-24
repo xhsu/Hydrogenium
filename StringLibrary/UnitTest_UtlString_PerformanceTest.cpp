@@ -14,13 +14,13 @@ struct Timer final
 		auto const sec = diff.count() / 1e9 / m_count;
 
 		if (sec < 1e-8)
-			std::println(u8"Average time: {}ns", diff.count() / (double)m_count);
+			std::println(u8"Average time: {:.3f}ns", diff.count() / (double)m_count);
 		else if (sec < 1e-5)
-			std::println(u8"Average time: {}μs", diff.count() / 1e3 / m_count);
+			std::println(u8"Average time: {:.3f}μs", diff.count() / 1e3 / m_count);
 		else if (sec < 1e-2)
-			std::println(u8"Average time: {}ms", diff.count() / 1e6 / m_count);
+			std::println(u8"Average time: {:.3f}ms", diff.count() / 1e6 / m_count);
 		else
-			std::println(u8"Average time: {}s", diff.count() / 1e9 / m_count);
+			std::println(u8"Average time: {:.3f}s", diff.count() / 1e9 / m_count);
 	}
 
 	std::chrono::high_resolution_clock::time_point m_start{ std::chrono::high_resolution_clock::now() };

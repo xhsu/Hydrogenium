@@ -1,16 +1,65 @@
 module;
 
-#define HYDROGENIUM_APPLICATION_VERMGR_VER 20240505L
-
-#include <stdint.h>
-
-#include <algorithm>
-#include <bit>
-#include <chrono>
-#include <format>
-#include <ranges>
+#define HYDROGENIUM_APPLICATION_VERMGR_VER 20240925L
 
 export module Application;
+
+import std.compat;
+
+namespace Hydrogenium::appl_details
+{
+	template <std::intmax_t N>
+	consteval auto int_to_string()
+	{
+		auto buflen =
+			[]()
+			{
+				uint8_t len = N > 0 ? 1 : 2;
+				for (auto n = N; n; ++len, n /= 10) {}
+
+				return len;
+			};
+
+		std::array<char, buflen()> buf{};
+
+		auto ptr = buf.end();
+		*--ptr = '\0';
+
+		if (N != 0)
+		{
+			for (auto n = N; n; n /= 10)
+				*--ptr = "0123456789"[(N < 0 ? -1 : 1) * (n % 10)];
+
+			if (N < 0)
+				*--ptr = '-';
+		}
+		else
+			buf[0] = '0';
+
+		return buf;
+	}
+
+	template <size_t... Ns>
+	consteval auto c_strcat(std::array<char, Ns> const&... args)
+	{
+		std::array<char, (... + Ns) - sizeof...(Ns) + 1> buf{};
+
+		auto append =
+			[ptr = buf.begin()](auto&& s) mutable
+			{
+				for (auto c : s)
+				{
+					if (c == '\0')
+						break;
+
+					*ptr++ = c;
+				}
+			};
+
+		(append(args), ...);
+		return buf;
+	}
+}
 
 constexpr auto LocalBuildNumber(std::string_view COMPILE_DATE = __DATE__, int32_t bias = 0) noexcept
 {
@@ -80,3 +129,17 @@ export inline constexpr app_version_t APP_VERSION
 };
 
 export inline constexpr uint32_t APP_VERSION_COMPILED = APP_VERSION.U32();
+
+namespace Hydrogenium::appl_details
+{
+	inline constexpr std::array dot{ '.', '\0' };
+
+	inline constexpr auto ver = c_strcat(
+		int_to_string<APP_VERSION.m_major>(), dot,
+		int_to_string<APP_VERSION.m_minor>(), dot,
+		int_to_string<APP_VERSION.m_revision>(), dot,
+		int_to_string<BUILD_NUMBER>()
+	);
+}
+
+export inline constexpr std::string_view APP_VERSION_STRING{ Hydrogenium::appl_details::ver };
