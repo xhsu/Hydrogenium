@@ -304,16 +304,16 @@ void UTIL_SearchPattern(void) noexcept
 	}
 }
 
-export inline
-void UTIL_WriteMemory(void *const addr, std::uint8_t const iByte) noexcept
+export template <typename T>
+void UTIL_WriteMemory(void *const addr, T const& Data) noexcept
 {
 	static DWORD dwProtect{};
 
 	[[likely]]
-	if (VirtualProtect(addr, sizeof(iByte), PAGE_EXECUTE_READWRITE, &dwProtect))
+	if (VirtualProtect(addr, sizeof(T), PAGE_EXECUTE_READWRITE, &dwProtect))
 	{
-		*(std::uint8_t *)addr = iByte;
-		VirtualProtect(addr, sizeof(iByte), dwProtect, &dwProtect);
+		std::memcpy(addr, std::addressof(Data), sizeof(T));
+		VirtualProtect(addr, sizeof(T), dwProtect, &dwProtect);
 	}
 }
 
