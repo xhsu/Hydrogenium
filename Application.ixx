@@ -142,4 +142,4 @@ namespace Hydrogenium::appl_details
 	);
 }
 
-export inline constexpr std::string_view APP_VERSION_STRING{ Hydrogenium::appl_details::ver };
+export inline constexpr std::string_view APP_VERSION_STRING{ Hydrogenium::appl_details::ver.begin(), Hydrogenium::appl_details::ver.end() - 1 };	// Remove the '\0'
