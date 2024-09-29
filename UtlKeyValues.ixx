@@ -1,25 +1,19 @@
 module;
 
-// C++ external libs
-#include <fmt/color.h>	// #UPDATE_AT_CPP23 std::print and STL range formatter.
-#include <fmt/ranges.h>
-
 // C
 #include <cassert>	// assert
 
+// stdio.h
+#define SEEK_CUR    1
+#define SEEK_END    2
+#define SEEK_SET    0
+
+#include <fmt/ranges.h>	// fmt::join
+
 export module UtlKeyValues;
 
-import <cctype>;	// isspace isdigit
-import <cmath>;		// roundf
-import <cstdio>;	// fopen fclose fread fwrite
-
-// C++
-import <concepts>;		// std::integral, etc...
-import <experimental/generator>;	// std::generator #UPDATE_AT_CPP23
-import <filesystem>;	// std::filesystem::path
-import <limits>;		// std::numeric_limit<double>
-import <ranges>;		// std::ranges::range<T> #UNTESTED #POTENTIAL_BUG should cause namespace conflict.
-import <string>;		// std::string
+import std;
+import <experimental/generator>;	// #UPDATE_AT_CPP23
 
 // Friendly modules
 import UtlConcepts;
@@ -27,6 +21,7 @@ import UtlString;
 
 using std::string;
 using std::string_view;
+using namespace std::literals;
 
 using Value_t = double;
 
@@ -39,7 +34,7 @@ std::experimental::generator<std::string_view> TokenGenerator(std::string_view S
 		iCur < iSize && iSegmentEnds < iSize;
 		/* Do Nothing */)
 	{
-		for (; iCur < iSize && isspace(StrV[iCur]); ++iCur) {}	// L Trim
+		for (; iCur < iSize && std::isspace(StrV[iCur]); ++iCur) {}	// L Trim
 
 		if (iCur >= iSize)
 			co_return;	// END
@@ -128,7 +123,7 @@ export struct ValveKeyValues
 			break;
 		}
 
-		UTIL_ReplaceAll(m_szValue, "\\\""sv, "\""sv);
+		UTIL_ReplaceAll(&m_szValue, "\\\""sv, "\""sv);
 	}
 	explicit ValveKeyValues(const char* pszName) noexcept : m_szName(pszName) {}
 	explicit ValveKeyValues(string_view szName) noexcept : m_szName(szName) {}
@@ -214,16 +209,16 @@ export struct ValveKeyValues
 	{
 		auto const iSpaceCountForThisSubkey = GetSpaceCountBtnAllSubKeyValues();
 
-		fmt::print("{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
+		std::print("{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
 
 		for (auto&& obj : *this)
 		{
 			if (obj.IsKeyValue())
 			{
-				fmt::print(
+				std::print(
 					"{0}{1:<{3}}\"{2}\"\n",
 					string(iIndent + 1, '\t'),
-					fmt::format("\"{}\"", obj.m_szName), obj.m_szValue,
+					std::format("\"{}\"", obj.m_szName), obj.m_szValue,
 					iSpaceCountForThisSubkey
 				);
 			}
@@ -233,7 +228,7 @@ export struct ValveKeyValues
 				std::unreachable();
 		}
 
-		fmt::print("{}}}\n", string(iIndent, '\t'));
+		std::print("{}}}\n", string(iIndent, '\t'));
 	}
 
 	// find or create an entry. Only creates an entry if named one cannot be found.
@@ -603,7 +598,7 @@ export struct ValveKeyValues
 			dat->m_szValue = Value;
 
 			if (dat->m_szValue.contains('"'))
-				UTIL_ReplaceAll(dat->m_szValue, "\\\""sv, "\""sv);
+				UTIL_ReplaceAll(&dat->m_szValue, "\\\"", "\"");
 
 			switch (UTIL_GetStringType(dat->m_szValue.c_str()))
 			{
@@ -638,7 +633,7 @@ export struct ValveKeyValues
 
 		static auto constexpr fnFetch = []<typename T>(T&& Param) constexpr noexcept -> decltype(auto)
 		{
-			if constexpr (std::convertible_to<T, string_view>)	// It's not a dupe of the 'else' case. strings are all range, it would fall into the fmt::join case if not escape here.
+			if constexpr (std::convertible_to<T, string_view>)	// It's not a dupe of the 'else' case. strings are all range, it would fall into the std::join case if not escape here.
 				return std::forward<T>(Param);	// #INVESTIGATE #POTENTIAL_BUG should we return a std::forward thing here? ownership??
 			else if constexpr (requires { fmt::join(std::forward<T>(Param), " "); })
 				return fmt::join(std::forward<T>(Param), " "); // #FIXME_UNKNOWN_BUG This would lead to the requirement of including fmt/ranges.h in imported source file.
@@ -651,11 +646,11 @@ export struct ValveKeyValues
 		// Have to convert like this.
 		static constexpr string_view szFormatter = UTIL_SpacedFormatter<sizeof...(Values)>();
 
-		dat->m_szValue = fmt::format(szFormatter, fnFetch(std::forward<Tys>(Values))...);
+		dat->m_szValue = std::format(szFormatter, fnFetch(std::forward<Tys>(Values))...);
 		dat->m_flValue = std::numeric_limits<Value_t>::quiet_NaN();
 
 		if (dat->m_szValue.contains('"'))
-			UTIL_ReplaceAll(dat->m_szValue, "\\\""sv, "\""sv);
+			UTIL_ReplaceAll(&dat->m_szValue, "\\\""sv, "\""sv);
 
 		return true;
 	}
@@ -768,7 +763,7 @@ private:
 	{
 		auto const iSpaceCountForThisSubkey = GetSpaceCountBtnAllSubKeyValues();
 
-		fmt::print(f, "{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
+		std::print(f, "{0}\"{1}\"\n{0}{{\n", string(iIndent, '\t'), m_szName);
 
 		for (auto pCur = GetFirstEntry(); pCur; pCur = pCur->GetNextEntry())
 		{
@@ -778,21 +773,21 @@ private:
 				if (pCur->m_szValue.contains('"'))
 				{
 					string szDup = pCur->m_szValue;
-					UTIL_ReplaceAll(szDup, "\""sv, "\\\""sv);
+					UTIL_ReplaceAll(&szDup, "\""sv, "\\\""sv);
 
-					fmt::print(f,
+					std::print(f,
 						"{0}{1:<{3}}\"{2}\"\n",
 						string(iIndent + 1, '\t'),	// Pre-indent
-						fmt::format("\"{}\"", pCur->m_szName), szDup,	// KV
+						std::format("\"{}\"", pCur->m_szName), szDup,	// KV
 						iSpaceCountForThisSubkey
 					);
 				}
 				else
 				{
-					fmt::print(f,
+					std::print(f,
 						"{0}{1:<{3}}\"{2}\"\n",
 						string(iIndent + 1, '\t'),	// Pre-indent
-						fmt::format("\"{}\"", pCur->m_szName), pCur->m_szValue,	// KV
+						std::format("\"{}\"", pCur->m_szName), pCur->m_szValue,	// KV
 						iSpaceCountForThisSubkey
 					);
 				}
@@ -803,7 +798,7 @@ private:
 				std::unreachable();
 		}
 
-		fmt::print(f, "{}}}\n", string(iIndent, '\t'));
+		std::print(f, "{}}}\n", string(iIndent, '\t'));
 	}
 
 	std::size_t GetIndentCountBetweenKeyAndValue(int iBlockAlignedCharCount) const noexcept

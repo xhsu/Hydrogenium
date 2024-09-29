@@ -1,19 +1,6 @@
 export module UtlConcepts;
 
-export import <any>;
-export import <deque>;
-export import <expected>;
-export import <forward_list>;
-export import <list>;
-export import <map>;
-export import <memory>;
-export import <optional>;
-export import <set>;
-export import <unordered_map>;
-export import <unordered_set>;
-export import <variant>;
-export import <vector>;
-export import <iostream>;
+export import std;
 
 using std::any;
 using std::expected;
