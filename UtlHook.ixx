@@ -349,6 +349,12 @@ auto UTIL_GetModuleBase(const char* pszName) noexcept
 	return MH_GetModuleBase(GetModuleHandleA(pszName));
 }
 
+export [[nodiscard]] __forceinline
+auto UTIL_GetModuleSize(const char* pszName) noexcept
+{
+	return MH_GetModuleSize(GetModuleHandleA(pszName));
+}
+
 export template <typename T>
 struct FunctionHook final
 {

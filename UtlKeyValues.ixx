@@ -459,7 +459,6 @@ export struct ValveKeyValues
 			T ret{};
 			using ElemTy = std::ranges::range_value_t<T>;
 
-			// #UPDATE_AT_CPP23 zip it!
 			if constexpr (Arithmetic<ElemTy>)
 			{
 				// It must be a reference, otherwise the result would not be saved into ret.
