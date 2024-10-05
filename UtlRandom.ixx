@@ -68,7 +68,7 @@ Iter UTIL_GetRandomOne(Iter start, Iter end) noexcept
 
 export
 [[nodiscard]]
-decltype(auto) UTIL_GetRandomOne(const std::ranges::random_access_range auto& obj) noexcept
+auto UTIL_GetRandomOne(const std::ranges::random_access_range auto& obj) noexcept -> decltype(obj[0])
 {
 	thread_local static MT19937_t gen(g_PureRD());
 

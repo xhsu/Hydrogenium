@@ -187,10 +187,10 @@ export template<typename T>
 concept HasIndexOperator = requires(T t) { {t[std::declval<size_t>()]} -> NonVoid; };
 
 template <typename T, typename... Tys>
-constexpr bool _impl_AnySame = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>;
+inline constexpr bool _impl_AnySame = std::disjunction_v<std::is_same<T, Tys>...> || _impl_AnySame<Tys...>;
 
 template <typename T>
-constexpr bool _impl_AnySame<T> = false;
+inline constexpr bool _impl_AnySame<T> = false;
 
 export template <typename T, typename... Tys>
 concept AnySame = _impl_AnySame<T, Tys...>;

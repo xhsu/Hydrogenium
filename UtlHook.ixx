@@ -344,13 +344,13 @@ bool UTIL_ModulePresence(const char* pszName) noexcept
 }
 
 export [[nodiscard]] __forceinline
-auto UTIL_GetModuleBase(const char* pszName) noexcept
+auto UTIL_GetModuleBase(const char* pszName) noexcept -> DWORD
 {
 	return MH_GetModuleBase(GetModuleHandleA(pszName));
 }
 
 export [[nodiscard]] __forceinline
-auto UTIL_GetModuleSize(const char* pszName) noexcept
+auto UTIL_GetModuleSize(const char* pszName) noexcept -> DWORD
 {
 	return MH_GetModuleSize(GetModuleHandleA(pszName));
 }
