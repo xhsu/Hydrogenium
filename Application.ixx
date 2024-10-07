@@ -1,10 +1,17 @@
 module;
 
-#define HYDROGENIUM_APPLICATION_VERMGR_VER 20240925L
+#define HYDROGENIUM_APPLICATION_VERMGR_VER 20241007L
+
+#ifdef __INTELLISENSE__
+#include <ranges>
+#endif
 
 export module Application;
 
-import std.compat;
+import std;
+
+using std::uint8_t;
+using std::uint32_t;
 
 namespace Hydrogenium::appl_details
 {
@@ -112,6 +119,21 @@ struct app_version_t final
 	static constexpr app_version_t Parse(uint32_t i) noexcept
 	{
 		return std::bit_cast<app_version_t>(i);
+	}
+
+	[[nodiscard]]
+	constexpr std::strong_ordering operator<=>(app_version_t rhs) const noexcept
+	{
+		if (this->m_major != rhs.m_major)
+			return this->m_major <=> rhs.m_major;
+
+		if (this->m_minor != rhs.m_minor)
+			return this->m_minor <=> rhs.m_minor;
+
+		if (this->m_revision != rhs.m_revision)
+			return this->m_revision <=> rhs.m_revision;
+
+		return this->m_build <=> rhs.m_build;
 	}
 };
 
