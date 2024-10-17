@@ -38,6 +38,12 @@
     <ClCompile Include="UnitTest_UtlString_PerformanceTest.cpp">
       <Filter>Testing</Filter>
     </ClCompile>
+    <ClCompile Include="..\UtlUnicode.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlString.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UtlString.hpp">

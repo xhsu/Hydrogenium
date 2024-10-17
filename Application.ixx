@@ -12,6 +12,7 @@ import std;
 
 using std::uint8_t;
 using std::uint32_t;
+using std::int32_t;
 
 namespace Hydrogenium::appl_details
 {

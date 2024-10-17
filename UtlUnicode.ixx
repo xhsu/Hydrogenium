@@ -1,4 +1,4 @@
-export module UtlString;
+export module UtlUnicode;
 
 #ifdef EXPORT
 #undef EXPORT
@@ -13,5 +13,5 @@ export module UtlString;
 
 extern "C++"
 {
-#include "UtlString.hpp"
+#include "UtlUnicode.hpp"
 }

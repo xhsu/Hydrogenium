@@ -1,20 +1,34 @@
-﻿#pragma once
-
+﻿
 #define HYDROGENIUM_UTL_UNICODE	20240514L
 
+#if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
+#pragma once
+
 #include <utility>
+
+#else
+
+import std;
+
+#endif
+
+#ifndef EXPORT
+#define EXPORT
+#endif
+
+
 
 namespace Hydrogenium
 {
 	// Full Unicode character type
-	using u32char = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
+	EXPORT using u32char = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
 }
 
 namespace Hydrogenium::Unicode
 {
 	// Check ToUpper_Source1() to see what character it is.
 	// Credits to: https://github.com/sheredom/utf8.h/blob/master/utf8.h
-	[[nodiscard]] constexpr u32char ToLower_Source1(u32char cp) noexcept
+	EXPORT [[nodiscard]] constexpr u32char ToLower_Source1(u32char cp) noexcept
 	{
 		if (((0x0041 <= cp) && (0x005a >= cp)) ||
 			((0x00c0 <= cp) && (0x00d6 >= cp)) ||
@@ -191,7 +205,7 @@ namespace Hydrogenium::Unicode
 	}
 
 	// Credits to: https://github.com/sheredom/utf8.h/blob/master/utf8.h
-	[[nodiscard]] constexpr u32char ToUpper_Source1(u32char cp)
+	EXPORT [[nodiscard]] constexpr u32char ToUpper_Source1(u32char cp)
 	{
 		if (((0x0061 <= cp) && (0x007a >= cp)) ||	// latin, a b c d e f g h i j k l m n o p q r s t u v w x y z
 			((0x00e0 <= cp) && (0x00f6 >= cp)) ||	// french, german, italian, etc à á â ã ä å æ ç è é ê ë ì í î ï ð ñ ò ó ô õ ö
@@ -368,7 +382,7 @@ namespace Hydrogenium::Unicode
 	}
 
 	// Credits to: https://www.alphabet.se/download/UtfConv.c
-	[[nodiscard]] constexpr u32char ToLower_Source2(u32char cp) noexcept
+	EXPORT [[nodiscard]] constexpr u32char ToLower_Source2(u32char cp) noexcept
 	{
 		if ((cp >= 0x41) && (cp <= 0x5a)) /* US ASCII */
 			cp += 0x20;
@@ -4453,7 +4467,7 @@ namespace Hydrogenium::Unicode
 	}
 
 	// Credits to: https://www.alphabet.se/download/UtfConv.c
-	[[nodiscard]] constexpr u32char ToUpper_Source2(u32char cp) noexcept
+	EXPORT [[nodiscard]] constexpr u32char ToUpper_Source2(u32char cp) noexcept
 	{
 		if ((cp >= 0x61) && (cp <= 0x7a)) /* US ASCII */
 			cp -= 0x20;
@@ -8537,7 +8551,7 @@ namespace Hydrogenium::Unicode
 		return cp;
 	}
 
-	[[nodiscard]] constexpr u32char ToLower(u32char ch) noexcept
+	EXPORT [[nodiscard]] constexpr u32char ToLower(u32char ch) noexcept
 	{
 		auto const copy = ch;
 		ch = ToLower_Source1(ch);
@@ -8548,7 +8562,7 @@ namespace Hydrogenium::Unicode
 		return ch;
 	}
 
-	[[nodiscard]] constexpr u32char ToUpper(u32char ch) noexcept
+	EXPORT [[nodiscard]] constexpr u32char ToUpper(u32char ch) noexcept
 	{
 		auto const copy = ch;
 		ch = ToUpper_Source1(ch);
@@ -8559,7 +8573,7 @@ namespace Hydrogenium::Unicode
 		return ch;
 	}
 
-	[[nodiscard]] constexpr bool IsLower(u32char ch) noexcept { return ch != ToUpper(ch); }
+	EXPORT [[nodiscard]] constexpr bool IsLower(u32char ch) noexcept { return ch != ToUpper(ch); }
 
-	[[nodiscard]] constexpr bool IsUpper(u32char ch) noexcept { return ch != ToLower(ch); }
+	EXPORT [[nodiscard]] constexpr bool IsUpper(u32char ch) noexcept { return ch != ToLower(ch); }
 }

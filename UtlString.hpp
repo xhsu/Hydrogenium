@@ -2,9 +2,10 @@
 	Created at: May 10 2024
 */
 
-#pragma once
-
 #define HYDROGENIUM_UTL_STRING 20240520L
+
+#if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
+#pragma once
 
 #include <cassert>
 #include <cctype>
@@ -37,6 +38,23 @@
 #if __has_include("UtlUnicode.hpp")
 #include "UtlUnicode.hpp"
 #endif
+
+#else
+
+import <cassert>;
+import <experimental/generator>;
+import std;
+
+import UtlUnicode;
+
+#endif
+
+#ifndef EXPORT
+#define EXPORT
+#endif
+
+
+
 
 
 
@@ -166,7 +184,7 @@ namespace Hydrogenium
 // u8 and u16 buffer, Part I
 namespace Hydrogenium
 {
-	template <typename C>
+	EXPORT template <typename C>
 	struct multibytes_t final
 	{
 		static_assert(sizeof(C) < 4, "Use with char8_t or char16_t!");
@@ -225,7 +243,7 @@ namespace Hydrogenium
 // CType
 namespace Hydrogenium
 {
-	enum struct CodePoint : uint_fast8_t
+	EXPORT enum struct CodePoint : uint_fast8_t
 	{
 		WHOLE = 1,
 		BEGIN_OF_2 = 2,
@@ -235,7 +253,7 @@ namespace Hydrogenium
 		INVALID,
 	};
 
-	constexpr auto operator<=> (CodePoint lhs, CodePoint rhs) noexcept
+	EXPORT constexpr auto operator<=> (CodePoint lhs, CodePoint rhs) noexcept
 	{
 		return std::to_underlying(lhs) <=> std::to_underlying(rhs);
 	}
@@ -243,14 +261,14 @@ namespace Hydrogenium
 	// Unicode character types
 
 #ifdef __cpp_lib_char8_t
-	using u8char = char8_t;
+	EXPORT using u8char = char8_t;
 #else
-	using u8char = char;
+	EXPORT using u8char = char;
 #endif
-	using u16char = std::conditional_t<sizeof(wchar_t) == sizeof(char16_t), wchar_t, char16_t>;
-	using u32char = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
+	EXPORT using u16char = std::conditional_t<sizeof(wchar_t) == sizeof(char16_t), wchar_t, char16_t>;
+	EXPORT using u32char = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
 
-	template <typename T>
+	EXPORT template <typename T>
 	struct CType final
 	{
 		using char_type = std::remove_cvref_t<T>;
@@ -806,21 +824,21 @@ namespace Hydrogenium
 		return ret;
 	}
 
-	template <typename C>
+	EXPORT template <typename C>
 	[[nodiscard]]
 	constexpr auto operator<=>(multibytes_t<C> lhs, u32char rhs) noexcept -> decltype(u32char{} <=> rhs)
 	{
 		return CType<C>::ToFullWidth(lhs) <=> rhs;
 	}
 
-	template <typename C1, typename C2>
+	EXPORT template <typename C1, typename C2>
 	[[nodiscard]]
 	constexpr auto operator<=>(multibytes_t<C1> lhs, multibytes_t<C2> rhs) noexcept -> decltype(u32char{} <=> u32char{})
 	{
 		return CType<C1>::ToFullWidth(lhs) <=> CType<C2>::ToFullWidth(rhs);
 	}
 
-	template <typename C, std::ranges::contiguous_range R>
+	EXPORT template <typename C, std::ranges::contiguous_range R>
 	[[nodiscard]]
 	constexpr auto operator<=>(multibytes_t<C> lhs, R const& rhs) noexcept -> decltype(u32char{} <=> u32char{})
 	{
@@ -830,21 +848,21 @@ namespace Hydrogenium
 			CType<C>::ToFullWidth(lhs) <=> CType<std::ranges::range_value_t<R>>::ToFullWidth(bytes);
 	}
 
-	template <typename C>
+	EXPORT template <typename C>
 	[[nodiscard]]
 	constexpr bool operator==(multibytes_t<C> lhs, u32char rhs) noexcept
 	{
 		return CType<C>::ToFullWidth(lhs) == rhs;
 	}
 
-	template <typename C1, typename C2>
+	EXPORT template <typename C1, typename C2>
 	[[nodiscard]]
 	constexpr bool operator==(multibytes_t<C1> lhs, multibytes_t<C2> rhs) noexcept
 	{
 		return CType<C1>::ToFullWidth(lhs) == CType<C2>::ToFullWidth(rhs);
 	}
 
-	template <typename C, std::ranges::contiguous_range R>
+	EXPORT template <typename C, std::ranges::contiguous_range R>
 	[[nodiscard]]
 	constexpr bool operator==(multibytes_t<C> lhs, R const& rhs) noexcept
 	{
@@ -966,7 +984,7 @@ namespace Hydrogenium
 		std::unreachable();
 	}
 
-	constexpr u32char UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
+	EXPORT constexpr u32char UtfAt(std::ranges::input_range auto&& str, std::ptrdiff_t pos) noexcept
 	{
 		using CT = CType<decltype(str[0])>;
 
@@ -974,7 +992,7 @@ namespace Hydrogenium
 		return CT::ToFullWidth(bytes);
 	}
 
-	constexpr auto UtfSlicing(std::ranges::input_range auto&& str, int32_t pos1, std::optional<int16_t> pos2) noexcept
+	EXPORT constexpr auto UtfSlicing(std::ranges::input_range auto&& str, int32_t pos1, std::optional<int16_t> pos2) noexcept
 	{
 		using CT = CType<decltype(str[0])>;
 
@@ -991,14 +1009,14 @@ namespace Hydrogenium
 		return typename CT::view_type{ p1, p2 };
 	}
 
-	inline constexpr auto UTF8_TO_UTF16 =
+	EXPORT inline constexpr auto UTF8_TO_UTF16 =
 		std::views::chunk_by([](auto, char rhs) { return CType<char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
 		| std::views::transform(&CType<char>::ToFullWidth)
 		| std::views::transform(&CType<u16char>::ToMultiBytes)
 		| std::views::join
 		| std::ranges::to<std::basic_string>();
 
-	inline constexpr auto UTF16_TO_UTF8 =
+	EXPORT inline constexpr auto UTF16_TO_UTF8 =
 		std::views::chunk_by([](auto, u16char rhs) { return CType<u16char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
 		| std::views::transform(&CType<u16char>::ToFullWidth)
 		| std::views::transform(&CType<char>::ToMultiBytes)
@@ -2543,6 +2561,14 @@ namespace Hydrogenium::String::Components
 	template <typename CFinal, typename Base>
 	using alg_pbrk = impl_alg_find<CFinal, Base, false>;
 
+	/// <summary>Replace all appearances of src in str with dest.</summary>
+	/// <returns>Void.</returns>
+	template <typename, typename Base>
+	struct alg_rpl : Base
+	{
+
+	};
+
 	/// <summary>Find the first character that appears in string which doesn't appears in the character set.</summary>
 	/// <returns>Query.</returns>
 	template <typename CFinal, typename Base>
@@ -3012,27 +3038,27 @@ namespace Hydrogenium
 		>{};
 	}
 
-	using detail::strutl_decl::Str;
-	using detail::strutl_decl::StrI;
-	using detail::strutl_decl::StrR;
-	using detail::strutl_decl::StrIR;
+	EXPORT using detail::strutl_decl::Str;
+	EXPORT using detail::strutl_decl::StrI;
+	EXPORT using detail::strutl_decl::StrR;
+	EXPORT using detail::strutl_decl::StrIR;
 
-	using detail::strutl_decl::Wcs;
-	using detail::strutl_decl::WcsI;
-	using detail::strutl_decl::WcsR;
-	using detail::strutl_decl::WcsIR;
+	EXPORT using detail::strutl_decl::Wcs;
+	EXPORT using detail::strutl_decl::WcsI;
+	EXPORT using detail::strutl_decl::WcsR;
+	EXPORT using detail::strutl_decl::WcsIR;
 
-	using detail::strutl_decl::Mbs;
-	using detail::strutl_decl::MbsI;
-	using detail::strutl_decl::MbsR;
-	using detail::strutl_decl::MbsIR;
+	EXPORT using detail::strutl_decl::Mbs;
+	EXPORT using detail::strutl_decl::MbsI;
+	EXPORT using detail::strutl_decl::MbsR;
+	EXPORT using detail::strutl_decl::MbsIR;
 
-	using detail::strutl_decl::StrLen;
+	EXPORT using detail::strutl_decl::StrLen;
 
-	using detail::strutl_decl::MbsCSpn;
-	using detail::strutl_decl::MbsSpn;
-	using detail::strutl_decl::MbsRCSpn;
-	using detail::strutl_decl::MbsRSpn;
+	EXPORT using detail::strutl_decl::MbsCSpn;
+	EXPORT using detail::strutl_decl::MbsSpn;
+	EXPORT using detail::strutl_decl::MbsRCSpn;
+	EXPORT using detail::strutl_decl::MbsRSpn;
 }
 
 #ifdef GENERATOR_TY
@@ -3041,7 +3067,7 @@ namespace Hydrogenium
 
 
 // #TODO Str::ReplaceAll maybe??
-template <typename C>
+EXPORT template <typename C>
 constexpr void UTIL_ReplaceAll(std::basic_string<C>* psz, std::basic_string_view<C> const& from, std::basic_string_view<C> const& to) noexcept
 {
 	if (from.empty())
