@@ -1611,7 +1611,7 @@ namespace Hydrogenium::StringPolicy::Comparing
 			}
 		};
 
-		template <typename T, typename U> [[nodiscard]]
+		template <CharacterType T, CharacterType U> [[nodiscard]]
 		static constexpr int ChCmp(T lhs, U rhs) noexcept
 		{
 			if constexpr (sizeof(T) == sizeof(U))
@@ -1631,7 +1631,7 @@ namespace Hydrogenium::StringPolicy::Comparing
 			std::unreachable();
 		}
 
-		template <typename T, typename U> [[nodiscard]]
+		template <CharacterType T, CharacterType U> [[nodiscard]]
 		static constexpr bool ChEql(T lhs, U rhs) noexcept
 		{
 			if constexpr (sizeof(T) == sizeof(U))

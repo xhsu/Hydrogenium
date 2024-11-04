@@ -75,7 +75,7 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(StrLen(CJK_NUMBERS_FWD_U8) == CJK_NUMBERS_FWD_U8.length());
 }
 
-// Dup, Rev
+// Dup, Rev, Sub
 namespace Hydrogenium::String::UnitTest
 {
 	static_assert(Str::Dup("a0b1c2") == StrI::Dup("a0b1c2"));
@@ -214,6 +214,7 @@ namespace Hydrogenium::String::UnitTest
 	static_assert(MbsR::Str(DEU_ALPHABET_LOWER_FWD_U8, DEU_ALPHABET_LOWER_BWD_U8).empty());	// purpose: verify the reverse mode has nothing to do with substr dir.
 	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::Sub(DEU_ALPHABET_UPPER_FWD_U8, 10)) == MbsR::Sub(DEU_ALPHABET_LOWER_FWD_U8, 10));
 	static_assert(MbsI::Str(DEU_ALPHABET_LOWER_FWD_U8, MbsR::Sub(DEU_ALPHABET_UPPER_FWD_U8, 10), 10).empty());	// Purpose: test 'N' version.
+	static_assert(MbsIR::Str(DEU_ALPHABET_LOWER_FWD_U8, u8"uüv", 7) == u8"uüvwxyz");	// purpose: additional case for IR, just in case.
 }
 
 // Tok
