@@ -23,6 +23,11 @@ inline constexpr tuple<span<string_view const>, void(*)(span<string_view const>)
 void ShowHelp(span<string_view const>) noexcept
 {
 	fmt::print(Style::Info, "\n");
+	fmt::print(
+		Style::Skipping,
+		"Compiled with: MSVC {}\nC++ {}L\nApplication Version: {}\n\n",
+		_MSC_FULL_VER, _MSVC_LANG, __DATE__	// Or from application.ixx
+	);
 
 	constexpr auto max_len = std::ranges::max(
 		CMD_HANDLER
@@ -31,14 +36,14 @@ void ShowHelp(span<string_view const>) noexcept
 		| std::views::transform(&string_view::length)
 	);
 
-	for (auto&& [arg_desc, pfn, desc] : CMD_HANDLER)
+	for (auto&& [params, pfn, desc] : CMD_HANDLER)
 	{
 		fmt::print(Style::Action, "{}\n", desc);
-		fmt::print(Style::Name, "\t{}", arg_desc[0]);
-		fmt::print(Style::Info, "{}", string(max_len - arg_desc[0].length(), ' '));
+		fmt::print(Style::Name, "\t{}", params[0]);
+		fmt::print(Style::Info, "{}", string(max_len - params[0].length(), ' '));
 
-		for (auto&& arg : arg_desc | std::views::drop(1))
-			fmt::print(IsOptionalArgument(arg) ? Style::Skipping : Style::Info, " {}", arg);
+		for (auto&& param : params | std::views::drop(1))
+			fmt::print(IsOptionalParameter(param) ? Style::Skipping : Style::Info, " {}", param);
 
 		fmt::print(Style::Info, "\n\n");
 	}
@@ -48,9 +53,9 @@ static_assert(
 	// Compile-time sanity check - make our life easier.
 	[]() consteval -> bool
 	{
-		for (auto&& arg_desc : CMD_HANDLER | std::views::elements<0>)
+		for (auto&& params : CMD_HANDLER | std::views::elements<0>)
 		{
-			if (!CommandLineArgSanity(arg_desc))
+			if (!CommandLineParamSanity(params))
 				return false;
 		}
 

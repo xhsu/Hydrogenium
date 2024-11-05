@@ -8,6 +8,9 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Modules\fmtlib">
+      <UniqueIdentifier>{4fdb1a70-3fb0-4f7e-a063-d441a33e2a8c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Style.ixx">
@@ -24,6 +27,12 @@
     </ClCompile>
     <ClCompile Include="UnitTest_UtlCmdLine.cpp">
       <Filter>Testing</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\fmt\src\format.cc">
+      <Filter>Modules\fmtlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\fmt\src\os.cc">
+      <Filter>Modules\fmtlib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
