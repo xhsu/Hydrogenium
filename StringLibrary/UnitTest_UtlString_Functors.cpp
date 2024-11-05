@@ -191,6 +191,61 @@ namespace Hydrogenium::String::UnitTest
 	//                        └────────────────────────────┘
 }
 
+// Rpl
+namespace Hydrogenium::String::UnitTest
+{
+	static_assert(Wcs::Rpl(std::wstring_view{ L"吃葡萄不吐葡萄皮" }, L"葡萄", L"橘子") == L"吃橘子不吐橘子皮");
+	static_assert(Wcs::Rpl(std::wstring_view{ L"吃葡萄不吐葡萄皮" }, L"葡萄", L"橘子", 5) == L"吃橘子不吐葡萄皮");
+	static_assert(WcsR::Rpl(std::wstring_view{ L"吃葡萄不吐葡萄皮" }, L"葡萄", L"橘子", 5) == L"吃葡萄不吐橘子皮");
+
+	static_assert(StrIR::Rpl(ENG_ALPHABET_UPPER_FWD, ENG_ALPHABET_LOWER_FWD, "123") == "123");
+	static_assert(MbsIR::Rpl(ENG_ALPHABET_UPPER_FWD, ENG_ALPHABET_LOWER_FWD, "123") == "123");
+
+#ifdef HYDROGENIUM_UTL_UNICODE
+	static_assert(MbsIR::Rpl(DEU_ALPHABET_UPPER_FWD_U8, DEU_ALPHABET_LOWER_FWD_U8, "123") == "123");
+	static_assert(MbsIR::Rpl(std::string_view{ u8"HELLO WORLD" }, "LL", "") == "HEO WORLD");
+#endif
+
+	constexpr bool UnitTest_Replace()
+	{
+		std::string sz0{ u8"Teßting caße for ßpecial ẞ in German." };
+		MbsI::Rpl(&sz0, u8"ß", u8"s");
+
+		if (sz0 != "Testing case for special s in German.")
+			return false;
+
+		sz0 = u8"ẞßẞß";
+		MbsI::Rpl(&sz0, u8"ß", u8"s");
+		if (sz0 != "ssss")
+			return false;
+
+		sz0 = u8"ßẞßẞ";
+		MbsI::Rpl(&sz0, u8"ß", u8"s");
+		if (sz0 != "ssss")
+			return false;
+
+		{
+			// Additional spaces for expanding usage.
+			char rgsz[64]{ "Testing case for special S in German." };
+			MbsI::Rpl(rgsz, "s", u8"ß");
+
+			if (std::string_view{ u8"Teßting caße for ßpecial ß in German." } != rgsz)
+				return false;
+		}
+
+		{
+			char rgsz[]{ u8"Teßting caße for ßpecial ẞ in German." };
+			MbsIR::Rpl(rgsz, u8"ß", "S", 12);
+
+			if (std::string_view{ u8"Teßting caße for ßpecial S in German." } != rgsz)
+				return false;
+		}
+
+		return true;
+	}
+	static_assert(UnitTest_Replace());
+}
+
 // Str
 namespace Hydrogenium::String::UnitTest
 {

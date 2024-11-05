@@ -2,7 +2,7 @@
 	Created at: May 10 2024
 */
 
-#define HYDROGENIUM_UTL_STRING 20240520L
+#define HYDROGENIUM_UTL_STRING 20241105L
 
 #if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
 #pragma once
@@ -2169,8 +2169,50 @@ namespace Hydrogenium::String::Components
 	template <typename CFinal, typename Base>
 	using dir_forward = wrapper_dir<CFinal, Base, StringPolicy::Direction::forwards_t>;
 
+	// Just a faster version of regular 'dir_forward'
+	template <typename, typename Base>
+	struct dir_fwdptr : Base
+	{
+		static_assert(!requires{ typename Base::policy_dir; }, "Only one directional policy allowed!");
+		using policy_dir = dir_fwdptr;
+
+		inline static constexpr bool is_reverse = false;
+
+		static constexpr auto Begin(auto&& r) noexcept -> decltype(std::ranges::data(r))
+		{
+			return std::ranges::data(r);
+		}
+
+		static constexpr auto End(auto&& r) noexcept -> decltype(std::ranges::data(r))
+		{
+			return std::ranges::data(r) + std::ranges::size(r);
+		}
+	};
+
 	template <typename CFinal, typename Base>
 	using dir_backward = wrapper_dir<CFinal, Base, StringPolicy::Direction::backwards_t>;
+
+	// Just a faster version of regular 'dir_backward'
+	template <typename, typename Base>
+	struct dir_bwdptr : Base
+	{
+		static_assert(!requires{ typename Base::policy_dir; }, "Only one directional policy allowed!");
+		using policy_dir = dir_bwdptr;
+
+		inline static constexpr bool is_reverse = true;
+
+		static constexpr auto Begin(auto&& r) noexcept
+			-> decltype(std::reverse_iterator{ std::ranges::data(r) })
+		{
+			return std::reverse_iterator{ std::ranges::data(r) + std::ranges::size(r) };
+		}
+
+		static constexpr auto End(auto&& r) noexcept
+			-> decltype(std::reverse_iterator{ std::ranges::data(r) })
+		{
+			return std::reverse_iterator{ std::ranges::data(r) };
+		}
+	};
 
 #pragma endregion Direction
 
@@ -2566,7 +2608,151 @@ namespace Hydrogenium::String::Components
 	template <typename, typename Base>
 	struct alg_rpl : Base
 	{
+		REQ_TYPE_INFO;
+		using typename Base::char_type;
+		using typename Base::owner_type;
+		using typename Base::view_type;
 
+		REQ_COMPARATOR;
+		using Base::ChEql;
+		using Base::ChCmp;
+
+		REQ_DIR_MGR;
+		using Base::is_reverse;
+
+		REQ_ITER_MGR;
+		using Base::Arithmetic;
+		using Base::ArithCpy;
+		using Base::Get;
+		using Base::ValueOf;
+
+		// #COMPILER_BUG if __super were used here, the type will be deduced as <int>
+		using value_type = decltype(ValueOf(typename view_type::iterator{}));
+
+		static constexpr ptrdiff_t detail_cnt(view_type const& str) noexcept
+		{
+			auto const begin = str.begin(), end = str.end();
+
+			ptrdiff_t n{};
+			for (auto it = begin; it < end; Arithmetic(it, begin, end, 1)) { ++n; }
+
+			return n;
+		}
+
+		static constexpr view_type detail_sub(view_type str, ptrdiff_t count) noexcept
+		{
+			// the moving iter is already included in this function. No additional loop needed!
+			auto [begin, it, end] = __super::Get(str, count);
+
+			if constexpr (!is_reverse)
+			{
+				return { begin, end };	// in the case of multibyte: begin always pointing to the head of UTF stream, if not reversed.
+			}
+			else
+			{
+				auto const fwit1 = ToForwardIter(end, false);	// we are taking last N characters, so including the 'ending' one just defeat the purpose.
+				auto const fwed1 = ToForwardIter(begin, false);	// in reverse_iter, rbegin is the actual end.
+
+				return { fwit1, fwed1 };
+			}
+		}
+
+		static constexpr auto detail_find(view_type const& str, view_type const& substr, size_t pos) noexcept
+			-> std::pair<size_t, size_t>
+		{
+			// Just like the original find in std::string_view
+			// Ignoring direction here.
+			// Returns the absolute byte-distance.
+
+			if (pos >= str.size() || str.empty())
+				return { str.npos, str.npos };
+
+			auto const iSubstrCount = detail_cnt(substr);
+			auto const abs_begin = std::addressof(str.front());
+			auto const bgn = abs_begin + pos;
+			auto const ed = abs_begin + str.size();
+
+			auto it = bgn;
+			auto const b2 = substr.begin(), e2 = ArithCpy(b2, b2, substr.end(), MAX_COUNT);
+
+			for (; it < ed; Arithmetic(it, bgn, ed, 1))
+			{
+				auto s1 = it;
+				auto s2 = b2;
+
+				// e1 must be generate every loop.
+				// This one is needed for croping CMP range.
+				auto const e1 = ArithCpy(it, it, ed, iSubstrCount);
+
+				while (
+					s1 < e1 && s2 < e2
+					&& ChEql(ValueOf(s1), ValueOf(s2))
+					)
+				{
+					Arithmetic(s1, it, e1, 1);
+					Arithmetic(s2, b2, e2, 1);
+				}
+
+				// Preventing deducing typing as something like 'int32_t'
+				char32_t const c1 = s1 == e1 ? '\0' : ValueOf(s1);
+				char32_t const c2 = s2 == e2 ? '\0' : ValueOf(s2);
+
+				if (ChCmp(c1, c2) == 0)
+					// 'it' is the begin of the equal sequence, not 's1'
+					// Or rather, 's1' is the end of the equal sequence.
+					return { static_cast<size_t>(it - abs_begin), static_cast<size_t>(e1 - it), };
+			}
+
+			return { str.npos, str.npos };
+		}
+
+		constexpr void operator()(owner_type* pstr, view_type from, view_type to, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			if (from.empty())
+				return;
+
+			auto const substr = detail_sub(*pstr, count);
+			if (substr.empty())
+				return;
+
+			owner_type editing{ substr };
+			auto const editing_begin = std::addressof(substr.front()) - std::addressof(pstr->front());
+			auto const editing_length = substr.length();	// byte-length
+
+			for (auto [start_pos, eql_len] = detail_find(editing, from, 0);
+				start_pos != editing.npos;
+				std::tie(start_pos, eql_len) = detail_find(editing, from, start_pos))
+			{
+				editing.replace(start_pos, eql_len, to);
+				start_pos += to.length();	// add the new length rather than original length (eql_len)
+			}
+
+			pstr->replace(editing_begin, editing_length, editing);
+		}
+
+		template <size_t N>
+		constexpr void operator()(char_type(&rgsz)[N], view_type from, view_type to, ptrdiff_t count = MAX_COUNT) const noexcept
+		{
+			owner_type res{ rgsz };
+			operator()(&res, from, to, count);
+
+			std::ranges::fill(rgsz, '\0');
+			for (auto [lhs, rhs] : std::views::zip(rgsz, res))
+				lhs = rhs;
+
+			// If the last cell was overwrited, set it to null terminal.
+			if (res.size() >= (N - 1))
+				rgsz[N - 1] = '\0';
+		}
+
+		constexpr auto operator()(std::same_as<view_type> auto str, view_type from, view_type to, ptrdiff_t count = MAX_COUNT) const noexcept
+			-> decltype(Base::Transform(str.begin(), str.end())) requires (StringPolicy::ModifyPostProcessor<Base, char_type>)
+		{
+			owner_type res{ str };
+			operator()(&res, from, to, count);
+
+			return Base::Transform(res.begin(), res.end());
+		}
 	};
 
 	/// <summary>Find the first character that appears in string which doesn't appears in the character set.</summary>
@@ -2955,7 +3141,7 @@ namespace Hydrogenium::String
 		static inline constexpr auto Fry = Composer<Components::alg_fry, TInfo>{};
 		static inline constexpr auto Lwr = Composer<Components::alg_lwr, TModifyPP, TIterPolicy, TRangePolicy, TInfo>{};
 		static inline constexpr auto PBrk = Composer<Components::alg_pbrk, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
-		static inline constexpr auto Rpl = 0;
+		static inline constexpr auto Rpl = Composer<Components::alg_rpl, TModifyPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
 		static inline constexpr auto SpnP = Composer<Components::alg_spnp, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
 		static inline constexpr auto Str = Composer<Components::alg_str, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
 		static inline constexpr auto Sub = Composer<Components::alg_sub, TIterPolicy, TRangePolicy, TInfo>{};
@@ -2993,7 +3179,7 @@ namespace Hydrogenium
 			alg_cnt,
 			ret_as_signed,
 			iter_default,
-			dir_forward,
+			dir_fwdptr,
 			info_u8
 		>{};
 
@@ -3003,7 +3189,7 @@ namespace Hydrogenium
 			ret_as_position,
 			iter_multibytes,
 			cmp_default,
-			dir_forward,
+			dir_fwdptr,
 			info_u8
 		>{};
 
@@ -3013,7 +3199,7 @@ namespace Hydrogenium
 			ret_as_position,
 			iter_multibytes,
 			cmp_default,
-			dir_forward,
+			dir_fwdptr,
 			info_u8
 		>{};
 
@@ -3023,7 +3209,7 @@ namespace Hydrogenium
 			ret_as_position,
 			iter_multibytes,
 			cmp_default,
-			dir_backward,
+			dir_bwdptr,
 			info_u8
 		>{};
 
@@ -3033,7 +3219,7 @@ namespace Hydrogenium
 			ret_as_position,
 			iter_multibytes,
 			cmp_default,
-			dir_backward,
+			dir_bwdptr,
 			info_u8
 		>{};
 	}
