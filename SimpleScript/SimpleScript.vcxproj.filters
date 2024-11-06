@@ -13,10 +13,19 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\fmtlib">
+      <UniqueIdentifier>{45d0c873-da8d-4a8e-b8b9-e461a320d669}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SimpleScript.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\fmt\src\format.cc">
+      <Filter>Source Files\fmtlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\fmt\src\os.cc">
+      <Filter>Source Files\fmtlib</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
