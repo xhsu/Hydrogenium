@@ -144,7 +144,7 @@ namespace Op
 		}
 	}
 
-	inline constexpr int_fast16_t ArgCount(char c) noexcept
+	inline constexpr uint_fast16_t ArgCount(char c) noexcept
 	{
 		switch (c)
 		{
@@ -213,6 +213,11 @@ namespace Op
 			return std::unexpected(std::invoke(operator_t{}, lhs, rhs));
 		}
 
+		constexpr expected<expr_t, value_t> operator()(value_t operand) const noexcept
+		{
+			return std::unexpected(std::invoke(operator_t{}, operand));
+		}
+
 		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
 		{
 			return
@@ -221,6 +226,18 @@ namespace Op
 					return std::invoke(
 						operator_t{},
 						ArgProc(lhs), ArgProc(rhs)
+					);
+				};
+		}
+
+		expected<expr_t, value_t> operator()(auto operand) const noexcept
+		{
+			return
+				[operand{ std::move(operand) }]() noexcept -> value_t
+				{
+					return std::invoke(
+						operator_t{},
+						ArgProc(operand)
 					);
 				};
 		}
@@ -301,40 +318,55 @@ namespace Op
 		{
 		case '!':
 		{
+			assert(args.size() == 1);
 			res = std::visit(functor_factorial{}, std::move(args.front()));
 			break;
 		}
 
 		case '^':
 		{
+			assert(args.size() == 2);
 			res = std::visit(functor_power{}, std::move(args[0]), std::move(args[1]));
 			break;
 		}
 
 		case '*':
 		{
+			assert(args.size() == 2);
 			res = std::visit(functor<std::multiplies<>>{}, std::move(args[0]), std::move(args[1]));
 			break;
 		}
 		case '/':
 		{
+			assert(args.size() == 2);
 			res = std::visit(functor<std::divides<>>{}, std::move(args[0]), std::move(args[1]));
 			break;
 		}
 		case '%':
 		{
+			assert(args.size() == 2);
 			res = std::visit(functor_modulus{}, std::move(args[0]), std::move(args[1]));
 			break;
 		}
 
 		case '+':
 		{
-			res = std::visit(functor<std::plus<>>{}, std::move(args[0]), std::move(args[1]));
+			assert(args.size() == 1 || args.size() == 2);
+			if (args.size() == 1)
+				res = std::visit(functor<std::identity>{}, std::move(args.front()));
+			else if (args.size() == 2)
+				res = std::visit(functor<std::plus<>>{}, std::move(args[0]), std::move(args[1]));
+
 			break;
 		}
 		case '-':
 		{
-			res = std::visit(functor<std::minus<>>{}, std::move(args[0]), std::move(args[1]));
+			assert(args.size() == 1 || args.size() == 2);
+			if (args.size() == 1)
+				res = std::visit(functor<std::negate<>>{}, std::move(args.front()));
+			else if (args.size() == 2)
+				res = std::visit(functor<std::minus<>>{}, std::move(args[0]), std::move(args[1]));
+
 			break;
 		}
 
@@ -633,10 +665,33 @@ struct flag_register_t final
 	bool m_AF : 1 {};	// aux carry flag
 	bool m_PF : 1 {};	// parity flag
 	bool m_CF : 1 {};	// carry flag
+
+	constexpr void Fill(bool bValue) noexcept
+	{
+		m_OF = bValue;
+		m_DF = bValue;
+		m_IF = bValue;
+		m_TF = bValue;
+		m_SF = bValue;
+		m_ZF = bValue;
+		m_AF = bValue;
+		m_PF = bValue;
+		m_CF = bValue;
+	}
 };
 
 struct script_t final
 {
+	constexpr script_t(script_t const&) noexcept = delete;	// not copyable
+	constexpr script_t(script_t&&) noexcept = default;
+	constexpr ~script_t() noexcept = default;
+
+	constexpr script_t& operator=(script_t const&) noexcept = delete;	// not copyable
+	constexpr script_t& operator=(script_t&&) noexcept = default;
+
+	script_t() noexcept = default;
+	explicit script_t(std::string_view SourceText) noexcept { Compile(SourceText); }
+
 	// Script registers
 
 	vector<instruction_t> m_Instructions{};
@@ -645,7 +700,7 @@ struct script_t final
 	valref_t m_ecx{ std::make_shared<value_t>() };
 	valref_t m_edx{ std::make_shared<value_t>() };
 
-	// shared_ptr<uint16_t> m_eip{ std::make_shared<uint16_t>() };
+	 shared_ptr<std::ptrdiff_t> m_eip{ std::make_shared<std::ptrdiff_t>() };
 	// shared_ptr<uint32_t> m_esp{ std::make_shared<uint32_t>() };
 	// shared_ptr<uint32_t> m_ebp{ std::make_shared<uint32_t>() };
 
@@ -672,6 +727,13 @@ struct script_t final
 
 	__forceinline static auto Parser_GetImmediate(string_view argument) noexcept -> value_t
 	{
+		if (argument == "e")
+			return std::numbers::e;
+		if (argument == "pi")
+			return std::numbers::pi;
+		if (argument == "phi")
+			return std::numbers::phi;
+
 		int base = 10;
 
 		if (argument.starts_with("0x") || argument.starts_with("0X"))
@@ -699,6 +761,9 @@ struct script_t final
 
 	auto Parser_GetOutput(string_view argument) const noexcept -> expected<valref_t, string_view>
 	{
+		if (argument == "EIP" || argument == "IP")
+			return std::unexpected("Instruction Pointer must not be an output destination");
+
 		if (auto reg = Parser_GetRegister(argument))
 			return reg;
 
@@ -731,8 +796,8 @@ struct script_t final
 				else if (Op::Test(token))
 				{
 					auto const arg_count = Op::ArgCount(token[0]);
-					auto const first_arg_pos = num_stack.size() - arg_count;
-					auto const args = span{ num_stack.data() + first_arg_pos, (size_t)arg_count };
+					auto const first_arg_pos = std::min(num_stack.size(), num_stack.size() - arg_count);
+					auto const args = span{ num_stack.data() + first_arg_pos, std::min<size_t>(arg_count, num_stack.size()) };
 
 					auto res = Op::Evaluate(token[0], args);
 
@@ -740,7 +805,7 @@ struct script_t final
 					num_stack.push_back(std::move(res));
 				}
 				else
-					std::unreachable();
+					return std::unexpected("Unrecognized token found in expression");
 			}
 
 			if (num_stack.empty())
@@ -766,7 +831,7 @@ struct script_t final
 
 		if (arguments.size() != parameters.size())
 		{
-			errors.emplace_back(szLineText, 0, std::format("Expected {} arguments but {} received", parameters.size(), arguments.size()));
+			errors.emplace_back(szLineText, 0, std::format("Expected {} operand but {} received", parameters.size(), arguments.size()));
 			return std::unexpected(std::move(errors));
 		}
 
@@ -783,14 +848,14 @@ struct script_t final
 				}
 				else
 					// Pass down the reason why this arg cannot be processed.
-					errors.emplace_back(szLineText, i, std::format("Ill-formed arg #{}: {}", i, std::move(res).error()));
+					errors.emplace_back(szLineText, i, std::format("Ill-formed operand #{}: {}", i, std::move(res).error()));
 			}
 			else if (parameters[i] == "%out" || parameters[i] == "%inout")
 			{
 				if (auto res = Parser_GetOutput(arguments[i]); res.has_value())
 					processed.emplace_back(std::move(res).value());
 				else
-					errors.emplace_back(szLineText, i, std::format("Ill-formed arg #{}: {}", i, std::move(res).error()));
+					errors.emplace_back(szLineText, i, std::format("Ill-formed operand #{}: {}", i, std::move(res).error()));
 			}
 			else
 				errors.emplace_back(szLineText, i, std::format("Unrecognized param '{}' found in signature", parameters[i]));
@@ -801,6 +866,8 @@ struct script_t final
 
 		return processed;
 	}
+
+	// Data Transfer Instructions
 
 	static inline constexpr std::string_view SIG_MOV[] = { "MOV", "%out", "%in" };
 	static inline constexpr std::string_view SIG_LEA[] = { "LEA", "%out", "%in" };
@@ -936,7 +1003,50 @@ struct script_t final
 		}
 	}
 
-	// Ownership transfered, hence value type of vector<>
+	static inline constexpr std::string_view SIG_CMOVZ[] = { "CMOVZ", "%out", "%in" };
+	static inline constexpr std::string_view SIG_CMOVE[] = { "CMOVE", "%out", "%in" };
+	auto Parser_CMOVZ(vector<variant<valref_t, value_t, expr_t>> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		auto& parsed_dest = arguments[0];
+		auto& parsed_src = arguments[1];
+
+		// It is assumed that no ill-formed argument can reach here.
+		assert((std::holds_alternative<valref_t>(parsed_dest)));
+
+		switch (parsed_src.index())
+		{
+		case 0:	// storage
+			return
+				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<0>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
+				{
+					if (eflags->m_ZF)
+						*dest = *src;
+				};
+		case 1:	// immediate
+			return
+				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<1>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
+				{
+					if (eflags->m_ZF)
+						*dest = src;
+				};
+		case 2:	// expression
+			return
+				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<2>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
+				{
+					if (eflags->m_ZF)
+						*dest = std::invoke(src);
+				};
+
+		default:
+			std::unreachable();
+			break;
+		}
+	}
+
+	// Control Flow Instructions
+	static inline constexpr std::string_view SIG_TEST[] = { "TEST", "%in", "%in" };
+
+	// Ownership transfered, hence parser has argument with value type of vector<>
 	using parser_t = decltype(&script_t::Parser_MOV);
 	static inline constexpr std::pair<span<string_view const>, parser_t> PARSERS[] =
 	{
@@ -944,14 +1054,101 @@ struct script_t final
 		{ SIG_LEA, &script_t::Parser_MOV },	// They are the same here, with no difference between register and memory
 		{ SIG_XCHG, &script_t::Parser_XCHG },
 		{ SIG_CMPXCHG, &script_t::Parser_CMPXCHG },
+		{ SIG_CMOVZ, &script_t::Parser_CMOVZ },
+		{ SIG_CMOVE, &script_t::Parser_CMOVZ },
 	};
+
+	void Compile(std::string_view SourceText) noexcept
+	{
+		m_Instructions.clear();
+
+		auto const rgszLines = UTIL_Split(SourceText, "\r\n");
+
+		for (int line_num = 1; auto && szOrigLine : rgszLines)
+		{
+			auto const pos = szOrigLine.find_first_of(';');
+			auto const szLine = szOrigLine.substr(0, pos);
+			auto const arguments = PARSER_Instruction(szLine);
+			bool bLineHandled = false;
+
+			auto const fnPrintError =
+				[&](error_t const& err) noexcept
+				{
+					std::println("Compiling error: {}\n{}\n", err.m_ErrorMsg, err.ToString(8, line_num));
+				};
+
+			if (arguments.empty())
+				goto LAB_NEXT;
+
+			for (auto&& [signature, parser] : script_t::PARSERS)
+			{
+				if (signature.front() != arguments.front())
+					continue;
+
+				[[maybe_unused]] auto const res =
+
+					// Transform the arguments according to signature.
+					this->Parser_ProcSig(signature, arguments, szLine)
+
+					// Call parser with processed args
+					.and_then([&](auto&& args) noexcept { return std::invoke(parser, *this, std::forward<decltype(args)>(args), szLine); })
+
+					// Insert compiled instruction
+					.and_then([&](auto&& insc) noexcept { this->m_Instructions.emplace_back(std::forward<decltype(insc)>(insc)); return expected<void, vector<error_t>>{}; })
+
+					// Print errors if any.
+					.or_else([&](auto&& errs) noexcept { std::ranges::for_each(errs, fnPrintError); return expected<void, std::uint8_t>{}; })
+					;
+
+				assert(res.has_value());
+				bLineHandled = true;
+				// Not going to break here, in case one line of source produces two instructions.
+			}
+
+			if (!bLineHandled)
+			{
+				error_t err{ szLine, 0 };
+				std::println("Warning: Unknown instruction '{}' was ignored\n{}\n", arguments.front(), err.ToString(8, line_num));
+			}
+
+		LAB_NEXT:;
+			++line_num;
+		}
+	}
 
 	// Script runtime
 
 	void Execute() noexcept
 	{
-		for (auto&& fn : m_Instructions)
-			std::invoke(fn);
+		Reset();
+
+		for (volatile auto& EIP = *m_eip; EIP < std::ssize(m_Instructions); ++EIP)
+		{
+			try
+			{
+				std::invoke(m_Instructions.at(EIP));
+			}
+			catch (const std::exception& e)
+			{
+				std::println(
+					"Runtime error: {}\n    Exception raised on instruction #{}",
+					e.what(),
+					static_cast<std::remove_cvref_t<decltype(EIP)>>(EIP)
+				);
+			}
+		}
+	}
+
+	void Reset() const noexcept
+	{
+		*m_eax = 0;
+		*m_ebx = 0;
+		*m_ecx = 0;
+		*m_edx = 0;
+
+		*m_eip = 0;
+
+		m_eflags->Fill(false);
 	}
 
 	void Print() const noexcept
@@ -964,63 +1161,85 @@ struct script_t final
 };
 
 
+static void UnitTest_Literals() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+MOV EAX, 0x100
+MOV EBX, 1.048596
+MOV ECX, 0o100
+MOV EDX, 0b100
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(*script.m_eax == 0x100);
+	assert(*script.m_ebx == 1.048596);
+	assert(*script.m_ecx == 0100);	// octal-literal in c++, fuck it
+	assert(*script.m_edx == 0b100);
+}
+
+static void UnitTest_Expression() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+LEA EAX, [0x100 + 0x10 * 0b10 - 0o10]
+LEA EBX, [EAX % 10]
+LEA ECX, [e ^ pi]
+LEA EDX, [ECX % 3!]
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(*script.m_eax == (0x100 + 0x10 * 0b10 - 010));
+	assert(*script.m_ebx == (int32_t(*script.m_eax) % 10));
+	assert(*script.m_ecx == std::pow(std::numbers::e, std::numbers::pi));
+	assert(*script.m_edx == 5);	// 23 % (3*2*1)
+}
+
+static void UnitTest_Exchange() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+MOV EDX, [5! % (0 - 7)]	; Unary negation not supported.
+XCHG ECX, EDX
+CMPXCHG EBX, 9.527e3	; ZF is set from this line. (EAX == EBX == 0)
+CMOVE EDX, 42
+CMPXCHG EBX, 9.527e3	; ZF was unset from this line
+CMOVE EDX, 114514
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+	script.Execute();	// Test reset.
+
+	assert(*script.m_eax == 9.527e3);
+	assert(*script.m_ebx == 9.527e3);
+	assert(*script.m_ecx == 1);
+	assert(*script.m_edx == 42);
+}
+
+static void UnitTest_Error() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+;
+; Ill-formed instructions
+;
+XCHG 1024, EDX	; Inlined comment test
+XCHG EDX, Y
+MOV [a + b * c - d], BULLSHIT
+UNKNOWN A, B, C
+)";
+	script_t script{};
+	script.Compile(SOURCE);
+	script.Execute();
+
+	assert(*script.m_eax == 0);
+	assert(*script.m_ebx == 0);
+	assert(*script.m_ecx == 0);
+	assert(*script.m_edx == 0);
+}
 
 int main() noexcept
 {
-	script_t script{};
-	auto const rgszLines = UTIL_Split(SCRIPT, "\r\n");
-
-	for (int line_num = 1; auto&& szOrigLine : rgszLines)
-	{
-		auto const pos = szOrigLine.find_first_of(';');
-		auto const szLine = szOrigLine.substr(0, pos);
-		auto const arguments = PARSER_Instruction(szLine);
-		bool bLineHandled = false;
-
-		auto const fnPrintError =
-			[&](error_t const& err) noexcept
-			{
-				std::println("Compiling error: {}\n{}\n", err.m_ErrorMsg, err.ToString(8, line_num));
-			};
-
-		if (arguments.empty())
-			goto LAB_NEXT;
-
-		for (auto&& [signature, parser] : script_t::PARSERS)
-		{
-			if (signature.front() != arguments.front())
-				continue;
-
-			[[maybe_unused]] auto const res =
-
-				// Transform the arguments according to signature.
-				script.Parser_ProcSig(signature, arguments, szLine)
-
-				// Call parser with processed args
-				.and_then([&](auto&& args) noexcept { return std::invoke(parser, script, std::forward<decltype(args)>(args), szLine); })
-
-				// Insert compiled instruction
-				.and_then([&](auto&& insc) noexcept { script.m_Instructions.emplace_back(std::forward<decltype(insc)>(insc)); return expected<void, vector<error_t>>{}; })
-
-				// Print errors if any.
-				.or_else([&](auto&& errs) noexcept { std::ranges::for_each(errs, fnPrintError); return expected<void, std::uint8_t>{}; })
-				;
-
-			assert(res.has_value());
-			bLineHandled = true;
-			// Not going to break here, in case one line of source produces two instructions.
-		}
-
-		if (!bLineHandled)
-		{
-			error_t err{ szLine, 0 };
-			std::println("Warning: Unknown instruction '{}' was ignored\n{}\n", arguments.front(), err.ToString(8, line_num));
-		}
-
-	LAB_NEXT:;
-		++line_num;
-	}
-
-	script.Execute();
-	script.Print();
+	UnitTest_Literals();
+	UnitTest_Expression();
+	UnitTest_Exchange();
+	UnitTest_Error();
 }
