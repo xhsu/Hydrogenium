@@ -22,22 +22,6 @@ using std::vector;
 
 using namespace std::literals;
 
-inline constexpr std::string_view SCRIPT = u8R"(
-MOV EAX, 0x100
-MOV EBX, EAX
-MOV ECX, 0o100
-MOV EDX, 0b100
-XCHG ECX, EDX	; Inlined comment test #1
-CMPXCHG EBX, 100.0
-LEA ECX, [4 + ECX * 2 - 2]
-;
-; Ill-formed instructions
-;
-XCHG 1024, EDX	; Inlined comment test #2
-XCHG EDX, Y
-MOV [a + b * c - d], BULLSHIT
-UNKNOWN A, B, C
-)";
 
 static constexpr auto UTIL_Split(std::string_view const& s, char const* delimiters) noexcept -> std::vector<std::string_view>
 {
@@ -105,6 +89,8 @@ using instruction_t = move_only_function<void() const noexcept>;	// Representing
 using value_t = double;
 using expr_t = move_only_function<value_t() const noexcept>;
 using valref_t = shared_ptr<value_t>;
+using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t>;
+
 
 namespace Op
 {
@@ -189,21 +175,24 @@ namespace Op
 	}
 
 	// Evaluate argument into value_t
-	inline constexpr value_t ArgProc(auto&& a) noexcept
+	struct visitor_script_cell final
 	{
-		if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
+		inline constexpr value_t operator()(auto&& a) const noexcept
 		{
-			return *a;
+			if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
+			{
+				return *a;
+			}
+			else if constexpr (requires { { std::invoke(a) } -> std::convertible_to<value_t>; })
+			{
+				return std::invoke(a);
+			}
+			else
+			{
+				return static_cast<value_t>(a);
+			}
 		}
-		else if constexpr (requires { { std::invoke(a) } -> std::convertible_to<value_t>; })
-		{
-			return std::invoke(a);
-		}
-		else
-		{
-			return static_cast<value_t>(a);
-		}
-	}
+	};
 
 	template <typename operator_t>
 	struct functor final
@@ -225,7 +214,7 @@ namespace Op
 				{
 					return std::invoke(
 						operator_t{},
-						ArgProc(lhs), ArgProc(rhs)
+						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
 					);
 				};
 		}
@@ -237,7 +226,7 @@ namespace Op
 				{
 					return std::invoke(
 						operator_t{},
-						ArgProc(operand)
+						visitor_script_cell{}(operand)
 					);
 				};
 		}
@@ -261,7 +250,7 @@ namespace Op
 					static auto const factorial =
 						[](this auto&& self, int32_t n) noexcept -> int32_t { return (n == 1 || n == 0) ? 1 : self(n - 1) * n; };
 
-					return (value_t)factorial((int32_t)ArgProc(arg));
+					return (value_t)factorial((int32_t)visitor_script_cell{}(arg));
 				};
 		}
 	};
@@ -280,7 +269,7 @@ namespace Op
 				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
 				{
 					return std::pow(
-						ArgProc(lhs), ArgProc(rhs)
+						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
 					);
 				};
 		}
@@ -301,8 +290,8 @@ namespace Op
 			return
 				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
 				{
-					auto const ilhs = (int32_t)ArgProc(lhs);
-					auto const irhs = (int32_t)ArgProc(rhs);
+					auto const ilhs = (int32_t)visitor_script_cell{}(lhs);
+					auto const irhs = (int32_t)visitor_script_cell{}(rhs);
 
 					return value_t(ilhs % irhs);
 				};
@@ -772,6 +761,9 @@ struct script_t final
 
 	auto Parser_GetInput(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, string_view>
 	{
+		if (argument == "EIP" || argument == "IP")
+			return std::unexpected("Instruction Pointer ought not to be read");
+
 		if (argument.length() && argument.front() == '[' && argument.back() == ']')
 		{
 			argument = argument.substr(1, argument.size() - 2);
@@ -824,9 +816,9 @@ struct script_t final
 		return std::unexpected("Not a register, immediate number or expression");
 	}
 
-	auto Parser_ProcSig(span<string_view const> parameters, span<string_view const> arguments, string_view szLineText) const noexcept -> expected<vector<variant<valref_t, value_t, expr_t>>, vector<error_t>>
+	auto Parser_ProcSig(span<string_view const> parameters, span<string_view const> arguments, string_view szLineText) const noexcept -> expected<vector<script_cell_t>, vector<error_t>>
 	{
-		vector<variant<valref_t, value_t, expr_t>> processed{};
+		vector<script_cell_t> processed{};
 		vector<error_t> errors{};
 
 		if (arguments.size() != parameters.size())
@@ -871,13 +863,14 @@ struct script_t final
 
 	static inline constexpr std::string_view SIG_MOV[] = { "MOV", "%out", "%in" };
 	static inline constexpr std::string_view SIG_LEA[] = { "LEA", "%out", "%in" };
-	auto Parser_MOV(vector<variant<valref_t, value_t, expr_t>> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_MOV(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_dest = arguments[0];
 		auto& parsed_src = arguments[1];
 
 		// It is assumed that no ill-formed argument can reach here.
 		assert((std::holds_alternative<valref_t>(parsed_dest)));
+		assert(!(std::holds_alternative<std::ptrdiff_t>(parsed_src)));
 
 		switch (parsed_src.index())
 		{
@@ -907,7 +900,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_XCHG[] = { "XCHG", "%inout", "%inout" };
-	auto Parser_XCHG(vector<variant<valref_t, value_t, expr_t>> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_XCHG(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_lhs = arguments[0];
 		auto& parsed_rhs = arguments[1];
@@ -924,14 +917,14 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_CMPXCHG[] = { "CMPXCHG", "%inout", "%in" };
-	auto Parser_CMPXCHG(vector<variant<valref_t, value_t, expr_t>> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_CMPXCHG(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_arg1 = arguments[0];
 		auto& parsed_arg2 = arguments[1];
 
 		// It is assumed that no ill-formed argument can reach here.
 		assert((std::holds_alternative<valref_t>(parsed_arg1)));
-		assert((std::holds_alternative<valref_t>(parsed_arg2) || std::holds_alternative<value_t>(parsed_arg2)));
+		assert(!(std::holds_alternative<std::ptrdiff_t>(parsed_arg2)));
 
 		switch (parsed_arg2.index())
 		{
@@ -1005,13 +998,14 @@ struct script_t final
 
 	static inline constexpr std::string_view SIG_CMOVZ[] = { "CMOVZ", "%out", "%in" };
 	static inline constexpr std::string_view SIG_CMOVE[] = { "CMOVE", "%out", "%in" };
-	auto Parser_CMOVZ(vector<variant<valref_t, value_t, expr_t>> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_CMOVZ(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_dest = arguments[0];
 		auto& parsed_src = arguments[1];
 
 		// It is assumed that no ill-formed argument can reach here.
 		assert((std::holds_alternative<valref_t>(parsed_dest)));
+		assert(!(std::holds_alternative<std::ptrdiff_t>(parsed_src)));
 
 		switch (parsed_src.index())
 		{
@@ -1044,18 +1038,65 @@ struct script_t final
 	}
 
 	// Control Flow Instructions
+
 	static inline constexpr std::string_view SIG_TEST[] = { "TEST", "%in", "%in" };
+	auto Parser_TEST(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		auto& accumulator = arguments[0];
+		auto& reference = arguments[1];
+
+		// It is assumed that no ill-formed argument can reach here.
+
+		if (std::holds_alternative<value_t>(accumulator) && std::holds_alternative<value_t>(reference))
+		{
+			auto const lhs = std::bit_cast<uint32_t>((int32_t)std::get<value_t>(accumulator));
+			auto const rhs = std::bit_cast<uint32_t>((int32_t)std::get<value_t>(reference));
+			std::bitset<32> const bits{ lhs & rhs };
+
+			return
+				[bits, eflags{ m_eflags }]() noexcept
+				{
+					eflags->m_SF = bits[31];
+					eflags->m_ZF = bits.to_ulong() == 0;
+					eflags->m_PF = !(bits.count() % 2);	// Flags set if count of 'true' is even number.
+					eflags->m_CF = false;
+					eflags->m_OF = false;
+					eflags->m_AF = false;	// Technically undefined.
+				};
+		}
+
+		return
+			[accu{ std::move(accumulator) }, refe{ std::move(reference) }, eflags{ m_eflags }]() noexcept
+			{
+				auto const lhs = std::bit_cast<uint32_t>((int32_t)std::visit(Op::visitor_script_cell{}, accu));
+				auto const rhs = std::bit_cast<uint32_t>((int32_t)std::visit(Op::visitor_script_cell{}, refe));
+				std::bitset<32> const bits{ lhs & rhs };
+
+				eflags->m_SF = bits[31];
+				eflags->m_ZF = bits.to_ulong() == 0;
+				eflags->m_PF = !(bits.count() % 2);	// Flags set if count of 'true' is even number.
+				eflags->m_CF = false;
+				eflags->m_OF = false;
+				eflags->m_AF = false;	// Technically undefined.
+			};
+	}
 
 	// Ownership transfered, hence parser has argument with value type of vector<>
 	using parser_t = decltype(&script_t::Parser_MOV);
 	static inline constexpr std::pair<span<string_view const>, parser_t> PARSERS[] =
 	{
+		// Data Transfer Instructions
+
 		{ SIG_MOV, &script_t::Parser_MOV },
 		{ SIG_LEA, &script_t::Parser_MOV },	// They are the same here, with no difference between register and memory
 		{ SIG_XCHG, &script_t::Parser_XCHG },
 		{ SIG_CMPXCHG, &script_t::Parser_CMPXCHG },
 		{ SIG_CMOVZ, &script_t::Parser_CMOVZ },
 		{ SIG_CMOVE, &script_t::Parser_CMOVZ },
+
+		// Control Flow Instructions
+
+		{ SIG_TEST, &script_t::Parser_TEST },
 	};
 
 	void Compile(std::string_view SourceText) noexcept
@@ -1223,7 +1264,7 @@ static void UnitTest_Error() noexcept
 ;
 XCHG 1024, EDX	; Inlined comment test
 XCHG EDX, Y
-MOV [a + b * c - d], BULLSHIT
+MOV [a + b * c - d], EIP
 UNKNOWN A, B, C
 )";
 	script_t script{};
@@ -1236,10 +1277,27 @@ UNKNOWN A, B, C
 	assert(*script.m_edx == 0);
 }
 
+static void UnitTest_TEST() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+TEST 0b1100, 0b0110	; == 0b0100
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(script.m_eflags->m_SF == false);
+	assert(script.m_eflags->m_ZF == false);
+	assert(script.m_eflags->m_PF == false);
+	assert(script.m_eflags->m_CF == false);
+	assert(script.m_eflags->m_OF == false);
+	assert(script.m_eflags->m_AF == false);
+}
+
 int main() noexcept
 {
 	UnitTest_Literals();
 	UnitTest_Expression();
 	UnitTest_Exchange();
 	UnitTest_Error();
+	UnitTest_TEST();
 }
