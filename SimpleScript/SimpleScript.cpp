@@ -17,6 +17,7 @@ using std::shared_ptr;
 using std::span;
 using std::string;
 using std::string_view;
+using std::unordered_map;
 using std::variant;
 using std::vector;
 
@@ -89,7 +90,7 @@ using instruction_t = move_only_function<void() const noexcept>;	// Representing
 using value_t = double;
 using expr_t = move_only_function<value_t() const noexcept>;
 using valref_t = shared_ptr<value_t>;
-using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t>;
+using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t*>;
 
 
 namespace Op
@@ -667,6 +668,13 @@ struct flag_register_t final
 		m_PF = bValue;
 		m_CF = bValue;
 	}
+
+	constexpr bool Equal() const noexcept { return m_ZF; }
+	constexpr bool NotEqual() const noexcept { return !m_ZF; }
+	constexpr bool Greater() const noexcept { return !m_ZF && !m_SF; }
+	constexpr bool GreaterOrEq() const noexcept { return Greater() || Equal(); }
+	constexpr bool Lesser() const noexcept { return !m_ZF && m_SF; }
+	constexpr bool LesserOrEq() const noexcept { return Lesser() || Equal(); }
 };
 
 struct script_t final
@@ -689,7 +697,7 @@ struct script_t final
 	valref_t m_ecx{ std::make_shared<value_t>() };
 	valref_t m_edx{ std::make_shared<value_t>() };
 
-	 shared_ptr<std::ptrdiff_t> m_eip{ std::make_shared<std::ptrdiff_t>() };
+	shared_ptr<std::ptrdiff_t> m_eip{ std::make_shared<std::ptrdiff_t>() };
 	// shared_ptr<uint32_t> m_esp{ std::make_shared<uint32_t>() };
 	// shared_ptr<uint32_t> m_ebp{ std::make_shared<uint32_t>() };
 
@@ -697,6 +705,7 @@ struct script_t final
 	// EDI
 
 	shared_ptr<flag_register_t> m_eflags{ std::make_shared<flag_register_t>() };
+	unordered_map<string, std::ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};
 
 	// Script parser
 
@@ -816,7 +825,7 @@ struct script_t final
 		return std::unexpected("Not a register, immediate number or expression");
 	}
 
-	auto Parser_ProcSig(span<string_view const> parameters, span<string_view const> arguments, string_view szLineText) const noexcept -> expected<vector<script_cell_t>, vector<error_t>>
+	auto Parser_ProcSig(span<string_view const> parameters, span<string_view const> arguments, string_view szLineText) noexcept -> expected<vector<script_cell_t>, vector<error_t>>
 	{
 		vector<script_cell_t> processed{};
 		vector<error_t> errors{};
@@ -849,6 +858,12 @@ struct script_t final
 				else
 					errors.emplace_back(szLineText, i, std::format("Ill-formed operand #{}: {}", i, std::move(res).error()));
 			}
+			else if (parameters[i] == "%label")
+			{
+				// Creating the label here as well, in case it's forward referenced.
+				auto [it, bNew] = m_Labels.try_emplace(decltype(m_Labels)::key_type{ arguments[i] }, -1);
+				processed.emplace_back(std::addressof(it->second));
+			}
 			else
 				errors.emplace_back(szLineText, i, std::format("Unrecognized param '{}' found in signature", parameters[i]));
 		}
@@ -870,7 +885,7 @@ struct script_t final
 
 		// It is assumed that no ill-formed argument can reach here.
 		assert((std::holds_alternative<valref_t>(parsed_dest)));
-		assert(!(std::holds_alternative<std::ptrdiff_t>(parsed_src)));
+		assert(!(std::holds_alternative<std::ptrdiff_t*>(parsed_src)));
 
 		switch (parsed_src.index())
 		{
@@ -924,7 +939,7 @@ struct script_t final
 
 		// It is assumed that no ill-formed argument can reach here.
 		assert((std::holds_alternative<valref_t>(parsed_arg1)));
-		assert(!(std::holds_alternative<std::ptrdiff_t>(parsed_arg2)));
+		assert(!(std::holds_alternative<std::ptrdiff_t*>(parsed_arg2)));
 
 		switch (parsed_arg2.index())
 		{
@@ -938,7 +953,7 @@ struct script_t final
 					auto const diff = *arg1 - *eax;
 					eflags->m_ZF = std::abs(diff) < 1e-5;
 					eflags->m_SF = diff < 0;
-					//eflags->m_CF = diff < 0;	// For unsigned situation
+					eflags->m_CF = false;	// For unsigned situation
 					eflags->m_OF = I32_MAX < diff || diff < I32_MIN;
 					eflags->m_PF = int32_t(diff) % 2 == 0;
 					eflags->m_AF = false;	// LUNA: I have no idea how to set the AF.
@@ -959,7 +974,7 @@ struct script_t final
 					auto const diff = *arg1 - *eax;
 					eflags->m_ZF = std::abs(diff) < 1e-5;
 					eflags->m_SF = diff < 0;
-					//eflags->m_CF = diff < 0;	// For unsigned situation
+					eflags->m_CF = false;	// For unsigned situation
 					eflags->m_OF = I32_MAX < diff || diff < I32_MIN;
 					eflags->m_PF = int32_t(diff) % 2 == 0;
 					eflags->m_AF = false;	// LUNA: I have no idea how to set the AF.
@@ -980,7 +995,7 @@ struct script_t final
 					auto const diff = *arg1 - *eax;
 					eflags->m_ZF = std::abs(diff) < 1e-5;
 					eflags->m_SF = diff < 0;
-					//eflags->m_CF = diff < 0;	// For unsigned situation
+					eflags->m_CF = false;	// For unsigned situation
 					eflags->m_OF = I32_MAX < diff || diff < I32_MIN;
 					eflags->m_PF = int32_t(diff) % 2 == 0;
 					eflags->m_AF = false;	// LUNA: I have no idea how to set the AF.
@@ -996,16 +1011,22 @@ struct script_t final
 		}
 	}
 
-	static inline constexpr std::string_view SIG_CMOVZ[] = { "CMOVZ", "%out", "%in" };
 	static inline constexpr std::string_view SIG_CMOVE[] = { "CMOVE", "%out", "%in" };
-	auto Parser_CMOVZ(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	static inline constexpr std::string_view SIG_CMOVNE[] = { "CMOVNE", "%out", "%in" };
+	static inline constexpr std::string_view SIG_CMOVG[] = { "CMOVG", "%out", "%in" };
+	static inline constexpr std::string_view SIG_CMOVGE[] = { "CMOVGE", "%out", "%in" };
+	static inline constexpr std::string_view SIG_CMOVL[] = { "CMOVL", "%out", "%in" };
+	static inline constexpr std::string_view SIG_CMOVLE[] = { "CMOVLE", "%out", "%in" };
+
+	template <auto fnCondition>
+	auto Parser_CMOV(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_dest = arguments[0];
 		auto& parsed_src = arguments[1];
 
 		// It is assumed that no ill-formed argument can reach here.
 		assert((std::holds_alternative<valref_t>(parsed_dest)));
-		assert(!(std::holds_alternative<std::ptrdiff_t>(parsed_src)));
+		assert(!(std::holds_alternative<std::ptrdiff_t*>(parsed_src)));
 
 		switch (parsed_src.index())
 		{
@@ -1013,21 +1034,21 @@ struct script_t final
 			return
 				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<0>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
 				{
-					if (eflags->m_ZF)
+					if (std::invoke(fnCondition, *eflags))
 						*dest = *src;
 				};
 		case 1:	// immediate
 			return
 				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<1>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
 				{
-					if (eflags->m_ZF)
+					if (std::invoke(fnCondition, *eflags))
 						*dest = src;
 				};
 		case 2:	// expression
 			return
 				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<2>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
 				{
-					if (eflags->m_ZF)
+					if (std::invoke(fnCondition, *eflags))
 						*dest = std::invoke(src);
 				};
 
@@ -1081,6 +1102,75 @@ struct script_t final
 			};
 	}
 
+	static inline constexpr std::string_view SIG_CMP[] = { "CMP", "%in", "%in" };
+	auto Parser_CMP(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		auto& minuend = arguments[0];
+		auto& subtrahend = arguments[1];
+
+		static constexpr auto I32_MAX = std::numeric_limits<int32_t>::max();
+		static constexpr auto I32_MIN = std::numeric_limits<int32_t>::min();
+
+		// It is assumed that no ill-formed argument can reach here.
+
+		if (std::holds_alternative<value_t>(minuend) && std::holds_alternative<value_t>(subtrahend))
+		{
+			auto const diff = std::get<value_t>(minuend) - std::get<value_t>(subtrahend);
+
+			return
+				[diff, eflags{ m_eflags }]() noexcept
+				{
+					eflags->m_SF = diff < 0;
+					eflags->m_ZF = std::abs(diff) < 1e-5;
+					eflags->m_PF = int32_t(diff) % 2 == 0;
+					eflags->m_CF = false;	// for unsigned operation only
+					eflags->m_OF = I32_MAX < diff || diff < I32_MIN;
+					eflags->m_AF = false;	// No idea what to do.
+				};
+		}
+
+		return
+			[minuend{ std::move(minuend) }, subtrahend{ std::move(subtrahend) }, eflags{ m_eflags }]() noexcept
+			{
+				auto const diff =
+					std::visit(Op::visitor_script_cell{}, minuend)
+					-
+					std::visit(Op::visitor_script_cell{}, subtrahend);
+
+				eflags->m_SF = diff < 0;
+				eflags->m_ZF = std::abs(diff) < 1e-5;
+				eflags->m_PF = int32_t(diff) % 2 == 0;
+				eflags->m_CF = false;	// for unsigned operation only
+				eflags->m_OF = I32_MAX < diff || diff < I32_MIN;
+				eflags->m_AF = false;	// No idea what to do.
+			};
+	}
+
+	static inline constexpr std::string_view SIG_JE[] = { "JE", "%label" };
+	static inline constexpr std::string_view SIG_JNE[] = { "JNE", "%label" };
+	static inline constexpr std::string_view SIG_JG[] = { "JG", "%label" };
+	static inline constexpr std::string_view SIG_JGE[] = { "JGE", "%label" };
+	static inline constexpr std::string_view SIG_JL[] = { "JL", "%label" };
+	static inline constexpr std::string_view SIG_JLE[] = { "JLE", "%label" };
+
+	template <auto fnCondition>
+	auto Parser_JMP(vector<script_cell_t> arguments, string_view szLineText) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		static_assert(requires{ { std::invoke(fnCondition, *m_eflags) } -> std::same_as<bool>; }, "Function must be able to test use with EFLAGS!");
+
+		auto& label = arguments[0];
+
+		// It is assumed that no ill-formed argument can reach here.
+		assert(std::holds_alternative<std::ptrdiff_t*>(label));
+
+		return
+			[eflags{ m_eflags }, pos{ std::get<3>(std::move(label)) }, eip{ m_eip }]() noexcept
+			{
+				if (std::invoke(fnCondition, *eflags))
+					*eip = *pos;
+			};
+	}
+
 	// Ownership transfered, hence parser has argument with value type of vector<>
 	using parser_t = decltype(&script_t::Parser_MOV);
 	static inline constexpr std::pair<span<string_view const>, parser_t> PARSERS[] =
@@ -1091,24 +1181,36 @@ struct script_t final
 		{ SIG_LEA, &script_t::Parser_MOV },	// They are the same here, with no difference between register and memory
 		{ SIG_XCHG, &script_t::Parser_XCHG },
 		{ SIG_CMPXCHG, &script_t::Parser_CMPXCHG },
-		{ SIG_CMOVZ, &script_t::Parser_CMOVZ },
-		{ SIG_CMOVE, &script_t::Parser_CMOVZ },
+		{ SIG_CMOVE, &script_t::Parser_CMOV<&flag_register_t::Equal> },
+		{ SIG_CMOVNE, &script_t::Parser_CMOV<&flag_register_t::NotEqual> },
+		{ SIG_CMOVG, &script_t::Parser_CMOV<&flag_register_t::Greater> },
+		{ SIG_CMOVGE, &script_t::Parser_CMOV<&flag_register_t::GreaterOrEq> },
+		{ SIG_CMOVL, &script_t::Parser_CMOV<&flag_register_t::Lesser> },
+		{ SIG_CMOVLE, &script_t::Parser_CMOV<&flag_register_t::LesserOrEq> },
 
 		// Control Flow Instructions
 
 		{ SIG_TEST, &script_t::Parser_TEST },
+		{ SIG_CMP, &script_t::Parser_CMP },
+		{ SIG_JE, &script_t::Parser_JMP<&flag_register_t::Equal> },
+		{ SIG_JNE, &script_t::Parser_JMP<&flag_register_t::NotEqual> },
+		{ SIG_JG, &script_t::Parser_JMP<&flag_register_t::Greater> },
+		{ SIG_JGE, &script_t::Parser_JMP<&flag_register_t::GreaterOrEq> },
+		{ SIG_JL, &script_t::Parser_JMP<&flag_register_t::Lesser> },
+		{ SIG_JLE, &script_t::Parser_JMP<&flag_register_t::LesserOrEq> },
 	};
 
 	void Compile(std::string_view SourceText) noexcept
 	{
 		m_Instructions.clear();
+		m_Labels.clear();
 
 		auto const rgszLines = UTIL_Split(SourceText, "\r\n");
 
 		for (int line_num = 1; auto && szOrigLine : rgszLines)
 		{
 			auto const pos = szOrigLine.find_first_of(';');
-			auto const szLine = szOrigLine.substr(0, pos);
+			auto const szLine = UTIL_Trim(szOrigLine.substr(0, pos));
 			auto const arguments = PARSER_Instruction(szLine);
 			bool bLineHandled = false;
 
@@ -1149,11 +1251,44 @@ struct script_t final
 			if (!bLineHandled)
 			{
 				error_t err{ szLine, 0 };
+
+				// Is it a label?
+				if (szLine.front() != ':' && szLine.back() == ':')
+				{
+					auto const ins_pos = std::ssize(this->m_Instructions);
+					auto [it, bNew] = m_Labels.try_emplace(
+						decltype(m_Labels)::key_type{ szLine.substr(0, szLine.size() - 1) },
+						ins_pos
+					);
+
+					if (!bNew)
+					{
+						if (it->second >= 0)
+						{
+							std::println(
+								"Warning: Duplicated label '{}' was ignored. Previous defined at instruction #{}\n{}\n",
+								it->first, it->second, err.ToString(8, line_num)
+							);
+						}
+						else
+							// Overwrite the placeholder '-1'
+							it->second = ins_pos;
+					}
+
+					goto LAB_NEXT;
+				}
+
 				std::println("Warning: Unknown instruction '{}' was ignored\n{}\n", arguments.front(), err.ToString(8, line_num));
 			}
 
 		LAB_NEXT:;
 			++line_num;
+		}
+
+		for (auto&& [szName, pos] : m_Labels)
+		{
+			if (pos < 0)
+				std::println("Error: Label '{}' was referenced but nowhere to be located!\n", szName);
 		}
 	}
 
@@ -1163,8 +1298,10 @@ struct script_t final
 	{
 		Reset();
 
-		for (volatile auto& EIP = *m_eip; EIP < std::ssize(m_Instructions); ++EIP)
+		for (volatile auto& EIP = *m_eip; EIP < std::ssize(m_Instructions); /* Does nothing */)
 		{
+			auto const sav = EIP;
+
 			try
 			{
 				std::invoke(m_Instructions.at(EIP));
@@ -1177,6 +1314,11 @@ struct script_t final
 					static_cast<std::remove_cvref_t<decltype(EIP)>>(EIP)
 				);
 			}
+
+			if (sav == EIP)
+				// Not modified, so increase it.
+				++EIP;
+			// Otherwise, it's been modified by things like jmp.
 		}
 	}
 
@@ -1259,6 +1401,7 @@ CMOVE EDX, 114514
 static void UnitTest_Error() noexcept
 {
 	static constexpr std::string_view SOURCE = u8R"(
+LAB1:
 ;
 ; Ill-formed instructions
 ;
@@ -1266,6 +1409,7 @@ XCHG 1024, EDX	; Inlined comment test
 XCHG EDX, Y
 MOV [a + b * c - d], EIP
 UNKNOWN A, B, C
+LAB1:	; error here
 )";
 	script_t script{};
 	script.Compile(SOURCE);
@@ -1281,8 +1425,48 @@ static void UnitTest_TEST() noexcept
 {
 	static constexpr std::string_view SOURCE = u8R"(
 TEST 0b1100, 0b0110	; == 0b0100
+JNE label
+MOV EAX, 1
+label:
+MOV EBX, 2
 )";
 	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(script.m_eflags->m_SF == false);
+	assert(script.m_eflags->m_ZF == false);
+	assert(script.m_eflags->m_PF == false);
+	assert(script.m_eflags->m_CF == false);
+	assert(script.m_eflags->m_OF == false);
+	assert(script.m_eflags->m_AF == false);
+
+	assert(*script.m_eax == 0);
+	assert(*script.m_ebx == 2);
+}
+
+static void UnitTest_CMP() noexcept
+{
+	script_t script{ "CMP 1, 2" };
+	script.Execute();
+
+	assert(script.m_eflags->m_SF == true);
+	assert(script.m_eflags->m_ZF == false);
+	assert(script.m_eflags->m_PF == false);
+	assert(script.m_eflags->m_CF == false);
+	assert(script.m_eflags->m_OF == false);
+	assert(script.m_eflags->m_AF == false);
+
+	script.Compile("CMP 1, 1");
+	script.Execute();
+
+	assert(script.m_eflags->m_SF == false);
+	assert(script.m_eflags->m_ZF == true);
+	assert(script.m_eflags->m_PF == true);	// zero is even number.
+	assert(script.m_eflags->m_CF == false);
+	assert(script.m_eflags->m_OF == false);
+	assert(script.m_eflags->m_AF == false);
+
+	script.Compile("CMP 2, 1");
 	script.Execute();
 
 	assert(script.m_eflags->m_SF == false);
@@ -1300,4 +1484,5 @@ int main() noexcept
 	UnitTest_Exchange();
 	UnitTest_Error();
 	UnitTest_TEST();
+	UnitTest_CMP();
 }
