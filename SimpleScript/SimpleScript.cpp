@@ -323,11 +323,11 @@ namespace Op
 		Right = 0,
 	};
 
-	template <fixed_string ID, EAssoc LEFT_ASSOC = EAssoc::Undefined, int_fast8_t PRECED = 0, uint_fast8_t ARG_COUNT = 0, typename FN = std::identity>
+	template <fixed_string ID, EAssoc ASSOCIATIVITY = EAssoc::Undefined, int_fast8_t PRECED = 0, uint_fast8_t ARG_COUNT = 0, typename FN = std::identity>
 	struct script_operator_t final
 	{
 		static inline constexpr std::string_view m_id{ ID };
-		static inline constexpr auto m_left_assoc = LEFT_ASSOC;
+		static inline constexpr auto m_associativity = ASSOCIATIVITY;
 		static inline constexpr auto m_preced = PRECED;
 		static inline constexpr auto m_arg_count = ARG_COUNT;
 		static inline constexpr auto functor = FN{};
@@ -366,7 +366,7 @@ namespace Op
 
 				// Ref: https://stackoverflow.com/questions/46450054/retrieve-value-out-of-cascading-ifs-fold-expression
 				[[maybe_unused]] auto const _
-					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_left_assoc), true)));
+					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_associativity), true)));
 
 				return ret;
 			}
@@ -476,12 +476,12 @@ static_assert(!IsLiteral("--12.34e-5"));	// Bad: too many signs
 static_assert(!IsLiteral("-12.34ef5"));	// Bad: floating with 'f'
 static_assert(!IsLiteral("1.") && !IsLiteral("1e"));	// Bad: Bad fp format.
 
-constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>, string_view>
+constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>, string>
 {
 	// 1. Parse the string as long as possible, like pre-c++11
 	// 2. Kicks off the last character then check again.
 
-	expected<vector<string_view>, string_view> ret{ std::in_place };
+	expected<vector<string_view>, string> ret{ std::in_place };
 	ret->reserve(s.size());
 
 	bool bAllowSignOnNext = true;	// Should not being reset inter-tokens
@@ -501,7 +501,7 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 				bAllowSignOnNext = bIsOperator;	// If it is an operator prev, then a sign is allow. Things like: x ^ -2 (x to the power of neg 2)
 				break;
 			}
-			else if (len == 1 && std::isspace(s[pos]))
+			else if (len == 1 && " \t\f\v\r\n"sv.contains(s[pos]))
 				break;	// space gets skipped without considered as token.
 
 			--len;
@@ -509,8 +509,7 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 
 		if (!len)
 			// The segment was problematically.
-			//return std::unexpected(std::format("Segment '{}' at pos {} cannot be tokenized.", s.substr(pos), pos));
-			return std::unexpected("Segment cannot be tokenized.");
+			return std::unexpected(std::format("Unrecognized symbol '{}' found at pos {}", s.substr(pos, 1), pos));
 		else
 			// If parsed, something must be inserted.
 			pos += len;
@@ -519,7 +518,7 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 	return ret;
 }
 
-constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<string_view>, string_view>
+constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<string_view>, string>
 {
 	vector<string_view> ret{};
 	vector<string_view> op_stack{};
@@ -883,7 +882,7 @@ struct script_t final
 		return std::unexpected("Not a valid storage or dest");
 	}
 
-	auto Parser_GetInput(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, string_view>
+	auto Parser_GetInput(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, string>
 	{
 		if (argument == "EIP" || argument == "IP")
 			return std::unexpected("Instruction Pointer ought not to be read");
@@ -894,7 +893,7 @@ struct script_t final
 			auto const PostfixNotation = ShuntingYardAlgorithm(argument);
 
 			if (!PostfixNotation)
-				return std::unexpected(PostfixNotation.error());
+				return std::unexpected(std::move(PostfixNotation).error());
 
 			// eval postfix notation expr
 			vector<variant<valref_t, value_t, expr_t>> num_stack{};
@@ -905,7 +904,7 @@ struct script_t final
 				{
 					auto parsed_input = Parser_GetInput(token);
 					if (!parsed_input)
-						return std::unexpected(parsed_input.error());
+						return std::unexpected(std::move(parsed_input).error());
 
 					num_stack.emplace_back(std::move(parsed_input).value());
 				}
@@ -1340,6 +1339,7 @@ struct script_t final
 			if (arguments.empty())
 				goto LAB_NEXT;
 
+			// Is it an instruction?
 			for (auto&& [signature, parser] : script_t::PARSERS)
 			{
 				if (signature.front() != arguments.front())
@@ -1527,6 +1527,7 @@ XCHG EDX, Y
 MOV [a + b * c - d], EIP
 UNKNOWN A, B, C
 LAB1:	; error here
+CMP [10 @ 8], EDX	; unknown operator@
 )";
 	script_t script{};
 	script.Compile(SOURCE);
