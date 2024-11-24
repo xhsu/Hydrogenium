@@ -23,6 +23,15 @@ using std::vector;
 
 using namespace std::literals;
 
+template <size_t Length>
+struct fixed_string
+{
+	constexpr fixed_string(const char(&arr)[Length]) noexcept { std::ranges::copy(arr, m_arr); }
+
+	constexpr operator std::string_view() const noexcept { return m_arr; }
+
+	char m_arr[Length + 1] = {}; // +1 for null terminator
+};
 
 static constexpr auto UTIL_Split(std::string_view const& s, char const* delimiters) noexcept -> std::vector<std::string_view>
 {
@@ -92,106 +101,33 @@ using expr_t = move_only_function<value_t() const noexcept>;
 using valref_t = shared_ptr<value_t>;
 using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t*>;
 
+// Evaluate argument into value_t
+struct visitor_script_cell final
+{
+	inline constexpr value_t operator()(auto&& a) const noexcept
+	{
+		if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
+		{
+			return *a;
+		}
+		else if constexpr (requires { { std::invoke(a) } -> std::convertible_to<value_t>; })
+		{
+			return std::invoke(a);
+		}
+		else
+		{
+			return static_cast<value_t>(a);
+		}
+	}
+};
 
 namespace Op
 {
-	inline constexpr string_view all{ "!^*/%+-" };
-	inline constexpr string_view ext{ "!^*/%+-()" };
-
-	inline constexpr bool LeftAssoc(char c) noexcept
+	struct functor_dummy final
 	{
-		return "+-/*%"sv.contains(c);
-	}
-
-	inline constexpr int_fast16_t Preced(char c) noexcept
-	{
-		switch (c)
+		constexpr expected<expr_t, value_t> operator()(auto&&...) const noexcept
 		{
-		case '!':
-			return 5;
-
-		case '^':
-			return 4;
-
-		case '*':
-		case '/':
-		case '%':
-			return 3;
-
-		case '+':
-		case '-':
-			return 2;
-
-		case '=':
-			return 1;
-
-		default:
-			assert(false);
-			return 0;
-		}
-	}
-
-	inline constexpr uint_fast16_t ArgCount(char c) noexcept
-	{
-		switch (c)
-		{
-		case '^':
-		case '*':
-		case '/':
-		case '%':
-		case '+':
-		case '-':
-		case '=':
-			return 2;
-
-		case '!':
-			return 1;
-
-		default:
-			assert(false);
-			return 0;
-		}
-	}
-
-	inline constexpr bool Test(string_view s) noexcept
-	{
-		for (auto&& c : s)
-		{
-			if (all.contains(c))
-				return true;
-		}
-
-		return false;
-	}
-
-	inline constexpr bool TestExt(string_view s) noexcept
-	{
-		for (auto&& c : s)
-		{
-			if (all.contains(c) || ext.contains(c))
-				return true;
-		}
-
-		return false;
-	}
-
-	// Evaluate argument into value_t
-	struct visitor_script_cell final
-	{
-		inline constexpr value_t operator()(auto&& a) const noexcept
-		{
-			if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
-			{
-				return *a;
-			}
-			else if constexpr (requires { { std::invoke(a) } -> std::convertible_to<value_t>; })
-			{
-				return std::invoke(a);
-			}
-			else
-			{
-				return static_cast<value_t>(a);
-			}
+			return {};
 		}
 	};
 
@@ -298,116 +234,322 @@ namespace Op
 				};
 		}
 	};
+};
 
-	inline constexpr auto Evaluate(char c, span<variant<valref_t, value_t, expr_t>> args) noexcept -> variant<valref_t, value_t, expr_t>
+constexpr bool IsIdentifier(string_view s) noexcept
+{
+	if (s.empty())
+		return false;
+
+	bool const legit_starting =
+		('a' <= s.front() && s.front() <= 'z')
+		or ('A' <= s.front() && s.front() <= 'Z')
+		or s.front() == '_';
+
+	if (!legit_starting)
+		return false;
+
+	for (auto c : s | std::views::drop(1))
 	{
-		using ret_t = variant<valref_t, value_t, expr_t>;
+		// Same rule in C/C++
+		bool const legit =
+			('0' <= c && c <= '9')
+			or ('a' <= c && c <= 'z')
+			or ('A' <= c && c <= 'Z')
+			or c == '_';
+
+		if (!legit)
+			return false;
+	}
+
+	return true;
+}
+
+constexpr bool IsLiteral(string_view s, bool const bAllowSign = true) noexcept
+{
+	if (s.empty())
+		return false;
+
+	// String literal.
+	if (s.front() == '"' && s.back() == '"' && s.size() >= 2)
+		return true;
+	if (s.front() == '\'' && s.back() == '\'' && s.size() >= 2)
+		return true;
+
+	auto const bSigned = (s.front() == '-' || s.front() == '+') && bAllowSign;
+	// Kick the sign off, it's really messing things up.
+	if (bSigned)
+		s = s.substr(1);
+
+	if (s.empty())	// What? only a sign was passed in?
+		return false;
+
+	bool const bHex = s.starts_with("0x") || s.starts_with("0X");
+	bool const bOct = s.starts_with("0o") || s.starts_with("0O");
+	bool const bBin = s.starts_with("0b") || s.starts_with("0B");
+	auto const bindig_count = std::ranges::count_if(s, [](char c) noexcept { return '0' <= c && c <= '1'; });
+	auto const octdig_count = std::ranges::count_if(s, [](char c) noexcept { return '0' <= c && c <= '7'; });
+	auto const decdig_count = std::ranges::count_if(s, [](char c) noexcept { return '0' <= c && c <= '9'; });
+	auto const hexdig_count = std::ranges::count_if(s, [](char c) noexcept { return "0123456789ABCDEFabcdef"sv.contains(c); });
+	auto const dot_count = std::ranges::count(s, '.');
+	auto const e_count = std::ranges::count(s, 'e') + std::ranges::count(s, 'E');
+	auto const sign_count = std::ranges::count(s, '+') + std::ranges::count(s, '-');
+
+	// It must be starting from 0-9 even if you are doing hex, as it starts as '0x'
+	bool const bIsFrontDigit = '0' <= s.front() && s.front() <= '9';
+	bool const bIsBackDigit = '0' <= s.back() && s.back() <= '9';
+
+	// Filter out some obvious error.
+	if (!bIsFrontDigit || dot_count > 1 || sign_count > 1)
+		return false;	// Can have only one dot.
+
+	// Integral literal.
+	if (bBin && bindig_count == (s.size() - 1))
+		return true;
+	if (bOct && octdig_count == (s.size() - 1))
+		return true;
+	if (decdig_count == s.size())
+		return true;
+	if (bHex && hexdig_count == (s.size() - 1))
+		return true;
+
+	// Floating point literal.
+	if ((e_count == 1 || dot_count == 1) && decdig_count == (s.size() - dot_count - e_count - sign_count) && bIsBackDigit)
+		return true;	// floating point number must not be hex.
+
+	return false;
+}
+
+namespace Op
+{
+	enum struct EAssoc : uint8_t
+	{
+		Undefined = 0xFF,
+		Left = 1,
+		Right = 0,
+	};
+
+	template <fixed_string ID, EAssoc LEFT_ASSOC = EAssoc::Undefined, int_fast8_t PRECED = 0, uint_fast8_t ARG_COUNT = 0, typename FN = std::identity>
+	struct script_operator_t final
+	{
+		static inline constexpr std::string_view m_id{ ID };
+		static inline constexpr auto m_left_assoc = LEFT_ASSOC;
+		static inline constexpr auto m_preced = PRECED;
+		static inline constexpr auto m_arg_count = ARG_COUNT;
+		static inline constexpr auto functor = FN{};
+	};
+
+	using factorial_t = script_operator_t<"!", EAssoc::Right, 5, 1, functor_factorial>;	// LUNA: why is this right associative?
+
+	using power_t = script_operator_t<"^", EAssoc::Right, 4, 2, functor_power>;
+
+	using multiply_t = script_operator_t<"*", EAssoc::Left, 3, 2, functor<std::multiplies<>>>;
+	using divide_t = script_operator_t<"/", EAssoc::Left, 3, 2, functor<std::divides<>>>;
+	using modulo_t = script_operator_t<"%", EAssoc::Left, 3, 2, functor_modulus>;
+
+	using plus_t = script_operator_t<"+", EAssoc::Left, 2, 2, functor<std::plus<>>>;
+	using minus_t = script_operator_t<"-", EAssoc::Left, 2, 2, functor<std::minus<>>>;
+
+	using assign_t = script_operator_t<"=", EAssoc::Right, 1, 2, functor_dummy>;	// Not available now.
+
+	constexpr auto impl_all_op_wrapper(auto&& impl) noexcept
+	{
+		return impl.template operator() <
+			Op::factorial_t,
+			Op::power_t,
+			Op::multiply_t, Op::divide_t, Op::modulo_t,
+			Op::plus_t, Op::minus_t,
+			Op::assign_t
+		>();
+	}
+
+	constexpr auto Associativity(std::string_view s) noexcept -> Op::EAssoc
+	{
+		return impl_all_op_wrapper(
+			[&]<typename... Tys>() noexcept -> Op::EAssoc
+			{
+				Op::EAssoc ret{ Op::EAssoc::Undefined };
+
+				// Ref: https://stackoverflow.com/questions/46450054/retrieve-value-out-of-cascading-ifs-fold-expression
+				[[maybe_unused]] auto const _
+					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_left_assoc), true)));
+
+				return ret;
+			}
+		);
+	}
+
+	constexpr auto Preced(std::string_view s) noexcept -> int_fast8_t
+	{
+		return impl_all_op_wrapper(
+			[&]<typename... Tys>() noexcept -> int_fast8_t
+			{
+				int_fast8_t ret{-1};
+
+				// Ref: https://stackoverflow.com/questions/46450054/retrieve-value-out-of-cascading-ifs-fold-expression
+				[[maybe_unused]] auto const _
+					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_preced), true)));
+
+				return ret;
+			}
+		);
+	}
+
+	constexpr auto ArgCount(std::string_view s) noexcept -> uint_fast8_t
+	{
+		return impl_all_op_wrapper(
+			[&]<typename... Tys>() noexcept -> uint_fast8_t
+			{
+				uint_fast8_t ret{0xFF};
+
+				// Ref: https://stackoverflow.com/questions/46450054/retrieve-value-out-of-cascading-ifs-fold-expression
+				[[maybe_unused]] auto const _
+					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_arg_count), true)));
+
+				return ret;
+			}
+		);
+	}
+
+	constexpr auto Functor(std::string_view op, span<variant<valref_t, value_t, expr_t>> args) noexcept -> std::ranges::range_value_t<decltype(args)>
+	{
+		using ret_t = std::ranges::range_value_t<decltype(args)>;
 		expected<expr_t, value_t> res{};
 
-		switch (c)
+		/*
+		if (op == "id")
 		{
-		case '!':
-		{
-			assert(args.size() == 1);
-			res = std::visit(functor_factorial{}, std::move(args.front()));
-			break;
+			if (typeof(op)::arg_count == 2)
+				typeof(op)::functor(args[0], args[1]);
 		}
+		*/
 
-		case '^':
+		auto const impl_invoke = [&]<typename T>() noexcept
 		{
-			assert(args.size() == 2);
-			res = std::visit(functor_power{}, std::move(args[0]), std::move(args[1]));
-			break;
-		}
+			if constexpr (T::m_arg_count == 0)
+				return T::functor();
+			else if constexpr (T::m_arg_count == 1)
+				return std::visit(T::functor, std::move(args[0]));
+			else if constexpr (T::m_arg_count == 2)
+				return std::visit(T::functor, std::move(args[0]), std::move(args[1]));
+			else if constexpr (T::m_arg_count == 3)
+				return std::visit(T::functor, std::move(args[0]), std::move(args[1]), std::move(args[2]));
+			else
+				static_assert(false, "Only up to 3 args supported for any operator.");
+		};
 
-		case '*':
+		auto const impl_dispatcher = [&]<typename... Tys>() noexcept
 		{
-			assert(args.size() == 2);
-			res = std::visit(functor<std::multiplies<>>{}, std::move(args[0]), std::move(args[1]));
-			break;
-		}
-		case '/':
-		{
-			assert(args.size() == 2);
-			res = std::visit(functor<std::divides<>>{}, std::move(args[0]), std::move(args[1]));
-			break;
-		}
-		case '%':
-		{
-			assert(args.size() == 2);
-			res = std::visit(functor_modulus{}, std::move(args[0]), std::move(args[1]));
-			break;
-		}
+			[[maybe_unused]] auto const _ =
+				(... || ((Tys::m_id == op) && (void(res = impl_invoke.template operator()<Tys>()), true)));
+		};
 
-		case '+':
-		{
-			assert(args.size() == 1 || args.size() == 2);
-			if (args.size() == 1)
-				res = std::visit(functor<std::identity>{}, std::move(args.front()));
-			else if (args.size() == 2)
-				res = std::visit(functor<std::plus<>>{}, std::move(args[0]), std::move(args[1]));
-
-			break;
-		}
-		case '-':
-		{
-			assert(args.size() == 1 || args.size() == 2);
-			if (args.size() == 1)
-				res = std::visit(functor<std::negate<>>{}, std::move(args.front()));
-			else if (args.size() == 2)
-				res = std::visit(functor<std::minus<>>{}, std::move(args[0]), std::move(args[1]));
-
-			break;
-		}
-
-		default:
-			std::unreachable();
-		}
+		impl_all_op_wrapper(impl_dispatcher);
 
 		if (res)
 			return ret_t{ std::move(res).value() };
 		else
 			return ret_t{ res.error() };
 	}
-};
+}
+
+constexpr bool IsOperator(string_view s) noexcept
+{
+	if (s == "(" || s == ")")
+		return true;
+
+	auto const impl =
+		[]<typename... Tys>(std::string_view const& s) noexcept
+	{
+		return (... || (Tys::m_id == s));
+	};
+
+	return impl.template operator()<
+		Op::factorial_t,
+		Op::power_t,
+		Op::multiply_t, Op::divide_t, Op::modulo_t,
+		Op::plus_t, Op::minus_t,
+		Op::assign_t
+	>(s);
+}
+
+static_assert(IsLiteral("1234") && IsLiteral("1e8"));
+static_assert(IsLiteral("0xABCD"));
+static_assert(!IsLiteral("0o5678"));	// Bad: oct number containing '8'
+static_assert(!IsLiteral("0.1.1"));	// Bad: Version number.
+static_assert(IsLiteral("-12.34e-5"));
+static_assert(!IsLiteral("--12.34e-5"));	// Bad: too many signs
+static_assert(!IsLiteral("-12.34ef5"));	// Bad: floating with 'f'
+static_assert(!IsLiteral("1.") && !IsLiteral("1e"));	// Bad: Bad fp format.
+
+constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>, string_view>
+{
+	// 1. Parse the string as long as possible, like pre-c++11
+	// 2. Kicks off the last character then check again.
+
+	expected<vector<string_view>, string_view> ret{ std::in_place };
+	ret->reserve(s.size());
+
+	bool bAllowSignOnNext = true;	// Should not being reset inter-tokens
+	for (size_t pos = 0; pos < s.size(); /* Does nothing */)
+	{
+		auto len = s.size() - pos;
+		while (len > 0)
+		{
+			auto const token = s.substr(pos, len);
+			auto const bIsIdentifier = IsIdentifier(token);
+			auto const bIsLiteral = IsLiteral(token, bAllowSignOnNext);
+			auto const bIsOperator = IsOperator(token);
+
+			if (bIsIdentifier || bIsLiteral || bIsOperator)
+			{
+				ret->emplace_back(token);
+				bAllowSignOnNext = bIsOperator;	// If it is an operator prev, then a sign is allow. Things like: x ^ -2 (x to the power of neg 2)
+				break;
+			}
+			else if (len == 1 && std::isspace(s[pos]))
+				break;	// space gets skipped without considered as token.
+
+			--len;
+		}
+
+		if (!len)
+			// The segment was problematically.
+			//return std::unexpected(std::format("Segment '{}' at pos {} cannot be tokenized.", s.substr(pos), pos));
+			return std::unexpected("Segment cannot be tokenized.");
+		else
+			// If parsed, something must be inserted.
+			pos += len;
+	}
+
+	return ret;
+}
 
 constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<string_view>, string_view>
 {
-	vector<string_view> identifiers{};
 	vector<string_view> ret{};
-	vector<char const*> op_stack{};	// not owning!
+	vector<string_view> op_stack{};
 
-	bool phase = false;
+	auto identifiers = Tokenizer(s);
+	if (!identifiers)
+		return std::unexpected(std::move(identifiers).error());
 
-	for (size_t pos = s.find_first_of(Op::ext), last_pos = 0;
-		pos != s.npos || last_pos != s.npos;
-		phase = !phase, last_pos = pos, pos = (phase ? s.find_first_not_of(Op::ext, pos) : s.find_first_of(Op::ext, pos))
-		)
-	{
-		if (auto const trimmed = UTIL_Trim(s.substr(last_pos, pos - last_pos)); trimmed.length())
-		{
-			if (phase)	// split operators. e.g. a/(b+c) must be split to 'a' '/' '(' 'b' '+' 'c' rather than 'a' '/(' 'b'
-			{
-				for (auto& c : trimmed)
-					identifiers.emplace_back(&c, 1);
-			}
-			else
-				identifiers.emplace_back(trimmed);
-		}
-	}
-
-	for (auto&& token : identifiers)
+	for (auto&& token : identifiers.value())
 	{
 		// Is number?
-		if (token.length() > 1 || !Op::TestExt(token))
+		if (IsLiteral(token) || IsIdentifier(token))
 		{
-			ret.emplace_back(token);
+			ret.push_back(token);
 		}
 
+		// Is a function?
+		// push it onto the operator stack
+		// LUNA: we don't have this feature, so skip.
+
 		// operator?
-		else if (token.length() == 1 && Op::all.contains(token[0]))
+		else if (token[0] != '(' && token[0] != ')' && IsOperator(token))
 		{
-			auto const o1_preced = Op::Preced(token[0]);
+			auto const o1_preced = Op::Preced(token);
 
 			/*
 			while (
@@ -418,15 +560,15 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 			push o1 onto the operator stack
 			*/
 
-			while (!op_stack.empty() && *op_stack.back() != '('
-				&& (Op::Preced(*op_stack.back()) > o1_preced || (Op::Preced(*op_stack.back()) == o1_preced && Op::LeftAssoc(token[0])))
+			while (!op_stack.empty() && op_stack.back() != "("
+				&& (Op::Preced(op_stack.back()) > o1_preced || (Op::Preced(op_stack.back()) == o1_preced && Op::Associativity(token) == Op::EAssoc::Left))
 				)
 			{
-				ret.emplace_back(op_stack.back(), 1);
+				ret.push_back(op_stack.back());
 				op_stack.pop_back();
 			}
 
-			op_stack.push_back(&token[0]);
+			op_stack.push_back(token);
 		}
 
 		// (
@@ -438,16 +580,25 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 		{
 			try
 			{
-				while (*op_stack.back() != '(')
+				while (op_stack.back() != "(")
 				{
+					// { assert the operator stack is not empty }
+					assert(!op_stack.empty());
+
 					// pop the operator from the operator stack into the output queue
 
-					ret.emplace_back(op_stack.back(), 1);
+					ret.emplace_back(op_stack.back());
 					op_stack.pop_back();
 				}
 
+				assert(op_stack.back()[0] == '(');
 				// pop the left parenthesis from the operator stack and discard it
 				op_stack.pop_back();
+
+				/* LUNA: we don't have this feature.
+				if there is a function token at the top of the operator stack, then:
+					pop the function from the operator stack into the output queue
+				*/
 			}
 			catch (...)
 			{
@@ -468,57 +619,27 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 	/* After the while loop, pop the remaining items from the operator stack into the output queue. */
 	while (!op_stack.empty())
 	{
-		if (*op_stack.back() == '(')
+		if (op_stack.back() == "(")
 			return std::unexpected("If the operator token on the top of the stack is a parenthesis, then there are mismatched parentheses");
 
-		ret.emplace_back(op_stack.back(), 1);
+		ret.emplace_back(op_stack.back());
 		op_stack.pop_back();
 	}
 
 	return std::move(ret);	// For constructing expected<> object
 }
 
-consteval bool SYA_Test() noexcept
+constexpr bool SYA_Test() noexcept
 {
+	auto const res = ShuntingYardAlgorithm("3+4*2/(1-5)^2^3");
 	auto const rpn =
-		*ShuntingYardAlgorithm("3+4*2/(1-5)^2^3")
+		*res
 		| std::views::join
 		| std::ranges::to<string>();
 
 	return rpn == "342*15-23^^/+";
 }
 static_assert(SYA_Test());
-
-/*
-int32_t PostfixNotationEval(vector<string_view> const& identifiers) noexcept
-{
-	vector<int32_t> num_stack{};
-
-	for (auto&& token : identifiers)
-	{
-		if (token.length() > 1 || !Op::Test(token))
-		{
-			num_stack.push_back(UTIL_StrToNum<int32_t>(token));
-		}
-		else if (Op::Test(token))
-		{
-			auto const arg_count = Op::ArgCount(token[0]);
-			auto const first_param_pos = num_stack.size() - arg_count;
-			auto const params = span{ num_stack.data() + first_param_pos, arg_count };
-
-			auto const res = Op::Evaluate(token[0], params);
-
-			num_stack.erase(num_stack.begin() + first_param_pos, num_stack.end());
-			num_stack.push_back(res);
-		}
-		else
-			std::unreachable();
-	}
-
-	return num_stack.front();
-}
-*/
-
 
 
 
@@ -786,7 +907,7 @@ struct script_t final
 
 			for (auto&& token : PostfixNotation.value())
 			{
-				if (token.length() > 1 || !Op::Test(token))
+				if (IsIdentifier(token) || IsLiteral(token))
 				{
 					auto parsed_input = Parser_GetInput(token);
 					if (!parsed_input)
@@ -794,13 +915,15 @@ struct script_t final
 
 					num_stack.emplace_back(std::move(parsed_input).value());
 				}
-				else if (Op::Test(token))
+				else if (IsOperator(token))
 				{
-					auto const arg_count = Op::ArgCount(token[0]);
+					assert(token != "(" && token != ")");	// Something must be wrong if parenthesis pass through SYA.
+
+					auto const arg_count = Op::ArgCount(token);
 					auto const first_arg_pos = std::min(num_stack.size(), num_stack.size() - arg_count);
 					auto const args = span{ num_stack.data() + first_arg_pos, std::min<size_t>(arg_count, num_stack.size()) };
 
-					auto res = Op::Evaluate(token[0], args);
+					auto res = Op::Functor(token, args);
 
 					num_stack.erase(num_stack.begin() + first_arg_pos, num_stack.end());
 					num_stack.push_back(std::move(res));
@@ -1089,8 +1212,8 @@ struct script_t final
 		return
 			[accu{ std::move(accumulator) }, refe{ std::move(reference) }, eflags{ m_eflags }]() noexcept
 			{
-				auto const lhs = std::bit_cast<uint32_t>((int32_t)std::visit(Op::visitor_script_cell{}, accu));
-				auto const rhs = std::bit_cast<uint32_t>((int32_t)std::visit(Op::visitor_script_cell{}, refe));
+				auto const lhs = std::bit_cast<uint32_t>((int32_t)std::visit(visitor_script_cell{}, accu));
+				auto const rhs = std::bit_cast<uint32_t>((int32_t)std::visit(visitor_script_cell{}, refe));
 				std::bitset<32> const bits{ lhs & rhs };
 
 				eflags->m_SF = bits[31];
@@ -1133,9 +1256,9 @@ struct script_t final
 			[minuend{ std::move(minuend) }, subtrahend{ std::move(subtrahend) }, eflags{ m_eflags }]() noexcept
 			{
 				auto const diff =
-					std::visit(Op::visitor_script_cell{}, minuend)
+					std::visit(visitor_script_cell{}, minuend)
 					-
-					std::visit(Op::visitor_script_cell{}, subtrahend);
+					std::visit(visitor_script_cell{}, subtrahend);
 
 				eflags->m_SF = diff < 0;
 				eflags->m_ZF = std::abs(diff) < 1e-5;
@@ -1240,7 +1363,7 @@ struct script_t final
 					.and_then([&](auto&& insc) noexcept { this->m_Instructions.emplace_back(std::forward<decltype(insc)>(insc)); return expected<void, vector<error_t>>{}; })
 
 					// Print errors if any.
-					.or_else([&](auto&& errs) noexcept { std::ranges::for_each(errs, fnPrintError); return expected<void, std::uint8_t>{}; })
+					.or_else([&](auto&& errs) noexcept { std::ranges::for_each(errs, fnPrintError); return expected<void, std::uint_fast8_t>{}; })
 					;
 
 				assert(res.has_value());
@@ -1365,7 +1488,7 @@ static void UnitTest_Expression() noexcept
 {
 	static constexpr std::string_view SOURCE = u8R"(
 LEA EAX, [0x100 + 0x10 * 0b10 - 0o10]
-LEA EBX, [EAX % 10]
+LEA EBX, [EAX % 7]
 LEA ECX, [e ^ pi]
 LEA EDX, [ECX % 3!]
 )";
@@ -1373,7 +1496,7 @@ LEA EDX, [ECX % 3!]
 	script.Execute();
 
 	assert(*script.m_eax == (0x100 + 0x10 * 0b10 - 010));
-	assert(*script.m_ebx == (int32_t(*script.m_eax) % 10));
+	assert(*script.m_ebx == (int32_t(*script.m_eax) % 7));
 	assert(*script.m_ecx == std::pow(std::numbers::e, std::numbers::pi));
 	assert(*script.m_edx == 5);	// 23 % (3*2*1)
 }
