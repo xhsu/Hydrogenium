@@ -2037,9 +2037,7 @@ namespace Hydrogenium::StringPolicy::Result
 
 	// Tok
 	struct as_generator_t final {};	// #UPDATE_AT_CPP23 generator
-	struct as_vector_t final {};
-	inline constexpr auto as_generator = as_generator_t{};
-	inline constexpr auto as_vector = as_vector_t{};
+	struct as_vector_t final {};	// These are only used for overload selection
 }
 
 // Auxiliary components
@@ -3245,6 +3243,9 @@ namespace Hydrogenium
 	EXPORT using detail::strutl_decl::MbsSpn;
 	EXPORT using detail::strutl_decl::MbsRCSpn;
 	EXPORT using detail::strutl_decl::MbsRSpn;
+
+	EXPORT inline constexpr auto as_generator = StringPolicy::Result::as_generator_t{};
+	EXPORT inline constexpr auto as_vector = StringPolicy::Result::as_vector_t{};
 }
 
 #ifdef GENERATOR_TY
