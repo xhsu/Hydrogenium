@@ -5,6 +5,28 @@
 #define _MSVC_TESTING_NVCC
 #include <__msvc_all_public_headers.hpp>
 #undef _MSVC_TESTING_NVCC
+#elif defined __clang__
+#include <algorithm>
+#include <bit>
+#include <bitset>
+#include <expected>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <print>
+#include <ranges>
+#include <span>
+#include <string_view>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include <cassert>
+#include <cmath>
+
+#define __forceinline
 #else
 #include <cassert>
 import std.compat;
@@ -30,7 +52,7 @@ struct fixed_string
 
 	constexpr operator std::string_view() const noexcept { return m_arr; }
 
-	char m_arr[Length + 1] = {}; // +1 for null terminator
+	char m_arr[Length] = {};
 };
 
 static constexpr auto UTIL_Split(std::string_view const& s, char const* delimiters) noexcept -> std::vector<std::string_view>
@@ -126,110 +148,6 @@ struct visitor_script_cell final
 	}
 };
 
-namespace Op
-{
-	struct adaptor_int32 final
-	{
-		constexpr int32_t operator()(auto val) const noexcept
-		{
-			return static_cast<int32_t>(val);
-		}
-	};
-
-	struct functor_dummy final
-	{
-		constexpr expected<expr_t, value_t> operator()(auto&&...) const noexcept
-		{
-			return {};
-		}
-	};
-
-	template <typename operator_t, typename proj_t = std::identity>
-	struct functor final
-	{
-		static inline constexpr operator_t m_op{};
-		static inline constexpr proj_t m_proj{};
-		static inline constexpr visitor_script_cell<proj_t> m_visitor{};
-
-		constexpr expected<expr_t, value_t> operator()(value_t lhs, value_t rhs) const noexcept
-		{
-			return std::unexpected(std::invoke(m_op, m_proj(lhs), m_proj(rhs)));
-		}
-
-		constexpr expected<expr_t, value_t> operator()(value_t operand) const noexcept
-		{
-			return std::unexpected(std::invoke(m_op, m_proj(operand)));
-		}
-
-		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
-		{
-			return
-				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
-				{
-					return std::invoke(
-						m_op,
-						m_visitor(lhs), m_visitor(rhs)
-					);
-				};
-		}
-
-		expected<expr_t, value_t> operator()(auto operand) const noexcept
-		{
-			return
-				[operand{ std::move(operand) }]() noexcept -> value_t
-				{
-					return std::invoke(
-						m_op,
-						m_visitor(operand)
-					);
-				};
-		}
-	};
-
-	struct functor_factorial final
-	{
-		constexpr expected<expr_t, value_t> operator()(value_t num) const noexcept
-		{
-			auto const factorial =
-				[](this auto&& self, int32_t n) noexcept -> int32_t { return (n == 1 || n == 0) ? 1 : self(n - 1) * n; };
-
-			return std::unexpected((value_t)factorial((int32_t)num));
-		}
-
-		expected<expr_t, value_t> operator()(auto arg) const noexcept
-		{
-			return
-				[arg{ std::move(arg) }]() noexcept -> value_t
-				{
-					static auto const factorial =
-						[](this auto&& self, int32_t n) noexcept -> int32_t { return (n == 1 || n == 0) ? 1 : self(n - 1) * n; };
-
-					return (value_t)factorial((int32_t)visitor_script_cell{}(arg));
-				};
-		}
-	};
-
-	struct functor_power final
-	{
-		// #UPDATE_AT_CPP26 constexpr math, power
-		expected<expr_t, value_t> operator()(value_t lhs, value_t rhs) const noexcept
-		{
-			return std::unexpected(std::pow(lhs, rhs));
-		}
-
-		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
-		{
-			return
-				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
-				{
-					return std::pow(
-						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
-					);
-				};
-		}
-	};
-};
-
 constexpr bool IsIdentifier(string_view s) noexcept
 {
 	if (s.empty())
@@ -298,24 +216,117 @@ constexpr bool IsLiteral(string_view s, bool const bAllowSign = true) noexcept
 		return false;	// Can have only one dot.
 
 	// Integral literal.
-	if (bBin && bindig_count == (s.size() - 1))
+	if (bBin && bindig_count == (std::ssize(s) - 1))
 		return true;
-	if (bOct && octdig_count == (s.size() - 1))
+	if (bOct && octdig_count == (std::ssize(s) - 1))
 		return true;
-	if (decdig_count == s.size())
+	if (decdig_count == std::ssize(s))
 		return true;
-	if (bHex && hexdig_count == (s.size() - 1))
+	if (bHex && hexdig_count == (std::ssize(s) - 1))
 		return true;
 
 	// Floating point literal.
-	if ((e_count == 1 || dot_count == 1) && decdig_count == (s.size() - dot_count - e_count - sign_count) && bIsBackDigit)
+	if ((e_count == 1 || dot_count == 1) && decdig_count == (std::ssize(s) - dot_count - e_count - sign_count) && bIsBackDigit)
 		return true;	// floating point number must not be hex.
 
 	return false;
 }
 
+static_assert(IsLiteral("1234") && IsLiteral("1e8"));
+static_assert(IsLiteral("0xABCD"));
+static_assert(!IsLiteral("0o5678"));	// Bad: oct number containing '8'
+static_assert(!IsLiteral("0.1.1"));	// Bad: Version number.
+static_assert(IsLiteral("-12.34e-5"));
+static_assert(!IsLiteral("--12.34e-5"));	// Bad: too many signs
+static_assert(!IsLiteral("-12.34ef5"));	// Bad: floating with 'f'
+static_assert(!IsLiteral("1.") && !IsLiteral("1e"));	// Bad: Bad fp format.
+
 namespace Op
 {
+	struct adaptor_int32 final
+	{
+		constexpr int32_t operator()(auto val) const noexcept
+		{
+			return static_cast<int32_t>(val);
+		}
+	};
+
+	struct functor_dummy final
+	{
+		constexpr expected<expr_t, value_t> operator()(auto&&...) const noexcept
+		{
+			return {};
+		}
+	};
+
+	template <typename operator_t, typename proj_t = std::identity>
+	struct functor final
+	{
+		static inline constexpr operator_t m_op{};
+		static inline constexpr proj_t m_proj{};
+		static inline constexpr visitor_script_cell<proj_t> m_visitor{};
+
+		constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
+		{
+			if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
+			{
+				return std::unexpected(m_op(m_proj(args)...));
+			}
+			else
+			{
+				return
+					// Ref: https://stackoverflow.com/questions/47496358/c-lambdas-how-to-capture-variadic-parameter-pack-from-the-upper-scope
+					[...args{ std::move(args) }]() noexcept -> value_t
+					{
+						return m_op(m_visitor(args)...);
+					};
+			}
+		}
+	};
+
+	struct functor_factorial final
+	{
+		constexpr expected<expr_t, value_t> operator()(value_t num) const noexcept
+		{
+			auto const factorial =
+				[](this auto&& self, int32_t n) noexcept -> int32_t { return (n == 1 || n == 0) ? 1 : self(n - 1) * n; };
+
+			return std::unexpected((value_t)factorial((int32_t)num));
+		}
+
+		expected<expr_t, value_t> operator()(auto arg) const noexcept
+		{
+			return
+				[arg{ std::move(arg) }]() noexcept -> value_t
+				{
+					static auto const factorial =
+						[](this auto&& self, int32_t n) noexcept -> int32_t { return (n == 1 || n == 0) ? 1 : self(n - 1) * n; };
+
+					return (value_t)factorial((int32_t)visitor_script_cell {}(arg));
+				};
+		}
+	};
+
+	struct functor_power final
+	{
+		// #UPDATE_AT_CPP26 constexpr math, power
+		expected<expr_t, value_t> operator()(value_t lhs, value_t rhs) const noexcept
+		{
+			return std::unexpected(std::pow(lhs, rhs));
+		}
+
+		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
+		{
+			return
+				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
+				{
+					return std::pow(
+						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
+					);
+				};
+		}
+	};
+
 	enum struct EAssoc : uint8_t
 	{
 		Undefined = 0xFF,
@@ -452,29 +463,154 @@ constexpr bool IsOperator(string_view s) noexcept
 	if (s == "(" || s == ")")
 		return true;
 
-	auto const impl =
-		[]<typename... Tys>(std::string_view const& s) noexcept
+	auto const impl = [&]<typename... Tys>() noexcept
 	{
 		return (... || (Tys::m_id == s));
 	};
 
-	return impl.template operator()<
-		Op::factorial_t,
-		Op::power_t,
-		Op::multiply_t, Op::divide_t, Op::modulo_t,
-		Op::plus_t, Op::minus_t,
-		Op::assign_t
-	>(s);
+	return Op::impl_all_op_wrapper(impl);
 }
 
-static_assert(IsLiteral("1234") && IsLiteral("1e8"));
-static_assert(IsLiteral("0xABCD"));
-static_assert(!IsLiteral("0o5678"));	// Bad: oct number containing '8'
-static_assert(!IsLiteral("0.1.1"));	// Bad: Version number.
-static_assert(IsLiteral("-12.34e-5"));
-static_assert(!IsLiteral("--12.34e-5"));	// Bad: too many signs
-static_assert(!IsLiteral("-12.34ef5"));	// Bad: floating with 'f'
-static_assert(!IsLiteral("1.") && !IsLiteral("1e"));	// Bad: Bad fp format.
+namespace Func
+{
+	template <typename R, typename... Args>
+	consteval int32_t func_param_counter(R(*)(Args...))
+	{
+		return sizeof...(Args);
+	}
+
+	template <typename T, typename R, typename... Args>
+	consteval int32_t func_param_counter(R(T::*)(Args...) const)
+	{
+		return sizeof...(Args);
+	}
+
+	template <typename T>
+	consteval int32_t func_param_counter(T) requires (requires { { func_param_counter(&T::operator()) } -> std::convertible_to<int32_t>; })
+	{
+		return func_param_counter(&T::operator());
+	}
+
+	template <fixed_string ID, auto FN>
+	struct script_fn_t final
+	{
+		struct functor_impl_t final
+		{
+			static inline constexpr auto m_fun{ FN };
+			static inline constexpr visitor_script_cell<> m_visitor{};
+
+			constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
+			{
+				if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
+				{
+					return std::unexpected(m_fun(args...));
+				}
+				else
+				{
+					return
+						// Ref: https://stackoverflow.com/questions/47496358/c-lambdas-how-to-capture-variadic-parameter-pack-from-the-upper-scope
+						[...args{ std::move(args) }]() noexcept -> value_t
+						{
+							return m_fun(m_visitor(args)...);
+						};
+				}
+			}
+		};
+
+		static inline constexpr std::string_view m_id{ ID };
+		static inline constexpr auto functor = functor_impl_t{};
+		static inline constexpr auto m_arg_count = func_param_counter(FN);
+	};
+
+	value_t log_n(value_t base, value_t x) noexcept
+	{
+		return std::log(x) / std::log(base);
+	}
+
+	// Basic
+	using abs_t = script_fn_t<"abs", static_cast<value_t(*)(value_t)>(&std::abs)>;
+	using remainder_t = script_fn_t<"remainder", static_cast<value_t(*)(value_t, value_t)>(&std::remainder)>;
+	using max_t = script_fn_t<"max", static_cast<value_t(*)(value_t, value_t)>(&std::fmax)>;
+	using min_t = script_fn_t<"min", static_cast<value_t(*)(value_t, value_t)>(&std::fmin)>;
+	using clamp_t = script_fn_t<"clamp", &std::clamp<value_t>>;
+
+	// Exponential
+	using pow_t = script_fn_t<"pow", static_cast<value_t(*)(value_t, value_t)>(&std::pow)>;
+	using log_t = script_fn_t<"log", &log_n>;
+	using sqrt_t = script_fn_t<"sqrt", static_cast<value_t(*)(value_t)>(&std::sqrt)>;
+	using hypot2_t = script_fn_t<"hypot2", static_cast<value_t(*)(value_t, value_t)>(&std::hypot)>;
+	using hypot3_t = script_fn_t<"hypot3", static_cast<value_t(*)(value_t, value_t, value_t)>(&std::hypot)>;
+
+	// Trigonometric
+	using sine_t = script_fn_t<"sin", static_cast<value_t(*)(value_t)>(&std::sin)>;
+	using cosine_t = script_fn_t<"cos", static_cast<value_t(*)(value_t)>(&std::cos)>;
+	using tangent_t = script_fn_t<"tan", static_cast<value_t(*)(value_t)>(&std::tan)>;
+	using arcsine_t = script_fn_t<"arcsin", static_cast<value_t(*)(value_t)>(&std::asin)>;
+	using arccosine_t = script_fn_t<"arccos", static_cast<value_t(*)(value_t)>(&std::acos)>;
+	using arctangent_t = script_fn_t<"arctan", static_cast<value_t(*)(value_t, value_t)>(&std::atan2)>;
+
+	// Rounding
+	using ceil_t = script_fn_t<"ceil", static_cast<value_t(*)(value_t)>(&std::ceil)>;
+	using floor_t = script_fn_t<"floor", static_cast<value_t(*)(value_t)>(&std::floor)>;
+	using round_t = script_fn_t<"round", static_cast<value_t(*)(value_t)>(&std::round)>;
+
+	constexpr auto impl_all_fun_wrapper(auto&& impl) noexcept
+	{
+		return impl.template operator() <
+			abs_t, remainder_t, max_t, min_t, clamp_t,
+			pow_t, log_t, sqrt_t, hypot2_t, hypot3_t,
+			sine_t, cosine_t, tangent_t, arcsine_t, arccosine_t, arctangent_t,
+			ceil_t, floor_t, round_t
+		> ();
+	}
+
+	// #UPDATE_AT_CPP23_cmath #UPDATE_AT_CPP26 constexpr math
+	constexpr auto Functor(std::string_view fn_name, span<variant<valref_t, value_t, expr_t>> args) noexcept -> std::ranges::range_value_t<decltype(args)>
+	{
+		using ret_t = std::ranges::range_value_t<decltype(args)>;
+		expected<expr_t, value_t> res{};
+
+		auto const impl_invoke = [&]<typename T>() noexcept
+		{
+			if constexpr (T::m_arg_count == 0)
+				return T::functor();
+			else if constexpr (T::m_arg_count == 1)
+				return std::visit(T::functor, std::move(args[0]));
+			else if constexpr (T::m_arg_count == 2)
+				return std::visit(T::functor, std::move(args[0]), std::move(args[1]));
+			else if constexpr (T::m_arg_count == 3)
+				return std::visit(T::functor, std::move(args[0]), std::move(args[1]), std::move(args[2]));
+			else
+				static_assert(false, "Only up to 3 args supported for any built-in function.");
+		};
+
+		auto const impl_dispatcher = [&]<typename... Tys>() noexcept
+		{
+			[[maybe_unused]] auto const _ =
+				(... || ((Tys::m_id == fn_name) && (void(res = impl_invoke.template operator()<Tys>()), true)));
+		};
+
+		impl_all_fun_wrapper(impl_dispatcher);
+
+		if (res)
+			return ret_t{ std::move(res).value() };
+		else
+			return ret_t{ res.error() };
+
+	}
+}
+
+constexpr bool IsFunction(string_view s) noexcept
+{
+	auto const impl = [&]<typename... Tys>() noexcept
+	{
+		return (... || (Tys::m_id == s));
+	};
+
+	return Func::impl_all_fun_wrapper(impl);
+}
+
+
 
 constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>, string>
 {
@@ -491,7 +627,7 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 		while (len > 0)
 		{
 			auto const token = s.substr(pos, len);
-			auto const bIsIdentifier = IsIdentifier(token);
+			auto const bIsIdentifier = IsIdentifier(token);	// Function must be a valid identifier itself first. Hence no need to add IsFunction() here.
 			auto const bIsLiteral = IsLiteral(token, bAllowSignOnNext);
 			auto const bIsOperator = IsOperator(token);
 
@@ -518,6 +654,14 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 	return ret;
 }
 
+constexpr bool TKZ_Test() noexcept
+{
+	auto const tokens = Tokenizer("3+4*2/(1-5)^2^3");
+	std::vector<std::string_view> const ans{ "3", "+", "4", "*", "2", "/", "(", "1", "-", "5", ")", "^", "2", "^", "3" };
+	return std::ranges::equal(*tokens, ans);
+}
+static_assert(TKZ_Test());
+
 constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<string_view>, string>
 {
 	vector<string_view> ret{};
@@ -536,8 +680,10 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 		}
 
 		// Is a function?
-		// push it onto the operator stack
-		// LUNA: we don't have this feature, so skip.
+		else if (IsFunction(token))
+		{
+			op_stack.push_back(token);
+		}
 
 		// operator?
 		else if (token[0] != '(' && token[0] != ')' && IsOperator(token))
@@ -587,11 +733,6 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 				assert(op_stack.back()[0] == '(');
 				// pop the left parenthesis from the operator stack and discard it
 				op_stack.pop_back();
-
-				/* LUNA: we don't have this feature.
-				if there is a function token at the top of the operator stack, then:
-					pop the function from the operator stack into the output queue
-				*/
 			}
 			catch (...)
 			{
@@ -603,6 +744,11 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 			if there is a function token at the top of the operator stack, then:
 				pop the function from the operator stack into the output queue
 			*/
+			if (!op_stack.empty() && IsFunction(op_stack.back()))
+			{
+				ret.push_back(op_stack.back());
+				op_stack.pop_back();
+			}
 		}
 
 		else
@@ -920,6 +1066,12 @@ struct script_t final
 
 					num_stack.erase(num_stack.begin() + first_arg_pos, num_stack.end());
 					num_stack.push_back(std::move(res));
+				}
+
+				// Function is considered as a part of input.
+				else if (IsFunction(token))
+				{
+					// #CONTINUE_FROM_HERE
 				}
 				else
 					return std::unexpected("Unrecognized token found in expression");
