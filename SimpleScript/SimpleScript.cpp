@@ -102,27 +102,40 @@ using valref_t = shared_ptr<value_t>;
 using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t*>;
 
 // Evaluate argument into value_t
+template <typename proj_t = std::identity>
 struct visitor_script_cell final
 {
-	inline constexpr value_t operator()(auto&& a) const noexcept
+	static inline constexpr proj_t m_proj{};
+
+	using proj_res_t = std::remove_cvref_t<decltype(std::invoke(m_proj, value_t{}))>;
+
+	inline constexpr auto operator()(auto&& a) const noexcept -> proj_res_t
 	{
 		if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
 		{
-			return *a;
+			return std::invoke(m_proj, *a);
 		}
 		else if constexpr (requires { { std::invoke(a) } -> std::convertible_to<value_t>; })
 		{
-			return std::invoke(a);
+			return std::invoke(m_proj, std::invoke(a));
 		}
 		else
 		{
-			return static_cast<value_t>(a);
+			return std::invoke(m_proj, a);
 		}
 	}
 };
 
 namespace Op
 {
+	struct adaptor_int32 final
+	{
+		constexpr int32_t operator()(auto val) const noexcept
+		{
+			return static_cast<int32_t>(val);
+		}
+	};
+
 	struct functor_dummy final
 	{
 		constexpr expected<expr_t, value_t> operator()(auto&&...) const noexcept
@@ -131,17 +144,21 @@ namespace Op
 		}
 	};
 
-	template <typename operator_t>
+	template <typename operator_t, typename proj_t = std::identity>
 	struct functor final
 	{
+		static inline constexpr operator_t m_op{};
+		static inline constexpr proj_t m_proj{};
+		static inline constexpr visitor_script_cell<proj_t> m_visitor{};
+
 		constexpr expected<expr_t, value_t> operator()(value_t lhs, value_t rhs) const noexcept
 		{
-			return std::unexpected(std::invoke(operator_t{}, lhs, rhs));
+			return std::unexpected(std::invoke(m_op, m_proj(lhs), m_proj(rhs)));
 		}
 
 		constexpr expected<expr_t, value_t> operator()(value_t operand) const noexcept
 		{
-			return std::unexpected(std::invoke(operator_t{}, operand));
+			return std::unexpected(std::invoke(m_op, m_proj(operand)));
 		}
 
 		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
@@ -150,8 +167,8 @@ namespace Op
 				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
 				{
 					return std::invoke(
-						operator_t{},
-						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
+						m_op,
+						m_visitor(lhs), m_visitor(rhs)
 					);
 				};
 		}
@@ -162,8 +179,8 @@ namespace Op
 				[operand{ std::move(operand) }]() noexcept -> value_t
 				{
 					return std::invoke(
-						operator_t{},
-						visitor_script_cell{}(operand)
+						m_op,
+						m_visitor(operand)
 					);
 				};
 		}
@@ -208,29 +225,6 @@ namespace Op
 					return std::pow(
 						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
 					);
-				};
-		}
-	};
-
-	struct functor_modulus final
-	{
-		constexpr expected<expr_t, value_t> operator()(value_t lhs, value_t rhs) const noexcept
-		{
-			auto const ilhs = (int32_t)lhs;
-			auto const irhs = (int32_t)rhs;
-
-			return std::unexpected(value_t(ilhs % irhs));
-		}
-
-		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
-		{
-			return
-				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
-				{
-					auto const ilhs = (int32_t)visitor_script_cell{}(lhs);
-					auto const irhs = (int32_t)visitor_script_cell{}(rhs);
-
-					return value_t(ilhs % irhs);
 				};
 		}
 	};
@@ -339,13 +333,13 @@ namespace Op
 		static inline constexpr auto functor = FN{};
 	};
 
-	using factorial_t = script_operator_t<"!", EAssoc::Right, 5, 1, functor_factorial>;	// LUNA: why is this right associative?
+	using factorial_t = script_operator_t<"!", EAssoc::Left, 5, 1, functor_factorial>;
 
 	using power_t = script_operator_t<"^", EAssoc::Right, 4, 2, functor_power>;
 
 	using multiply_t = script_operator_t<"*", EAssoc::Left, 3, 2, functor<std::multiplies<>>>;
 	using divide_t = script_operator_t<"/", EAssoc::Left, 3, 2, functor<std::divides<>>>;
-	using modulo_t = script_operator_t<"%", EAssoc::Left, 3, 2, functor_modulus>;
+	using modulo_t = script_operator_t<"%", EAssoc::Left, 3, 2, functor<std::modulus<>, adaptor_int32>>;	// Only int can take remainder.
 
 	using plus_t = script_operator_t<"+", EAssoc::Left, 2, 2, functor<std::plus<>>>;
 	using minus_t = script_operator_t<"-", EAssoc::Left, 2, 2, functor<std::minus<>>>;
@@ -1488,7 +1482,7 @@ static void UnitTest_Expression() noexcept
 {
 	static constexpr std::string_view SOURCE = u8R"(
 LEA EAX, [0x100 + 0x10 * 0b10 - 0o10]
-LEA EBX, [EAX % 7]
+LEA EBX, [EAX % 13]
 LEA ECX, [e ^ pi]
 LEA EDX, [ECX % 3!]
 )";
@@ -1496,7 +1490,7 @@ LEA EDX, [ECX % 3!]
 	script.Execute();
 
 	assert(*script.m_eax == (0x100 + 0x10 * 0b10 - 010));
-	assert(*script.m_ebx == (int32_t(*script.m_eax) % 7));
+	assert(*script.m_ebx == (int32_t(*script.m_eax) % 13));
 	assert(*script.m_ecx == std::pow(std::numbers::e, std::numbers::pi));
 	assert(*script.m_edx == 5);	// 23 % (3*2*1)
 }
@@ -1504,7 +1498,7 @@ LEA EDX, [ECX % 3!]
 static void UnitTest_Exchange() noexcept
 {
 	static constexpr std::string_view SOURCE = u8R"(
-MOV EDX, [5! % (0 - 7)]	; Unary negation not supported.
+MOV EDX, [5! % -7]	; Unary negation is supported thanks to new tokenizer.
 XCHG ECX, EDX
 CMPXCHG EBX, 9.527e3	; ZF is set from this line. (EAX == EBX == 0)
 CMOVE EDX, 42
