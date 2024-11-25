@@ -42,6 +42,7 @@ using std::string_view;
 using std::unordered_map;
 using std::variant;
 using std::vector;
+using std::weak_ptr;
 
 using namespace std::literals;
 
@@ -52,7 +53,7 @@ struct fixed_string
 
 	constexpr operator std::string_view() const noexcept { return m_arr; }
 
-	char m_arr[Length] = {};
+	char m_arr[Length]{};
 };
 
 static constexpr auto UTIL_Split(std::string_view const& s, char const* delimiters) noexcept -> std::vector<std::string_view>
@@ -93,29 +94,7 @@ static_assert(UTIL_Trim("ABC ") == "ABC");
 static_assert(UTIL_Trim(" \t") == "");
 static_assert(UTIL_Trim("") == "");
 
-static constexpr auto PARSER_Instruction(std::string_view s) noexcept -> std::vector<std::string_view>
-{
-	constexpr std::string_view DELIM = " \t\f\v";
 
-	s = UTIL_Trim(s);
-	if (s.empty())
-		return {};
-
-	auto const spc_pos = s.find_first_of(DELIM);
-	if (spc_pos == s.npos)
-		return { s };
-
-	auto const opr_pos = s.find_first_not_of(DELIM, spc_pos);
-	assert(opr_pos < s.length());	// 's' had been trimmed, hence there must be something after spaces.
-
-	std::vector<std::string_view> ret{ s.substr(0, spc_pos) };
-	ret.append_range(
-		UTIL_Split(s.substr(opr_pos), ",")
-		| std::views::transform(&UTIL_Trim)
-	);
-
-	return ret;
-}
 
 using instruction_t = move_only_function<void() const noexcept>;	// Representing an single action
 using value_t = double;
@@ -344,18 +323,20 @@ namespace Op
 		static inline constexpr auto functor = FN{};
 	};
 
-	using factorial_t = script_operator_t<"!", EAssoc::Left, 5, 1, functor_factorial>;
+	using factorial_t = script_operator_t<"!", EAssoc::Left, 6, 1, functor_factorial>;
 
-	using power_t = script_operator_t<"^", EAssoc::Right, 4, 2, functor_power>;
+	using power_t = script_operator_t<"^", EAssoc::Right, 5, 2, functor_power>;
 
-	using multiply_t = script_operator_t<"*", EAssoc::Left, 3, 2, functor<std::multiplies<>>>;
-	using divide_t = script_operator_t<"/", EAssoc::Left, 3, 2, functor<std::divides<>>>;
-	using modulo_t = script_operator_t<"%", EAssoc::Left, 3, 2, functor<std::modulus<>, adaptor_int32>>;	// Only int can take remainder.
+	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, functor<std::multiplies<>>>;
+	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, functor<std::divides<>>>;
+	using modulo_t = script_operator_t<"%", EAssoc::Left, 4, 2, functor<std::modulus<>, adaptor_int32>>;	// Only int can take remainder.
 
-	using plus_t = script_operator_t<"+", EAssoc::Left, 2, 2, functor<std::plus<>>>;
-	using minus_t = script_operator_t<"-", EAssoc::Left, 2, 2, functor<std::minus<>>>;
+	using plus_t = script_operator_t<"+", EAssoc::Left, 3, 2, functor<std::plus<>>>;
+	using minus_t = script_operator_t<"-", EAssoc::Left, 3, 2, functor<std::minus<>>>;
 
-	using assign_t = script_operator_t<"=", EAssoc::Right, 1, 2, functor_dummy>;	// Not available now.
+	using assign_t = script_operator_t<"=", EAssoc::Right, 2, 2, functor_dummy>;	// Not available now.
+
+	using comma_t = script_operator_t<",", EAssoc::Left, 1, 1, functor<std::identity>>;
 
 	constexpr auto impl_all_op_wrapper(auto&& impl) noexcept
 	{
@@ -364,7 +345,8 @@ namespace Op
 			Op::power_t,
 			Op::multiply_t, Op::divide_t, Op::modulo_t,
 			Op::plus_t, Op::minus_t,
-			Op::assign_t
+			Op::assign_t,
+			Op::comma_t
 		>();
 	}
 
@@ -564,6 +546,22 @@ namespace Func
 		> ();
 	}
 
+	constexpr auto ArgCount(std::string_view s) noexcept -> uint_fast8_t
+	{
+		return impl_all_fun_wrapper(
+			[&]<typename... Tys>() noexcept -> uint_fast8_t
+			{
+				uint_fast8_t ret{ 0xFF };
+
+				// Ref: https://stackoverflow.com/questions/46450054/retrieve-value-out-of-cascading-ifs-fold-expression
+				[[maybe_unused]] auto const _
+					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_arg_count), true)));
+
+				return ret;
+			}
+		);
+	}
+
 	// #UPDATE_AT_CPP23_cmath #UPDATE_AT_CPP26 constexpr math
 	constexpr auto Functor(std::string_view fn_name, span<variant<valref_t, value_t, expr_t>> args) noexcept -> std::ranges::range_value_t<decltype(args)>
 	{
@@ -673,14 +671,18 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 
 	for (auto&& token : identifiers.value())
 	{
+		bool const bIsLiteral = IsLiteral(token);
+		bool const bIsIdentifier = IsIdentifier(token);
+		bool const bIsFunction = IsFunction(token);
+
 		// Is number?
-		if (IsLiteral(token) || IsIdentifier(token))
+		if ((bIsLiteral || bIsIdentifier) && !bIsFunction)
 		{
 			ret.push_back(token);
 		}
 
 		// Is a function?
-		else if (IsFunction(token))
+		else if (bIsFunction)
 		{
 			op_stack.push_back(token);
 		}
@@ -794,42 +796,38 @@ struct error_t final
 	constexpr error_t(string_view str, string_view sprtr_ins = " \t\f\v", string_view sprtr_oprd = ",") noexcept
 		: m_Text{ UTIL_Trim(str) }, m_Underscore(m_Text.size(), ' ')
 	{
-		m_Underscore.reserve(8);
-
-		if (m_Text.empty())
-			return;
-
-		auto const spc_pos = m_Text.find_first_of(sprtr_ins);
-		if (spc_pos == m_Text.npos)
+		for (size_t pos = 0; pos < m_Text.size(); /* Does nothing */)
 		{
-			m_SegmentsUnderline.emplace_back(m_Underscore.data(), m_Underscore.size());
-			return;
-		}
+			auto len = m_Text.size() - pos;
+			while (len > 0)
+			{
+				auto const token = m_Text.substr(pos, len);
+				bool const bIsExpr = token.front() == '[' && token.back() == ']';
+				bool const bIsSeparator = len == 1 && ", \t\f\v\r\n"sv.contains(token.front());
+				bool const bIsLabel = len > 1 && token.back() == ':';
 
-		auto const opr_pos = m_Text.find_first_not_of(sprtr_ins, spc_pos);
-		assert(opr_pos < m_Text.length());	// 's' had been trimmed, hence there must be something after spaces.
+				if (bIsExpr || bIsLabel || IsIdentifier(token) || IsLiteral(token))	// Kind of doggy and bug-proning.
+				{
+					m_SegmentsText.emplace_back(token);
+					m_SegmentsUnderline.emplace_back(span{ m_Underscore.data() + pos, len });
+					break;
+				}
+				else if (bIsSeparator)
+					break;	// space gets skipped without considered as token.
 
-		m_SegmentsText.emplace_back(m_Text.substr(0, spc_pos));
-		m_SegmentsUnderline.emplace_back(m_Underscore.data(), std::min(m_Underscore.size(), spc_pos));
+				--len;
+			}
 
-		for (auto lastPos = m_Text.find_first_not_of(sprtr_oprd, opr_pos), pos = m_Text.find_first_of(sprtr_oprd, lastPos);
-			m_Text.npos != pos || m_Text.npos != lastPos;
-			lastPos = m_Text.find_first_not_of(sprtr_oprd, pos), pos = m_Text.find_first_of(sprtr_oprd, lastPos)
-			)
-		{
-			//auto const seg = UTIL_Trim(string_view{ &m_Underscore[lastPos], std::min(pos - lastPos, m_Underscore.size() - lastPos) });
-			auto const TextSeg =
-				UTIL_Trim({ &m_Text[lastPos], (pos == m_Text.npos ? (&m_Text.back() + 1) : &m_Text[pos]) });
-			m_SegmentsText.emplace_back(TextSeg);
-
-			auto const underline_begin = TextSeg.data() - m_Text.data();
-			auto const underline_end = TextSeg.data() + TextSeg.length() - m_Text.data();
-			assert(underline_begin < underline_end);	// Must not be equal. Equal here means empty range.
-
-			m_SegmentsUnderline.emplace_back(
-				&m_Underscore[underline_begin],
-				TextSeg.length()
-			);
+			if (!len)
+			{
+				// The segment was problematically.
+				m_SegmentsText.emplace_back(m_Text.substr(pos));
+				m_SegmentsUnderline.emplace_back(span{ m_Underscore.data() + pos, m_SegmentsText.back().length() });
+				break;
+			}
+			else
+				// If parsed, something must be inserted.
+				pos += len;
 		}
 
 		assert(m_SegmentsText.size() == m_SegmentsUnderline.size());
@@ -961,13 +959,52 @@ struct script_t final
 	// shared_ptr<uint32_t> m_esp{ std::make_shared<uint32_t>() };
 	// shared_ptr<uint32_t> m_ebp{ std::make_shared<uint32_t>() };
 
-	// ESI
-	// EDI
+	shared_ptr<string> m_esi{ std::make_shared<string>() };
+	shared_ptr<string> m_edi{ std::make_shared<string>() };
 
 	shared_ptr<flag_register_t> m_eflags{ std::make_shared<flag_register_t>() };
 	unordered_map<string, std::ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};
+	unordered_map<string, weak_ptr<value_t>, std::hash<string_view>, std::equal_to<>> m_Observer{};
 
 	// Script parser
+
+	static constexpr auto Tokenizer_Instruction(string_view s) noexcept -> expected<vector<string_view>, error_t>
+	{
+		// Same tokenizer must be used in error_t
+		expected<vector<string_view>, error_t> ret{ std::in_place };
+		ret->reserve(s.size());
+
+		for (size_t pos = 0; pos < s.size(); /* Does nothing */)
+		{
+			auto len = s.size() - pos;
+			while (len > 0)
+			{
+				auto const token = s.substr(pos, len);
+				bool const bIsExpr = token.front() == '[' && token.back() == ']';
+				bool const bIsSeparator = len == 1 && ", \t\f\v\r\n"sv.contains(token.front());
+				bool const bIsLabel = len > 1 && token.back() == ':';
+
+				if (bIsExpr || bIsLabel || IsIdentifier(token) || IsLiteral(token))	// Kind of doggy and bug-proning.
+				{
+					ret->emplace_back(token);
+					break;
+				}
+				else if (bIsSeparator)
+					break;	// space gets skipped without considered as token.
+
+				--len;
+			}
+
+			if (!len)
+				// The segment was problematically.
+				return std::unexpected(error_t{ s, std::ssize(*ret), std::format("Unrecognized symbol '{}' found at pos {}", s.substr(pos, 1), pos)});
+			else
+				// If parsed, something must be inserted.
+				pos += len;
+		}
+
+		return ret;
+	}
 
 	__forceinline auto Parser_GetRegister(string_view name) const noexcept -> valref_t
 	{
@@ -1046,7 +1083,11 @@ struct script_t final
 
 			for (auto&& token : PostfixNotation.value())
 			{
-				if (IsIdentifier(token) || IsLiteral(token))
+				bool const bIsLiteral = IsLiteral(token);
+				bool const bIsIdentifier = IsIdentifier(token);
+				bool const bIsFunction = IsFunction(token);
+
+				if ((bIsLiteral || bIsIdentifier) && !bIsFunction)
 				{
 					auto parsed_input = Parser_GetInput(token);
 					if (!parsed_input)
@@ -1069,9 +1110,19 @@ struct script_t final
 				}
 
 				// Function is considered as a part of input.
-				else if (IsFunction(token))
+				else if (bIsFunction)
 				{
-					// #CONTINUE_FROM_HERE
+					auto const arg_count = Func::ArgCount(token);
+					if (arg_count > num_stack.size())
+						return std::unexpected(std::format("Insufficient argument to invoke function '{}'. Expect {} but {} received", token, arg_count, num_stack.size()));
+
+					auto const first_arg_pos = std::min(num_stack.size(), num_stack.size() - arg_count);
+					auto const args = span{ num_stack.data() + first_arg_pos, arg_count };
+
+					auto res = Func::Functor(token, args);
+
+					num_stack.erase(num_stack.begin() + first_arg_pos, num_stack.end());
+					num_stack.push_back(std::move(res));
 				}
 				else
 					return std::unexpected("Unrecognized token found in expression");
@@ -1090,7 +1141,7 @@ struct script_t final
 		if (auto const val = Parser_GetImmediate(argument); val == val)	// NaN here is no found
 			return val;
 
-		return std::unexpected("Not a register, immediate number or expression");
+		return std::unexpected(std::format("'{}' is not a register, immediate number or expression", argument));
 	}
 
 	auto Parser_ProcSig(span<string_view const> parameters, span<string_view const> arguments, string_view szLineText) noexcept -> expected<vector<script_cell_t>, vector<error_t>>
@@ -1139,7 +1190,7 @@ struct script_t final
 		if (!errors.empty())
 			return std::unexpected(std::move(errors));
 
-		return processed;
+		return std::move(processed);	// Move into std::expected<>
 	}
 
 	// Data Transfer Instructions
@@ -1479,7 +1530,7 @@ struct script_t final
 		{
 			auto const pos = szOrigLine.find_first_of(';');
 			auto const szLine = UTIL_Trim(szOrigLine.substr(0, pos));
-			auto const arguments = PARSER_Instruction(szLine);
+			auto const arguments = Tokenizer_Instruction(szLine);
 			bool bLineHandled = false;
 
 			auto const fnPrintError =
@@ -1488,19 +1539,29 @@ struct script_t final
 					std::println("Compiling error: {}\n{}\n", err.m_ErrorMsg, err.ToString(8, line_num));
 				};
 
-			if (arguments.empty())
+			if (!arguments)
+			{
+				std::println(
+					"Tokenizing error: {}\n{}\n",
+					arguments.error().m_ErrorMsg, arguments.error().ToString(8, line_num)
+				);
+
+				goto LAB_NEXT;
+			}
+
+			if (arguments->empty())
 				goto LAB_NEXT;
 
 			// Is it an instruction?
 			for (auto&& [signature, parser] : script_t::PARSERS)
 			{
-				if (signature.front() != arguments.front())
+				if (signature.front() != arguments->front())
 					continue;
 
 				[[maybe_unused]] auto const res =
 
 					// Transform the arguments according to signature.
-					this->Parser_ProcSig(signature, arguments, szLine)
+					this->Parser_ProcSig(signature, *arguments, szLine)
 
 					// Call parser with processed args
 					.and_then([&](auto&& args) noexcept { return std::invoke(parser, *this, std::forward<decltype(args)>(args), szLine); })
@@ -1547,7 +1608,7 @@ struct script_t final
 					goto LAB_NEXT;
 				}
 
-				std::println("Warning: Unknown instruction '{}' was ignored\n{}\n", arguments.front(), err.ToString(8, line_num));
+				std::println("Warning: Unknown instruction '{}' was ignored\n{}\n", arguments->front(), err.ToString(8, line_num));
 			}
 
 		LAB_NEXT:;
@@ -1582,6 +1643,7 @@ struct script_t final
 					e.what(),
 					static_cast<std::remove_cvref_t<decltype(EIP)>>(EIP)
 				);
+				assert(false);
 			}
 
 			if (sav == EIP)
@@ -1667,30 +1729,6 @@ CMOVE EDX, 114514
 	assert(*script.m_edx == 42);
 }
 
-static void UnitTest_Error() noexcept
-{
-	static constexpr std::string_view SOURCE = u8R"(
-LAB1:
-;
-; Ill-formed instructions
-;
-XCHG 1024, EDX	; Inlined comment test
-XCHG EDX, Y
-MOV [a + b * c - d], EIP
-UNKNOWN A, B, C
-LAB1:	; error here
-CMP [10 @ 8], EDX	; unknown operator@
-)";
-	script_t script{};
-	script.Compile(SOURCE);
-	script.Execute();
-
-	assert(*script.m_eax == 0);
-	assert(*script.m_ebx == 0);
-	assert(*script.m_ecx == 0);
-	assert(*script.m_edx == 0);
-}
-
 static void UnitTest_TEST() noexcept
 {
 	static constexpr std::string_view SOURCE = u8R"(
@@ -1747,12 +1785,61 @@ static void UnitTest_CMP() noexcept
 	assert(script.m_eflags->m_AF == false);
 }
 
+static void UnitTest_BuiltinFunc() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+MOV EAX, [abs(-3) + abs(3)]
+MOV EBX, [round(remainder(10.3, 3.1))]	; It's absolutely 1, just rounding the floating error.
+MOV ECX, [max(EAX, EBX)]
+MOV EDX, [min(EAX, EBX)]
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(*script.m_eax == 6);
+	assert(*script.m_ebx == 1);
+	assert(*script.m_ecx == *script.m_eax);
+	assert(*script.m_edx == *script.m_ebx);
+}
+
+static void UnitTest_Error() noexcept
+{
+	std::println("=============Error Testing begins=============\n");
+
+	static constexpr std::string_view SOURCE = u8R"(
+LAB1:
+;
+; Ill-formed instructions
+;
+XCHG 1024, EDX	; Inlined comment test
+XCHG EDX, Y
+MOV [a + b * c - d], EIP
+UNKNOWN A, B, C
+LAB1:	; error here
+CMP [10 @ 8], EDX	; unknown operator@
+WTF a @b c
+MOV EAX, [atan(3)]
+MOV EAX, [arctan(3)]
+)";
+	script_t script{};
+	script.Compile(SOURCE);
+	script.Execute();
+
+	assert(*script.m_eax == 0);
+	assert(*script.m_ebx == 0);
+	assert(*script.m_ecx == 0);
+	assert(*script.m_edx == 0);
+
+	std::println("=============Error Testing ends=============\n");
+}
+
 int main() noexcept
 {
 	UnitTest_Literals();
 	UnitTest_Expression();
 	UnitTest_Exchange();
-	UnitTest_Error();
 	UnitTest_TEST();
 	UnitTest_CMP();
+	UnitTest_BuiltinFunc();
+	UnitTest_Error();
 }
