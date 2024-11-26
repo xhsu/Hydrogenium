@@ -27,5 +27,11 @@
     <ClCompile Include="..\..\fmt\src\os.cc">
       <Filter>Source Files\fmtlib</Filter>
     </ClCompile>
+    <ClCompile Include="..\UtlRandom.ixx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlConcepts.ixx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

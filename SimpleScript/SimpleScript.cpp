@@ -19,6 +19,7 @@
 #include <span>
 #include <string_view>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -33,13 +34,17 @@
 import std.compat;
 #endif
 
+import UtlRandom;
+
 using std::expected;
 using std::move_only_function;
 using std::optional;
+using std::pair;
 using std::shared_ptr;
 using std::span;
 using std::string;
 using std::string_view;
+using std::tuple;
 using std::unordered_map;
 using std::variant;
 using std::vector;
@@ -554,13 +559,13 @@ namespace Func
 		return func_param_counter(&T::operator());
 	}
 
-	template <fixed_string ID, auto FN>
+	template <fixed_string ID, auto FN, typename proj_t = std::identity>
 	struct script_fn_t final
 	{
 		struct functor_impl_t final
 		{
 			static inline constexpr auto m_fun{ FN };
-			static inline constexpr visitor_script_cell<> m_visitor{};
+			static inline constexpr visitor_script_cell<proj_t> m_visitor{};
 
 			constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
 			{
@@ -590,9 +595,17 @@ namespace Func
 		return std::log(x) / std::log(base);
 	}
 
+	// #UPDATE_AT_CPP23_cmath
+	value_t quotient(value_t dividend, value_t divisor) noexcept
+	{
+		auto const res = std::div((int32_t)dividend, (int32_t)divisor);
+		return res.quot;
+	}
+
 	// Basic
 	using abs_t = script_fn_t<"abs", static_cast<value_t(*)(value_t)>(&std::abs)>;
-	using remainder_t = script_fn_t<"remainder", static_cast<value_t(*)(value_t, value_t)>(&std::remainder)>;
+	using remainder_t = script_fn_t<"remainder", static_cast<value_t(*)(value_t, value_t)>(&std::fmod)>;	// std::remainder() is pure and fully bullshit.
+	using quotient_t = script_fn_t<"quotient", &quotient>;	// Like std::remainder(), std::remquo() is bullshit.
 	using max_t = script_fn_t<"max", static_cast<value_t(*)(value_t, value_t)>(&std::fmax)>;
 	using min_t = script_fn_t<"min", static_cast<value_t(*)(value_t, value_t)>(&std::fmin)>;
 	using clamp_t = script_fn_t<"clamp", &std::clamp<value_t>>;
@@ -617,13 +630,18 @@ namespace Func
 	using floor_t = script_fn_t<"floor", static_cast<value_t(*)(value_t)>(&std::floor)>;
 	using round_t = script_fn_t<"round", static_cast<value_t(*)(value_t)>(&std::round)>;
 
+	// Random
+	using randomf_t = script_fn_t<"randomf", &UTIL_Random<value_t>>;
+	using randomi_t = script_fn_t<"randomi", &UTIL_Random<int32_t>, Op::adaptor_int32>;
+
 	constexpr auto impl_all_fun_wrapper(auto&& impl) noexcept
 	{
 		return impl.template operator() <
-			abs_t, remainder_t, max_t, min_t, clamp_t,
+			abs_t, remainder_t, quotient_t, max_t, min_t, clamp_t,
 			pow_t, log_t, sqrt_t, hypot2_t, hypot3_t,
 			sine_t, cosine_t, tangent_t, arcsine_t, arccosine_t, arctangent_t,
-			ceil_t, floor_t, round_t
+			ceil_t, floor_t, round_t,
+			randomf_t, randomi_t
 		> ();
 	}
 
@@ -865,6 +883,71 @@ static_assert(SYA_Test());
 
 
 
+struct Inspector final
+{
+	static inline constexpr auto fnParamOptional = [](string_view const& s) noexcept { return s.length() > 2 && s.front() == '[' && s.back() == ']'; };
+	static inline constexpr auto fnParamVariadic = [](string_view const& s) noexcept { return s.ends_with("...") || s.ends_with("...]"); };
+
+	static constexpr auto ArgCount(span<string_view const> signature) noexcept -> expected<pair<uint8_t, uint8_t>, string_view>
+	{
+		// %param => 1, 1
+		// %param, [%opt] => 1, 2
+		// %param, %var... => 2, 255
+		// %param, [%opt...] => 1, 255
+		// %param, %var..., %param => ERROR
+		// %param, [%opt], %param => ERROR
+		// %param, [%opt...], [%opt] => ERROR
+		// %param, %var..., [%opt...] => ERROR
+
+		auto const itFirstVariadic = std::ranges::find_if(signature, fnParamVariadic);
+		auto const rgLastVariadic = std::ranges::find_last_if(signature, fnParamVariadic);
+		if (itFirstVariadic != rgLastVariadic.begin())
+			return std::unexpected("Bad signature: exactly one variadic parameter pack is allowed");
+		if (rgLastVariadic.size() > 1)
+			return std::unexpected("Bad signature: Variadic parameter pack must be the last one in signature");
+
+		bool const bVariadicPresent = itFirstVariadic != signature.end();
+		auto const itFirstOptional = std::ranges::find_if(signature, fnParamOptional);
+		if (itFirstOptional == signature.end())	// i.e. no optional param
+			return pair{ (uint8_t)signature.size(), (uint8_t)(bVariadicPresent ? 0xFF : signature.size()) };
+
+		auto const itLastCompulsory = std::ranges::find_last_if_not(signature, fnParamOptional).begin();
+		if (itLastCompulsory >= itFirstOptional)
+			return std::unexpected("Bad signature: optional arguments must not come after compulsory arguments");
+
+		return pair{ (uint8_t)(itLastCompulsory - signature.begin() + 1), (uint8_t)(bVariadicPresent ? 0xFF : signature.size()) };
+	}
+
+/*
+	constexpr std::array TEST_1 = { "%param"sv };
+	constexpr std::array TEST_2 = { "%param"sv, "[%opt]"sv, };
+	constexpr std::array TEST_3 = { "%param"sv, "%var..."sv, };
+	constexpr std::array TEST_4 = { "%param"sv, "[%opt...]"sv, };
+
+	static_assert(Inspector::ArgCount(TEST_1).value() == pair{ 1, 1 });
+	static_assert(Inspector::ArgCount(TEST_2).value() == pair{ 1, 2 });
+	static_assert(Inspector::ArgCount(TEST_3).value() == pair{ 2, 255 });
+	static_assert(Inspector::ArgCount(TEST_4).value() == pair{ 1, 255 });
+*/
+
+	static constexpr bool VerifyArg(string_view const& param, auto const& arg) noexcept
+	{
+		vector<bool> res{};
+		if (param.contains("%in"))
+			res.push_back(Cell_IsInput(arg));
+		if (param.contains("%out"))
+			res.push_back(Cell_IsOutput(arg));
+		if (param.contains("%label"))
+			res.push_back(Cell_IsLabel(arg));
+		if (param.contains("%num"))
+			res.push_back(Cell_IsNumeric(arg));
+		if (param.contains("%str"))
+			res.push_back(Cell_IsString(arg));
+
+		return std::ranges::count(res, true) == std::ssize(res);
+	}
+};
+
 struct error_t final
 {
 	constexpr error_t(error_t const&) noexcept = default;
@@ -1037,7 +1120,7 @@ struct script_t final
 	valref_t m_edx{ std::make_shared<value_t>() };	// Data register
 
 	shared_ptr<std::ptrdiff_t> m_eip{ std::make_shared<std::ptrdiff_t>() };	// Instruction Pointer
-	vector<std::ptrdiff_t> m_esp{};	// Stack Pointer register
+	shared_ptr<vector<std::ptrdiff_t>> m_esp{ std::make_shared<vector<std::ptrdiff_t>>() };	// Stack Pointer register
 	// shared_ptr<uint32_t> m_ebp{ std::make_shared<uint32_t>() };	// Stack Base Pointer register
 
 	strref_t m_esi{ std::make_shared<string>() };	// Destination Index register
@@ -1142,7 +1225,7 @@ struct script_t final
 	auto Parser_ParamNumeric(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, string>
 	{
 		if (argument == "EIP" || argument == "IP")
-			return std::unexpected("Instruction Pointer ought not to be read");
+			return std::unexpected("Instruction Pointer ought not to be accessed");
 
 		if (argument.length() && argument.front() == '[' && argument.back() == ']')
 		{
@@ -1230,34 +1313,36 @@ struct script_t final
 		return std::unexpected(std::format("'{}' cannot be evaluated as a string", argument));
 	}
 
-	static constexpr bool Checker_Param(string_view const& param, auto const& arg) noexcept
-	{
-		vector<bool> res{};
-		if (param.contains("%in"))
-			res.push_back(Cell_IsInput(arg));
-		if (param.contains("%out"))
-			res.push_back(Cell_IsOutput(arg));
-		if (param.contains("%label"))
-			res.push_back(Cell_IsLabel(arg));
-		if (param.contains("%num"))
-			res.push_back(Cell_IsNumeric(arg));
-		if (param.contains("%str"))
-			res.push_back(Cell_IsString(arg));
-
-		return std::ranges::count(res, true) == std::ssize(res);
-	}
-
-	auto Parser_ProcSig(span<string_view const> parameters, span<string_view const> arguments, string_view szLineText) noexcept -> expected<vector<script_cell_t>, vector<error_t>>
+	auto Parser_ProcArg(span<string_view const> signature, pair<uint8_t, uint8_t> argc, span<string_view const> arguments, string_view szLineText) noexcept -> expected<vector<script_cell_t>, vector<error_t>>
 	{
 		vector<script_cell_t> processed{};
 		vector<error_t> errors{};
 		auto const result_inserter = [&](auto&& a) noexcept { processed.emplace_back(std::forward<decltype(a)>(a)); };
 
-		if (arguments.size() != parameters.size())
+		// Verify arg count
+		if (arguments.size() > argc.second)
 		{
-			errors.emplace_back(szLineText, 0, std::format("Expected {} operand but {} received", parameters.size(), arguments.size()));
+			errors.emplace_back(szLineText, 0, std::format("Expected up to {} operand(s) but {} received", argc.second, arguments.size()));
 			return std::unexpected(std::move(errors));
 		}
+		else if (arguments.size() < argc.first)
+		{
+			errors.emplace_back(szLineText, 0, std::format("Expected at least {} operand(s) but {} received", argc.first, arguments.size()));
+			return std::unexpected(std::move(errors));
+		}
+
+		// Build a parameter list from signature
+		vector<string_view> parameters{ std::from_range, signature };
+		parameters.reserve(argc.second);
+
+		// Assume the signature is legit. Which means if parameter pack presented, it must be at the last spot.
+		if (Inspector::fnParamVariadic(parameters.back()))
+		{
+			auto const count = std::ssize(arguments) - std::ssize(parameters);
+			if (count > 0)
+				parameters.append_range(std::views::repeat(parameters.back()) | std::views::take(count));
+		}
+		assert(parameters.size() >= arguments.size());
 
 		for (int i = 1; i < std::ssize(arguments); ++i)
 		{
@@ -1282,7 +1367,7 @@ struct script_t final
 			}
 
 			// Checker
-			if (res && !Checker_Param(parameters[i], *res))
+			if (res && !Inspector::VerifyArg(parameters[i], *res))
 				errors.emplace_back(szLineText, i, "The argument does not meet the parameter constraint");
 			else if (res)
 				std::visit(result_inserter, std::move(res).value());
@@ -1704,41 +1789,107 @@ struct script_t final
 			};
 	}
 
+	static inline constexpr std::string_view SIG_CALL[] = { "CALL", "%label", };
+	auto Parser_CALL(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		auto& label = arguments[0];
+
+		// It is assumed that no ill-formed argument can reach here.
+		assert(std::holds_alternative<std::ptrdiff_t*>(label));
+
+		return
+			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip }, esp{ m_esp }, addr{ iSelfAddr + 1 }]() noexcept
+			{
+				esp->push_back(addr);	// push ret_address
+				*eip = *pos;			// jmp func_label
+			};
+	}
+
+	static inline constexpr std::string_view SIG_RET[] = { "RET", };
+	auto Parser_RET(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		// It is assumed that no ill-formed argument can reach here.
+		assert(arguments.size() == 0);
+
+		return
+			[eip{ m_eip }, esp{ m_esp }, iSelfAddr]() noexcept
+			{
+#ifdef _DEBUG
+				assert(!esp->empty());
+#else
+				if (esp->empty()) [[unlikely]]
+				{
+					std::println("Runtime error: attempting to RET with empty stack on instruction #{}", iSelfAddr);
+					std::abort();
+				}
+#endif
+				// RET equals to:
+				// pop rax
+				// jmp rax
+
+				*eip = esp->back();
+				esp->pop_back();
+			};
+	}
+
+	static inline constexpr std::string_view SIG_TABLE[] = { "TABLE", "%label...", };
+	auto Parser_TABLE(vector<script_cell_t> arguments, string_view, std::ptrdiff_t) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		auto labels =
+			arguments
+			| std::views::transform([](auto& a) noexcept { return std::get<std::ptrdiff_t*>(std::move(a)); })
+			| std::ranges::to<vector>();
+
+		// It is assumed that no ill-formed argument can reach here.
+		assert(labels.size() > 0);
+
+		return
+			[labels{ std::move(labels) }, ebx{ m_ebx }, eip{ m_eip }]() noexcept
+			{
+				auto const iebx = static_cast<int32_t>(*ebx);
+				if (iebx < 0 || iebx >= std::ssize(labels))
+					return;
+
+				*eip = *labels[iebx];
+			};
+	}
+
 	// Ownership transfered, hence parser has argument with value type of vector<>
 	using parser_t = decltype(&script_t::Parser_MOV);
-	static inline constexpr std::pair<span<string_view const>, parser_t> PARSERS[] =
+	static inline constexpr tuple<span<string_view const>, pair<uint8_t, uint8_t>, parser_t> PARSERS[] =
 	{
 		// Data Transfer Instructions
 
-		{ SIG_MOV, &script_t::Parser_MOV },
-		{ SIG_LEA, &script_t::Parser_MOV },	// They are the same here, with no difference between register and memory
-		{ SIG_XCHG, &script_t::Parser_XCHG },
-		{ SIG_CMPXCHG, &script_t::Parser_CMPXCHG },
-		{ SIG_MOVS, &script_t::Parser_MOVS },
-		{ SIG_CMOVE, &script_t::Parser_CMOV<&flag_register_t::Equal> },
-		{ SIG_CMOVNE, &script_t::Parser_CMOV<&flag_register_t::NotEqual> },
-		{ SIG_CMOVG, &script_t::Parser_CMOV<&flag_register_t::Greater> },
-		{ SIG_CMOVGE, &script_t::Parser_CMOV<&flag_register_t::GreaterOrEq> },
-		{ SIG_CMOVL, &script_t::Parser_CMOV<&flag_register_t::Lesser> },
-		{ SIG_CMOVLE, &script_t::Parser_CMOV<&flag_register_t::LesserOrEq> },
+		{ SIG_MOV, Inspector::ArgCount(SIG_MOV).value(), &script_t::Parser_MOV },
+		{ SIG_LEA, Inspector::ArgCount(SIG_LEA).value(), &script_t::Parser_MOV },	// They are the same here, with no difference between register and memory
+		{ SIG_XCHG, Inspector::ArgCount(SIG_XCHG).value(), &script_t::Parser_XCHG },
+		{ SIG_CMPXCHG, Inspector::ArgCount(SIG_CMPXCHG).value(), &script_t::Parser_CMPXCHG },
+		{ SIG_MOVS, Inspector::ArgCount(SIG_MOVS).value(), &script_t::Parser_MOVS },
+		{ SIG_CMOVE, Inspector::ArgCount(SIG_CMOVE).value(), &script_t::Parser_CMOV<&flag_register_t::Equal> },
+		{ SIG_CMOVNE, Inspector::ArgCount(SIG_CMOVNE).value(), &script_t::Parser_CMOV<&flag_register_t::NotEqual> },
+		{ SIG_CMOVG, Inspector::ArgCount(SIG_CMOVG).value(), &script_t::Parser_CMOV<&flag_register_t::Greater> },
+		{ SIG_CMOVGE, Inspector::ArgCount(SIG_CMOVGE).value(), &script_t::Parser_CMOV<&flag_register_t::GreaterOrEq> },
+		{ SIG_CMOVL, Inspector::ArgCount(SIG_CMOVL).value(), &script_t::Parser_CMOV<&flag_register_t::Lesser> },
+		{ SIG_CMOVLE, Inspector::ArgCount(SIG_CMOVLE).value(), &script_t::Parser_CMOV<&flag_register_t::LesserOrEq> },
 
 		// Control Flow Instructions
 
-		{ SIG_TEST, &script_t::Parser_TEST },
-		{ SIG_CMP, &script_t::Parser_CMP },
-		{ SIG_JMP, &script_t::Parser_JMP },
-		{ SIG_JE, &script_t::Parser_JMPCC<&flag_register_t::Equal> },
-		{ SIG_JNE, &script_t::Parser_JMPCC<&flag_register_t::NotEqual> },
-		{ SIG_JG, &script_t::Parser_JMPCC<&flag_register_t::Greater> },
-		{ SIG_JGE, &script_t::Parser_JMPCC<&flag_register_t::GreaterOrEq> },
-		{ SIG_JL, &script_t::Parser_JMPCC<&flag_register_t::Lesser> },
-		{ SIG_JLE, &script_t::Parser_JMPCC<&flag_register_t::LesserOrEq> },
-		{ SIG_LOOP, &script_t::Parser_LOOP },
-		{ SIG_LOOPE, &script_t::Parser_LOOPCC<&flag_register_t::Equal> },
-		{ SIG_LOOPNE, &script_t::Parser_LOOPCC<&flag_register_t::NotEqual> },
+		{ SIG_TEST, Inspector::ArgCount(SIG_TEST).value(), &script_t::Parser_TEST },
+		{ SIG_CMP, Inspector::ArgCount(SIG_CMP).value(), &script_t::Parser_CMP },
+		{ SIG_JMP, Inspector::ArgCount(SIG_JMP).value(), &script_t::Parser_JMP },
+		{ SIG_JE, Inspector::ArgCount(SIG_JE).value(), &script_t::Parser_JMPCC<&flag_register_t::Equal> },
+		{ SIG_JNE, Inspector::ArgCount(SIG_JNE).value(), &script_t::Parser_JMPCC<&flag_register_t::NotEqual> },
+		{ SIG_JG, Inspector::ArgCount(SIG_JG).value(), &script_t::Parser_JMPCC<&flag_register_t::Greater> },
+		{ SIG_JGE, Inspector::ArgCount(SIG_JGE).value(), &script_t::Parser_JMPCC<&flag_register_t::GreaterOrEq> },
+		{ SIG_JL, Inspector::ArgCount(SIG_JL).value(), &script_t::Parser_JMPCC<&flag_register_t::Lesser> },
+		{ SIG_JLE, Inspector::ArgCount(SIG_JLE).value(), &script_t::Parser_JMPCC<&flag_register_t::LesserOrEq> },
+		{ SIG_LOOP, Inspector::ArgCount(SIG_LOOP).value(), &script_t::Parser_LOOP },
+		{ SIG_LOOPE, Inspector::ArgCount(SIG_LOOPE).value(), &script_t::Parser_LOOPCC<&flag_register_t::Equal> },
+		{ SIG_LOOPNE, Inspector::ArgCount(SIG_LOOPNE).value(), &script_t::Parser_LOOPCC<&flag_register_t::NotEqual> },
+		{ SIG_CALL, Inspector::ArgCount(SIG_CALL).value(), &script_t::Parser_CALL },
+		{ SIG_RET, Inspector::ArgCount(SIG_RET).value(), &script_t::Parser_RET },
+		{ SIG_TABLE, Inspector::ArgCount(SIG_TABLE).value(), &script_t::Parser_TABLE },
 
-		// CALL
-		// RET
 		// ENTER
 		// LEAVE
 		// HLT
@@ -1795,7 +1946,7 @@ struct script_t final
 				goto LAB_NEXT;
 
 			// Is it an instruction?
-			for (auto&& [signature, parser] : script_t::PARSERS)
+			for (auto&& [signature, argc, parser] : script_t::PARSERS)
 			{
 				if (signature.front() != arguments->front())
 					continue;
@@ -1806,7 +1957,7 @@ struct script_t final
 				[[maybe_unused]] auto const res =
 
 					// Transform the arguments according to signature.
-					this->Parser_ProcSig(signature, *arguments, szLine)
+					this->Parser_ProcArg(signature, argc, *arguments, szLine)
 
 					// Call parser with processed args
 					.and_then([&](auto&& args) noexcept { return std::invoke(parser, *this, std::forward<decltype(args)>(args), szLine, iSelfAddr); })
@@ -1926,6 +2077,7 @@ struct script_t final
 		std::println("EDX: {}", *m_edx);
 	}
 };
+
 
 
 static void UnitTest_Literals() noexcept
@@ -2083,6 +2235,84 @@ MOV EDX, [min(EAX, EBX)]
 	assert(*script.m_ebx == 1);
 	assert(*script.m_ecx == *script.m_eax);
 	assert(*script.m_edx == *script.m_ebx);
+
+	static constexpr std::string_view SOURCE2 = u8R"(
+MOV	EAX, [randomf(10, 20)]
+MOV	EBX, [randomi(1, 9)]
+MOV	ECX, [remainder(EAX, EBX)]
+MOV	EDX, [quotient(EAX, EBX)]
+CMP	EAX, [EBX * EDX + ECX]
+)";
+	script.Compile(SOURCE2);
+	script.Execute();
+
+	assert(*script.m_eax == (*script.m_ebx * *script.m_edx + *script.m_ecx));
+	assert(script.m_eflags->Equal());
+}
+
+static void UnitTest_CALL() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+JMP main
+
+my_func:
+	MOV EAX, [EAX + 1]
+	RET
+
+main:
+	CMP	EAX, EBX	; EAX(0) == EBX(0)
+	JNE if			; Not triggered
+	JE	else		; Jump to 'else' label
+
+	if:
+	MOV ECX, pi		; Going to be skipped
+	JMP after_branch
+
+	else:
+	MOV	ECX, phi
+;	JMP after_branch; Not necessary
+
+	after_branch:
+	CALL my_func
+	CMP EAX, ECX	; EAX(1) != ECX(phi)
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(*script.m_eax == 1);
+	assert(*script.m_ebx == 0);
+	assert(*script.m_ecx == std::numbers::phi);
+	assert(*script.m_edx == 0);
+
+	assert(script.m_eflags->NotEqual());
+}
+
+static void UnitTest_TABLE() noexcept
+{
+	static constexpr std::string_view SOURCE = u8R"(
+MOV EBX, 2
+TABLE L00, L01, L02		; Table jumps according to EBX register.
+JMP end					; Should be skipped
+
+L00:
+	MOV EAX, 1
+	JMP end
+
+L01:
+	MOV EAX, 2
+	JMP end
+
+L02:
+	MOV EAX, 3
+	JMP end
+
+end:
+)";
+	script_t script{ SOURCE };
+	script.Execute();
+
+	assert(*script.m_eax == 3);
+	assert(*script.m_ebx == 2);
 }
 
 static void UnitTest_Error() noexcept
@@ -2103,6 +2333,8 @@ CMP [10 @ 8], EDX	; unknown operator@
 WTF a @b c
 MOV EAX, [atan(3)]
 MOV EAX, [arctan(3)]
+MOVS EDI, [strlen(ESI)]
+TABLE
 )";
 	script_t script{};
 	script.Compile(SOURCE);
@@ -2129,5 +2361,7 @@ int main(int, char*[]) noexcept
 	UnitTest_CMP();
 	UnitTest_LOOP();
 	UnitTest_BuiltinFunc();
+	UnitTest_CALL();
+	UnitTest_TABLE();
 	UnitTest_Error();
 }

@@ -137,6 +137,8 @@
   <ItemGroup>
     <ClCompile Include="..\..\fmt\src\format.cc" />
     <ClCompile Include="..\..\fmt\src\os.cc" />
+    <ClCompile Include="..\UtlConcepts.ixx" />
+    <ClCompile Include="..\UtlRandom.ixx" />
     <ClCompile Include="SimpleScript.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
