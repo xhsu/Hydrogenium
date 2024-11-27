@@ -1,4 +1,4 @@
-// SimpleScript.cpp : This file contains the 'main' function. Program execution begins and ends there.
+﻿// SimpleScript.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
 #ifdef __INTELLISENSE__
@@ -102,6 +102,105 @@ static_assert(UTIL_Trim("ABC ") == "ABC");
 static_assert(UTIL_Trim(" \t") == "");
 static_assert(UTIL_Trim("") == "");
 
+using u32char = std::conditional_t<sizeof(wchar_t) == sizeof(char32_t), wchar_t, char32_t>;
+
+enum struct CodePoint : uint_fast8_t
+{
+	WHOLE = 1,
+	BEGIN_OF_2 = 2,
+	BEGIN_OF_3 = 3,
+	BEGIN_OF_4 = 4,
+	MID,
+	INVALID,
+};
+
+static constexpr auto UTIL_CodePointOf(char c) noexcept -> CodePoint
+{
+	auto const u = static_cast<uint32_t>(c);
+
+	if (u <= 0x7F)
+		return CodePoint::WHOLE;
+
+	else if ((u & 0b111'000'00) == 0b110'000'00)
+		return CodePoint::BEGIN_OF_2;
+
+	else if ((u & 0b1111'0000) == 0b1110'0000)
+		return CodePoint::BEGIN_OF_3;
+
+	else if ((u & 0b11111'000) == 0b11110'000)
+		return CodePoint::BEGIN_OF_4;
+
+	else if ((u & 0b11'000000) == 0b10'000000)
+		return CodePoint::MID;
+
+	else
+		return CodePoint::INVALID;
+}
+
+static constexpr auto UTIL_ToFullWidth(std::span<const char> arr) noexcept -> u32char
+{
+#ifndef _DEBUG
+	if (std::ranges::empty(arr))
+		return 0x110000;	// Invalid Unicode point, max val is 0x10FFFF
+#else
+	assert(!std::ranges::empty(arr));
+#endif
+
+	std::array const bytes{
+		static_cast<uint8_t>(arr[0]),
+		arr.size() > 1 ? static_cast<uint8_t>(arr[1]) : (uint8_t)0,
+		arr.size() > 2 ? static_cast<uint8_t>(arr[2]) : (uint8_t)0,
+		arr.size() > 3 ? static_cast<uint8_t>(arr[3]) : (uint8_t)0,
+	};
+
+	switch (UTIL_CodePointOf(bytes.front()))
+	{
+	case CodePoint::WHOLE:
+		return static_cast<u32char>(bytes.front());
+
+	case CodePoint::BEGIN_OF_2:
+	{
+		u32char ret = (bytes[0] & 0b00011111) << 6 | (bytes[1] & 0b00111111);
+
+		if (ret < (u32char)0x80)		// Not a valid result, Wrong encoding
+			ret = 0;					// Out of UTF8 bound, skip data  
+		else if (ret > (u32char)0x7FF)	// Not a valid result, Wrong encoding
+			ret = 0;					// Out of UTF8 bound, skip data
+
+		return ret;
+	}
+
+	case CodePoint::BEGIN_OF_3:
+	{
+		u32char ret = (bytes[0] & 0b00001111) << 12 | (bytes[1] & 0b00111111) << 6 | (bytes[2] & 0b00111111);
+
+		if (ret < (u32char)0x800)		// Not a valid result, Wrong encoding
+			ret = 0;					// Out of UTF8 bound, skip data  
+		else if (ret > (u32char)0xFFFF)	// Not a valid result, Wrong encoding
+			ret = 0;					// Out of UTF8 bound, skip data  
+
+		return ret;
+	}
+
+	case CodePoint::BEGIN_OF_4:
+	{
+		u32char ret =
+			(bytes[0] & 0b00000111) << 18 | (bytes[1] & 0b00111111) << 12 | (bytes[2] & 0b00111111) << 6 | (bytes[3] & 0b00111111);
+
+		if (ret < (u32char)0x10000)			// Not a valid result, Wrong encoding
+			ret = 0;						// Out of UTF8 bound, skip data  
+		else if (ret > (u32char)0x10FFFF)	// Not a valid result, Wrong encoding 
+			ret = 0;						// Out of UTF8 bound, skip data  
+
+		return ret;
+	}
+
+	default:
+		assert(false);
+		std::unreachable();
+	}
+}
+
 #pragma endregion String Util
 
 #pragma region Variant Util
@@ -139,6 +238,7 @@ using expr_t = move_only_function<value_t() const noexcept>;
 using valref_t = shared_ptr<value_t>;
 using strref_t = shared_ptr<string>;
 using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t*, string, string_view, strref_t>;
+using refobsv_t = variant<valref_t::weak_type, strref_t::weak_type>;
 
 constexpr bool Cell_IsNumeric(auto const& a) noexcept
 {
@@ -751,24 +851,12 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 	return ret;
 }
 
-constexpr bool TKZ_Test() noexcept
-{
-	auto const tokens = Tokenizer("3+4*2/(1-5)^2^3");
-	std::vector<std::string_view> const ans{ "3", "+", "4", "*", "2", "/", "(", "1", "-", "5", ")", "^", "2", "^", "3" };
-	return std::ranges::equal(*tokens, ans);
-}
-static_assert(TKZ_Test());
-
-constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<string_view>, string>
+constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept -> expected<vector<string_view>, string>
 {
 	vector<string_view> ret{};
 	vector<string_view> op_stack{};
 
-	auto identifiers = Tokenizer(s);
-	if (!identifiers)
-		return std::unexpected(std::move(identifiers).error());
-
-	for (auto&& token : identifiers.value())
+	for (auto&& token : tokens)
 	{
 		bool const bIsLiteral = IsLiteral(token);
 		bool const bIsIdentifier = IsIdentifier(token);
@@ -869,17 +957,20 @@ constexpr auto ShuntingYardAlgorithm(string_view s) noexcept -> expected<vector<
 	return std::move(ret);	// For constructing expected<> object
 }
 
-constexpr bool SYA_Test() noexcept
+constexpr bool UnitTest_ArithmeticExpr() noexcept
 {
-	auto const res = ShuntingYardAlgorithm("3+4*2/(1-5)^2^3");
 	auto const rpn =
-		*res
+		Tokenizer("3+4*2/(1-5)^2^3")
+		.and_then(&ShuntingYardAlgorithm);
+
+	auto const concat =
+		*rpn
 		| std::views::join
 		| std::ranges::to<string>();
 
-	return rpn == "342*15-23^^/+";
+	return concat == "342*15-23^^/+";
 }
-static_assert(SYA_Test());
+static_assert(UnitTest_ArithmeticExpr());
 
 
 
@@ -957,7 +1048,7 @@ struct error_t final
 	constexpr error_t& operator=(error_t const&) noexcept = default;
 	constexpr error_t& operator=(error_t&&) noexcept = default;
 
-	constexpr error_t(string_view str, string_view sprtr_ins = " \t\f\v", string_view sprtr_oprd = ",") noexcept
+	constexpr error_t(string_view str) noexcept
 		: m_Text{ UTIL_Trim(str) }, m_Underscore(m_Text.size(), ' ')
 	{
 		for (size_t pos = 0; pos < m_Text.size(); /* Does nothing */)
@@ -985,6 +1076,7 @@ struct error_t final
 			if (!len)
 			{
 				// The segment was problematically.
+				// But we are already the error reporting module, hence we have to continue.
 				m_SegmentsText.emplace_back(m_Text.substr(pos));
 				m_SegmentsUnderline.emplace_back(span{ m_Underscore.data() + pos, m_SegmentsText.back().length() });
 				break;
@@ -1128,7 +1220,7 @@ struct script_t final
 
 	shared_ptr<flag_register_t> m_eflags{ std::make_shared<flag_register_t>() };
 	unordered_map<string, std::ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};
-	unordered_map<string, variant<valref_t::weak_type, strref_t::weak_type>, std::hash<string_view>, std::equal_to<>> m_Observer{};
+	unordered_map<string, refobsv_t, std::hash<string_view>, std::equal_to<>> m_Observer{};
 
 	// Script parser
 
@@ -1170,32 +1262,18 @@ struct script_t final
 		return ret;
 	}
 
-	__forceinline auto Parser_GetRegister(string_view name) const noexcept -> valref_t
-	{
-		if (name == "EAX")
-			return m_eax;
-		if (name == "EBX")
-			return m_ebx;
-		if (name == "ECX")
-			return m_ecx;
-		if (name == "EDX")
-			return m_edx;
-
-		return nullptr;
-	}
-
 	__forceinline static auto Parser_GetImmediate(string_view argument) noexcept -> value_t
 	{
 		if (argument == "e")
 			return std::numbers::e;
-		if (argument == "pi")
+		if (argument == "pi" || argument == u8"π")
 			return std::numbers::pi;
-		if (argument == "phi")
+		if (argument == "phi" || argument == u8"ϕ")
 			return std::numbers::phi;
 
-		// ASCII char is number.
-		if (argument.size() == 3 && argument.front() == '\'' && argument.back() == '\'')
-			return static_cast<value_t>(argument[1]);
+		// Convert to unicode point, as a hex number.
+		if (argument.size() <= 6 && argument.front() == '\'' && argument.back() == '\'')
+			return (value_t)UTIL_ToFullWidth(argument.substr(1, argument.size() - 2));
 
 		int base = 10;
 
@@ -1224,13 +1302,29 @@ struct script_t final
 
 	auto Parser_ParamNumeric(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, string>
 	{
-		if (argument == "EIP" || argument == "IP")
+		// Handle references
+		if (argument == "EAX")
+			return m_eax;
+		if (argument == "EBX")
+			return m_ebx;
+		if (argument == "ECX")
+			return m_ecx;
+		if (argument == "EDX")
+			return m_edx;
+		if (argument == "EIP")
 			return std::unexpected("Instruction Pointer ought not to be accessed");
+		if (argument == "ESI")
+			return std::unexpected("Register ESI cannot be used in arithmetic context");
+		if (argument == "EDI")
+			return std::unexpected("Register EDI cannot be used in arithmetic context");
 
+		// Handle expr
 		if (argument.length() && argument.front() == '[' && argument.back() == ']')
 		{
 			argument = argument.substr(1, argument.size() - 2);
-			auto const PostfixNotation = ShuntingYardAlgorithm(argument);
+			auto const PostfixNotation =
+				Tokenizer(argument)
+				.and_then(&ShuntingYardAlgorithm);
 
 			if (!PostfixNotation)
 				return std::unexpected(std::move(PostfixNotation).error());
@@ -1292,22 +1386,37 @@ struct script_t final
 			return std::move(num_stack.front());
 		}
 
-		if (auto reg = Parser_GetRegister(argument); reg != nullptr)	// nullptr here is no found
-			return reg;
-
+		// Handle literals (Immediate)
 		if (auto const val = Parser_GetImmediate(argument); val == val)	// NaN here is no found
 			return val;
 
 		return std::unexpected(std::format("'{}' is not a register, immediate number or expression", argument));
 	}
 
-	auto Parser_ParamString(string_view argument) const noexcept -> expected<script_cell_t, string>
+	auto Parser_ParamString(string_view argument) const noexcept -> expected<variant<string, string_view, strref_t>, string>
 	{
+		// Handle references
+		if (argument == "EAX")
+			return std::unexpected("Register EAX cannot be used in string context");
+		if (argument == "EBX")
+			return std::unexpected("Register EBX cannot be used in string context");
+		if (argument == "ECX")
+			return std::unexpected("Register ECX cannot be used in string context");
+		if (argument == "EDX")
+			return std::unexpected("Register EDX cannot be used in string context");
+		if (argument == "EIP")
+			return std::unexpected("Instruction Pointer ought not to be accessed");
 		if (argument == "ESI")
 			return m_esi;
-		else if (argument == "EDI")
+		if (argument == "EDI")
 			return m_edi;
-		else if (argument.length() && argument.front() == '"' && argument.back() == '"')
+
+		// Double-quoted string literals
+		if (argument.length() && argument.front() == '"' && argument.back() == '"')
+			return string{ argument.substr(1, argument.size() - 2) };
+
+		// Single-quoted character literals
+		if (argument.length() <= 6 && argument.front() == '\'' && argument.back() == '\'')
 			return string{ argument.substr(1, argument.size() - 2) };
 
 		return std::unexpected(std::format("'{}' cannot be evaluated as a string", argument));
@@ -1363,7 +1472,10 @@ struct script_t final
 			}
 			else if (parameters[i].contains("%str"))
 			{
-				res = Parser_ParamString(arguments[i]);
+				if (auto str_res = Parser_ParamString(arguments[i]); str_res)
+					res = variant_cast(std::move(str_res).value());
+				else
+					res = std::unexpected(std::move(str_res).error());
 			}
 
 			// Checker
@@ -1854,8 +1966,12 @@ struct script_t final
 			};
 	}
 
+	// I/O Instructions
+
+	static inline constexpr std::string_view SIG_OUT[] = { "OUTS", "%str%in", };
+
 	// Ownership transfered, hence parser has argument with value type of vector<>
-	using parser_t = decltype(&script_t::Parser_MOV);
+	using parser_t = expected<instruction_t, vector<error_t>>(script_t::*)(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept;
 	static inline constexpr tuple<span<string_view const>, pair<uint8_t, uint8_t>, parser_t> PARSERS[] =
 	{
 		// Data Transfer Instructions
@@ -1896,9 +2012,11 @@ struct script_t final
 		// NOP
 		// LOCK
 		// WAIT
-
 		// PUSH
 		// POP
+
+		// I/O Instructions
+
 		// IN
 		// OUT
 	};
@@ -2068,14 +2186,6 @@ struct script_t final
 
 		m_eflags->Fill(false);
 	}
-
-	void Print() const noexcept
-	{
-		std::println("EAX: {}", *m_eax);
-		std::println("EBX: {}", *m_ebx);
-		std::println("ECX: {}", *m_ecx);
-		std::println("EDX: {}", *m_edx);
-	}
 };
 
 
@@ -2126,7 +2236,7 @@ static void UnitTest_Exchange() noexcept
 MOV EDX, [5! % -7]	; Unary negation is supported thanks to new tokenizer.
 XCHG ECX, EDX
 CMPXCHG EBX, 9.527e3	; ZF is set from this line. (EAX == EBX == 0)
-CMOVE EDX, 'A'
+CMOVE EDX, 'あ'
 CMPXCHG EBX, 9.527e3	; ZF was unset from this line
 CMOVE EDX, 114514
 )";
@@ -2137,7 +2247,7 @@ CMOVE EDX, 114514
 	assert(*script.m_eax == 9.527e3);
 	assert(*script.m_ebx == 9.527e3);
 	assert(*script.m_ecx == 1);
-	assert(*script.m_edx == (double)'A');
+	assert(*script.m_edx == (double)(U'あ'));	// U+3042
 }
 
 static void UnitTest_TEST() noexcept
@@ -2248,6 +2358,14 @@ CMP	EAX, [EBX * EDX + ECX]
 
 	assert(*script.m_eax == (*script.m_ebx * *script.m_edx + *script.m_ecx));
 	assert(script.m_eflags->Equal());
+
+	static constexpr std::string_view SOURCE3 = u8R"(
+MOV	EAX, [sin ( max ( 2, 3 ) / 3 * pi )]
+)";
+	script.Compile(SOURCE3);
+	script.Execute();
+
+	assert(*script.m_eax == (std::sin(std::max(2.0, 3.0) / 3.0 * std::numbers::pi)));
 }
 
 static void UnitTest_CALL() noexcept
