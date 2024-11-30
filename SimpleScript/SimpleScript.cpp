@@ -36,6 +36,7 @@ import std.compat;
 
 import UtlRandom;
 
+using std::bit_cast;	// Should be a keyword.
 using std::expected;
 using std::move_only_function;
 using std::optional;
@@ -321,7 +322,9 @@ constexpr bool IsIdentifier(string_view s) noexcept
 	bool const legit_starting =
 		('a' <= s.front() && s.front() <= 'z')
 		or ('A' <= s.front() && s.front() <= 'Z')
-		or s.front() == '_';
+		or s.front() == '_'
+//		or bit_cast<uint8_t>(s.front()) & (uint8_t)(0b1000'0000)	// UTF8 unsupported. Cannot distinguish UTF identifiers from UTF operators.
+		;
 
 	if (!legit_starting)
 		return false;
@@ -333,13 +336,68 @@ constexpr bool IsIdentifier(string_view s) noexcept
 			('0' <= c && c <= '9')
 			or ('a' <= c && c <= 'z')
 			or ('A' <= c && c <= 'Z')
-			or c == '_';
+			or c == '_'
+//			or bit_cast<uint8_t>(c) & (uint8_t)(0b1000'0000)	// UTF8. Cannot distinguish UTF identifiers from UTF operators.
+			;
 
 		if (!legit)
 			return false;
 	}
 
 	return true;
+}
+
+namespace Def
+{
+	struct script_constant_t final
+	{
+		string_view m_id{};
+		value_t m_value{};
+	};
+
+	inline constexpr script_constant_t INFO[] =
+	{
+		// Math const
+
+		{ .m_id{ u8"e" },	.m_value{ std::numbers::e } },
+		{ .m_id{ u8"ϕ" },	.m_value{ std::numbers::phi } },
+		{ .m_id{ u8"phi" },	.m_value{ std::numbers::phi } },
+		{ .m_id{ u8"π" },	.m_value{ std::numbers::pi } },
+		{ .m_id{ u8"pi" },	.m_value{ std::numbers::pi } },
+
+		// SI defining constants
+
+		{ .m_id{ u8"h" },		.m_value{ 6.62607015e-34 } },	// Planck constant
+		{ .m_id{ u8"e[0]" },	.m_value{ 1.602176634e-19 } },	// Elementary charge
+		{ .m_id{ u8"k[B]" },	.m_value{ 1.380649e-23 } },		// Boltzmann constant
+		{ .m_id{ u8"N[A]" },	.m_value{ 6.02214076e23 } },	// Avogadro constant
+		{ .m_id{ u8"c" },		.m_value{ 299'792'458 } },		// Speed of light in vacuum
+		{ .m_id{ u8"ΔνCs" },	.m_value{ 9'192'631'770 } },	// Unperturbed ground-state hyperfine transition frequency of the cesium-133 atom
+		{ .m_id{ u8"K[cd]" },	.m_value{ 683 } },				// Luminous efficacy of monochromatic radiation of frequency 540×10^12 hertz
+	};
+
+	// Faraday constant			F
+	// Gravitational constant	G
+	// Conductance quantum		G[0]
+	// Molar gas constant		R
+	// Electron volt			eV
+	// Standard gravity			g
+	// Electron mass			m[e]
+	// Proton mass				m[p]
+	// Atomic mass constant		m[u]
+	// Electric constant		ε[0]
+	// Magnetic constant		μ[0]
+
+	constexpr auto ToValue(string_view s) noexcept -> value_t
+	{
+		for (auto&& [identifier, val] : INFO)
+		{
+			if (s == identifier)
+				return val;
+		}
+
+		return std::numeric_limits<value_t>::quiet_NaN();
+	}
 }
 
 constexpr bool IsLiteral(string_view s, bool const bAllowSign = true) noexcept
@@ -360,6 +418,10 @@ constexpr bool IsLiteral(string_view s, bool const bAllowSign = true) noexcept
 
 	if (s.empty())	// What? only a sign was passed in?
 		return false;
+
+	// Is IRL constant?
+	if (std::ranges::find(Def::INFO, s, &Def::script_constant_t::m_id) != std::ranges::cend(Def::INFO))
+		return true;
 
 	bool const bHex = s.starts_with("0x") || s.starts_with("0X");
 	bool const bOct = s.starts_with("0o") || s.starts_with("0O");
@@ -406,6 +468,11 @@ static_assert(!IsLiteral("--12.34e-5"));	// Bad: too many signs
 static_assert(!IsLiteral("-12.34ef5"));	// Bad: floating with 'f'
 static_assert(!IsLiteral("1.") && !IsLiteral("1e"));	// Bad: Bad fp format.
 
+constexpr bool IsParenthesis(string_view s) noexcept
+{
+	return s == "("sv || s == ")"sv;
+}
+
 namespace Op
 {
 	struct adaptor_int32 final
@@ -449,6 +516,32 @@ namespace Op
 		}
 	};
 
+	template <auto pfn, typename proj_t = std::identity>
+	struct function final
+	{
+		static inline constexpr proj_t m_proj{};
+		static inline constexpr visitor_script_cell<proj_t> m_visitor{};
+
+		constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
+		{
+			if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
+			{
+				static_assert(requires{ { pfn(m_proj(args)...) } -> std::convertible_to<value_t>; });
+				return std::unexpected(pfn(m_proj(args)...));
+			}
+			else
+			{
+				static_assert(requires{ { pfn(m_visitor(std::forward<decltype(args)>(args))...) } -> std::convertible_to<value_t>; });
+				return
+					// Ref: https://stackoverflow.com/questions/47496358/c-lambdas-how-to-capture-variadic-parameter-pack-from-the-upper-scope
+					[...args{ std::move(args) }]() noexcept -> value_t
+					{
+						return pfn(m_visitor(args)...);
+					};
+			}
+		}
+	};
+
 	struct functor_factorial final
 	{
 		constexpr expected<expr_t, value_t> operator()(value_t num) const noexcept
@@ -472,25 +565,28 @@ namespace Op
 		}
 	};
 
-	struct functor_power final
+	// #UPDATE_AT_CPP26 constexpr math, power
+	template <double ROOT>
+	inline auto root(value_t num) noexcept -> value_t
 	{
-		// #UPDATE_AT_CPP26 constexpr math, power
-		expected<expr_t, value_t> operator()(value_t lhs, value_t rhs) const noexcept
-		{
-			return std::unexpected(std::pow(lhs, rhs));
-		}
+		constexpr auto EXPO{ 1.0 / ROOT };	// Makes sure if 0 shows up, so does compiler error.
+		return std::pow(num, EXPO);
+	}
 
-		expected<expr_t, value_t> operator()(auto lhs, auto rhs) const noexcept
-		{
-			return
-				[lhs{ std::move(lhs) }, rhs{ std::move(rhs) }]() noexcept -> value_t
-				{
-					return std::pow(
-						visitor_script_cell{}(lhs), visitor_script_cell{}(rhs)
-					);
-				};
-		}
-	};
+	constexpr auto to_radian(value_t rad) noexcept -> value_t
+	{
+		return rad / 180.0 * std::numbers::pi;
+	}
+
+	constexpr auto celsius_to_kelvin(value_t celsius) noexcept -> value_t
+	{
+		return celsius + 273.15;
+	}
+
+	constexpr auto fahrenheit_to_kelvin(value_t fahrenheit) noexcept -> value_t
+	{
+		return (fahrenheit - 32.0) * (5.0 / 9.0) + 273.15;
+	}
 
 	enum struct EAssoc : uint8_t
 	{
@@ -509,9 +605,15 @@ namespace Op
 		static inline constexpr auto functor = FN{};
 	};
 
+	using degree_t = script_operator_t<u8"°", EAssoc::Left, 7, 1, function<&to_radian>>;	// Different from sign, this symbol has no ambiguity.
+	using celsius_t = script_operator_t<u8"℃", EAssoc::Left, 7, 1, function<&celsius_to_kelvin>>;
+	using fahrenheit_t = script_operator_t<u8"℉", EAssoc::Left, 7, 1, function<&fahrenheit_to_kelvin>>;
+
 	using factorial_t = script_operator_t<"!", EAssoc::Left, 6, 1, functor_factorial>;
 
-	using power_t = script_operator_t<"^", EAssoc::Right, 5, 2, functor_power>;
+	using power_t = script_operator_t < "^", EAssoc::Right, 5, 2, function<static_cast<value_t(*)(value_t, value_t)>(&std::pow)>>;
+	using sqrt_t = script_operator_t<u8"√", EAssoc::Right, 5, 1, function<&root<2.0>>>;
+	using cbrt_t = script_operator_t<u8"∛", EAssoc::Right, 5, 1, function<&root<3.0>>>;
 
 	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, functor<std::multiplies<>>>;
 	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, functor<std::divides<>>>;
@@ -527,8 +629,9 @@ namespace Op
 	constexpr auto impl_all_op_wrapper(auto&& impl) noexcept
 	{
 		return impl.template operator() <
+			Op::degree_t,
 			Op::factorial_t,
-			Op::power_t,
+			Op::power_t, Op::sqrt_t, Op::cbrt_t,
 			Op::multiply_t, Op::divide_t, Op::modulo_t,
 			Op::plus_t, Op::minus_t,
 			Op::assign_t,
@@ -628,9 +731,6 @@ namespace Op
 
 constexpr bool IsOperator(string_view s) noexcept
 {
-	if (s == "(" || s == ")")
-		return true;
-
 	auto const impl = [&]<typename... Tys>() noexcept
 	{
 		return (... || (Tys::m_id == s));
@@ -826,7 +926,7 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 			auto const token = s.substr(pos, len);
 			auto const bIsIdentifier = IsIdentifier(token);	// Function must be a valid identifier itself first. Hence no need to add IsFunction() here.
 			auto const bIsLiteral = IsLiteral(token, bAllowSignOnNext);
-			auto const bIsOperator = IsOperator(token);
+			auto const bIsOperator = IsOperator(token) || IsParenthesis(token);
 
 			if (bIsIdentifier || bIsLiteral || bIsOperator)
 			{
@@ -861,21 +961,22 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 		bool const bIsLiteral = IsLiteral(token);
 		bool const bIsIdentifier = IsIdentifier(token);
 		bool const bIsFunction = IsFunction(token);
+		bool const bIsOperator = IsOperator(token);
 
 		// Is number?
-		if ((bIsLiteral || bIsIdentifier) && !bIsFunction)
+		if ((bIsLiteral || bIsIdentifier) && !bIsFunction && !bIsOperator)
 		{
 			ret.push_back(token);
 		}
 
 		// Is a function?
-		else if (bIsFunction)
+		else if (bIsFunction && !bIsOperator)
 		{
 			op_stack.push_back(token);
 		}
 
-		// operator?
-		else if (token[0] != '(' && token[0] != ')' && IsOperator(token))
+		// operator? Remember that parenthesis is not an operator.
+		else if (bIsOperator)
 		{
 			auto const o1_preced = Op::Preced(token);
 
@@ -1191,6 +1292,8 @@ struct flag_register_t final
 	constexpr bool LesserOrEq() const noexcept { return Lesser() || Equal(); }
 };
 
+// #CONTINUE_FROM_HERE turning the entire script into functional style?
+// span<value_t> num_reg, span<string> str_reg, std::ptrdiff_t* eip
 struct script_t final
 {
 	constexpr script_t(script_t const&) noexcept = delete;	// not copyable
@@ -1219,7 +1322,7 @@ struct script_t final
 	strref_t m_edi{ std::make_shared<string>() };	// Source Index register
 
 	shared_ptr<flag_register_t> m_eflags{ std::make_shared<flag_register_t>() };
-	unordered_map<string, std::ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};
+	unordered_map<string, std::ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};	// The allocated memory will never invalidated.
 	unordered_map<string, refobsv_t, std::hash<string_view>, std::equal_to<>> m_Observer{};
 
 	// Script parser
@@ -1262,14 +1365,11 @@ struct script_t final
 		return ret;
 	}
 
-	__forceinline static auto Parser_GetImmediate(string_view argument) noexcept -> value_t
+	static constexpr auto Parser_GetImmediate(string_view argument) noexcept -> value_t
 	{
-		if (argument == "e")
-			return std::numbers::e;
-		if (argument == "pi" || argument == u8"π")
-			return std::numbers::pi;
-		if (argument == "phi" || argument == u8"ϕ")
-			return std::numbers::phi;
+		// IRL constant
+		if (auto const res = Def::ToValue(argument); res == res)	// NaN is no found.
+			return res;
 
 		// Convert to unicode point, as a hex number.
 		if (argument.size() <= 6 && argument.front() == '\'' && argument.back() == '\'')
@@ -1338,15 +1438,7 @@ struct script_t final
 				bool const bIsIdentifier = IsIdentifier(token);
 				bool const bIsFunction = IsFunction(token);
 
-				if ((bIsLiteral || bIsIdentifier) && !bIsFunction)	// Because all function names are also legit identifier names.
-				{
-					auto parsed_input = Parser_ParamNumeric(token);
-					if (!parsed_input)
-						return std::unexpected(std::move(parsed_input).error());
-
-					num_stack.emplace_back(std::move(parsed_input).value());
-				}
-				else if (IsOperator(token))
+				if (IsOperator(token))	// Operator before identifier, literal or function. Some UTF symbol will get IsIdentifier() confuse.
 				{
 					assert(token != "(" && token != ")");	// Something must be wrong if parenthesis pass through SYA.
 
@@ -1358,6 +1450,15 @@ struct script_t final
 
 					num_stack.erase(num_stack.begin() + first_arg_pos, num_stack.end());
 					num_stack.push_back(std::move(res));
+				}
+
+				else if ((bIsLiteral || bIsIdentifier) && !bIsFunction)	// Because all function names are also legit identifier names.
+				{
+					auto parsed_input = Parser_ParamNumeric(token);
+					if (!parsed_input)
+						return std::unexpected(std::move(parsed_input).error());
+
+					num_stack.emplace_back(std::move(parsed_input).value());
 				}
 
 				// Function is considered as a part of input.
@@ -2228,6 +2329,18 @@ LEA EDX, [ECX % 3!]
 	assert(*script.m_ebx == (int32_t(*script.m_eax) % 13));
 	assert(*script.m_ecx == std::pow(std::numbers::e, std::numbers::pi));
 	assert(*script.m_edx == 5);	// 23 % (3*2*1)
+
+	static constexpr std::string_view SOURCE2 = u8R"(
+LEA EAX, [√2]
+LEA EBX, [∛3]
+LEA ECX, [(1 + √5)/2]
+)";
+	script.Compile(SOURCE2);
+	script.Execute();
+
+	assert(*script.m_eax == std::numbers::sqrt2);
+	assert(*script.m_ebx == std::pow(3.0, 1.0 / 3.0));
+	assert(*script.m_ecx == std::numbers::phi);
 }
 
 static void UnitTest_Exchange() noexcept
@@ -2255,9 +2368,9 @@ static void UnitTest_TEST() noexcept
 	static constexpr std::string_view SOURCE = u8R"(
 TEST 0b1100, 0b0110	; == 0b0100
 JNE label
-MOV EAX, 1
+MOV EAX, [N[A]]			; Being skipped
 label:
-MOV EBX, 2
+MOV EBX, ΔνCs
 )";
 	script_t script{ SOURCE };
 	script.Execute();
@@ -2270,7 +2383,7 @@ MOV EBX, 2
 	assert(script.m_eflags->m_AF == false);
 
 	assert(*script.m_eax == 0);
-	assert(*script.m_ebx == 2);
+	assert(*script.m_ebx == Def::ToValue("ΔνCs"));
 }
 
 static void UnitTest_CMP() noexcept
@@ -2360,12 +2473,14 @@ CMP	EAX, [EBX * EDX + ECX]
 	assert(script.m_eflags->Equal());
 
 	static constexpr std::string_view SOURCE3 = u8R"(
-MOV	EAX, [sin ( max ( 2, 3 ) / 3 * pi )]
+MOV	EAX, [sin ( max ( 2, 3 ) / 3 * π )]
+MOV EBX, [sin(30°)]
 )";
 	script.Compile(SOURCE3);
 	script.Execute();
 
 	assert(*script.m_eax == (std::sin(std::max(2.0, 3.0) / 3.0 * std::numbers::pi)));
+	assert(std::abs(*script.m_ebx - 0.5) < 1e-5);
 }
 
 static void UnitTest_CALL() noexcept
