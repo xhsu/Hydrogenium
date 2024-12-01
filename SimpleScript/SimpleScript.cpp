@@ -367,7 +367,7 @@ namespace Def
 
 		// SI defining constants
 
-		{ .m_id{ u8"h" },		.m_value{ 6.62607015e-34 } },	// Planck constant
+		{ .m_id{ u8"h" },		.m_value{ 6.62607015e-34 } },	// Planck constant (ℎ/ℏ)
 		{ .m_id{ u8"e[0]" },	.m_value{ 1.602176634e-19 } },	// Elementary charge
 		{ .m_id{ u8"k[B]" },	.m_value{ 1.380649e-23 } },		// Boltzmann constant
 		{ .m_id{ u8"N[A]" },	.m_value{ 6.02214076e23 } },	// Avogadro constant
@@ -487,32 +487,7 @@ namespace Op
 	{
 		constexpr expected<expr_t, value_t> operator()(auto&&...) const noexcept
 		{
-			return {};
-		}
-	};
-
-	template <typename operator_t, typename proj_t = std::identity>
-	struct functor final
-	{
-		static inline constexpr operator_t m_op{};
-		static inline constexpr proj_t m_proj{};
-		static inline constexpr visitor_script_cell<proj_t> m_visitor{};
-
-		constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
-		{
-			if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
-			{
-				return std::unexpected(m_op(m_proj(args)...));
-			}
-			else
-			{
-				return
-					// Ref: https://stackoverflow.com/questions/47496358/c-lambdas-how-to-capture-variadic-parameter-pack-from-the-upper-scope
-					[...args{ std::move(args) }]() noexcept -> value_t
-					{
-						return m_op(m_visitor(args)...);
-					};
-			}
+			return std::unexpected(std::numeric_limits<value_t>::quiet_NaN());
 		}
 	};
 
@@ -565,14 +540,6 @@ namespace Op
 		}
 	};
 
-	// #UPDATE_AT_CPP26 constexpr math, power
-	template <double ROOT>
-	inline auto root(value_t num) noexcept -> value_t
-	{
-		constexpr auto EXPO{ 1.0 / ROOT };	// Makes sure if 0 shows up, so does compiler error.
-		return std::pow(num, EXPO);
-	}
-
 	constexpr auto to_radian(value_t rad) noexcept -> value_t
 	{
 		return rad / 180.0 * std::numbers::pi;
@@ -611,20 +578,20 @@ namespace Op
 
 	using factorial_t = script_operator_t<"!", EAssoc::Left, 6, 1, functor_factorial>;
 
-	using power_t = script_operator_t < "^", EAssoc::Right, 5, 2, function<static_cast<value_t(*)(value_t, value_t)>(&std::pow)>>;
-	using sqrt_t = script_operator_t<u8"√", EAssoc::Right, 5, 1, function<&root<2.0>>>;
-	using cbrt_t = script_operator_t<u8"∛", EAssoc::Right, 5, 1, function<&root<3.0>>>;
+	using power_t = script_operator_t<"^", EAssoc::Right, 5, 2, function<static_cast<value_t(*)(value_t, value_t)>(&std::pow)>>;
+	using sqrt_t = script_operator_t<u8"√", EAssoc::Right, 5, 1, function<static_cast<value_t(*)(value_t)>(&std::sqrt)>>;
+	using cbrt_t = script_operator_t<u8"∛", EAssoc::Right, 5, 1, function<static_cast<value_t(*)(value_t)>(&std::cbrt)>>;
 
-	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, functor<std::multiplies<>>>;
-	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, functor<std::divides<>>>;
-	using modulo_t = script_operator_t<"%", EAssoc::Left, 4, 2, functor<std::modulus<>, adaptor_int32>>;	// Only int can take remainder.
+	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, function<std::multiplies{}>> ;
+	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, function<std::divides{}>>;
+	using modulo_t = script_operator_t<"%", EAssoc::Left, 4, 2, function<std::modulus{}, adaptor_int32>>;	// Only int can take remainder.
 
-	using plus_t = script_operator_t<"+", EAssoc::Left, 3, 2, functor<std::plus<>>>;
-	using minus_t = script_operator_t<"-", EAssoc::Left, 3, 2, functor<std::minus<>>>;
+	using plus_t = script_operator_t<"+", EAssoc::Left, 3, 2, function<std::plus{}>>;
+	using minus_t = script_operator_t<"-", EAssoc::Left, 3, 2, function<std::minus{}>>;
 
-	using assign_t = script_operator_t<"=", EAssoc::Right, 2, 2, functor_dummy>;	// Not available now.
+	using assign_t = script_operator_t<"=", EAssoc::Right, 2, 2, functor_dummy>;	// Placeholder & dummy right now.
 
-	using comma_t = script_operator_t<",", EAssoc::Left, 1, 1, functor<std::identity>>;
+	using comma_t = script_operator_t<",", EAssoc::Left, 1, 1, function<std::identity{}>>;
 
 	constexpr auto impl_all_op_wrapper(auto&& impl) noexcept
 	{
