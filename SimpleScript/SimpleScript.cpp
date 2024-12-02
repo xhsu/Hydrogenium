@@ -202,6 +202,23 @@ static constexpr auto UTIL_ToFullWidth(std::span<const char> arr) noexcept -> u3
 	}
 }
 
+static constexpr auto UTIL_GraphemeAt(string_view s, std::ptrdiff_t pos) noexcept -> string_view
+{
+	auto const cp = UTIL_CodePointOf(s[pos]);
+
+	switch (cp)
+	{
+	case CodePoint::WHOLE:
+	case CodePoint::BEGIN_OF_2:
+	case CodePoint::BEGIN_OF_3:
+	case CodePoint::BEGIN_OF_4:
+		return string_view{ std::addressof(s[pos]), (size_t)std::to_underlying(cp) };
+
+	default:
+		return "";
+	}
+}
+
 #pragma endregion String Util
 
 #pragma region Variant Util
@@ -263,7 +280,7 @@ constexpr bool Cell_IsString(auto const& a) noexcept
 		|| std::holds_alternative<strref_t>(a);
 }
 
-constexpr bool Cell_IsInput(auto const& a) noexcept
+constexpr bool Cell_IsInput([[maybe_unused]] auto const& a) noexcept
 {
 	return true;
 }
@@ -283,7 +300,7 @@ struct visitor_script_cell final
 
 	using proj_res_t = std::remove_cvref_t<decltype(std::invoke(m_proj, value_t{}))>;
 
-	inline constexpr auto operator()(auto&& a) const noexcept -> proj_res_t
+	constexpr auto operator()(auto&& a) const noexcept -> proj_res_t
 	{
 		if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
 		{
@@ -485,7 +502,7 @@ namespace Op
 
 	struct functor_dummy final
 	{
-		constexpr expected<expr_t, value_t> operator()(auto&&...) const noexcept
+		constexpr expected<expr_t, value_t> operator()([[maybe_unused]] auto&&...) const noexcept
 		{
 			return std::unexpected(std::numeric_limits<value_t>::quiet_NaN());
 		}
@@ -860,7 +877,6 @@ namespace Func
 			return ret_t{ std::move(res).value() };
 		else
 			return ret_t{ res.error() };
-
 	}
 }
 
@@ -876,13 +892,124 @@ constexpr bool IsFunction(string_view s) noexcept
 
 
 
-constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>, string>
+struct error_t final
+{
+	constexpr error_t(error_t const&) noexcept = default;
+	constexpr error_t(error_t&&) noexcept = default;
+	constexpr ~error_t() noexcept = default;
+
+	constexpr error_t& operator=(error_t const&) noexcept = default;
+	constexpr error_t& operator=(error_t&&) noexcept = default;
+
+	constexpr error_t([[maybe_unused]] std::unexpect_t, string_view line, span<string_view const> segs, string errmsg) noexcept
+		: m_Text{ line }, m_SegmentsText{ std::from_range, segs }, m_ErrorMsg{ std::move(errmsg) }, m_Underscore(m_Text.size(), ' ')
+	{
+		SetupUnderscore();
+
+		// Setup this way means the last segment must be wrong.
+		Emphasis(m_SegmentsText.size() - 1);
+
+		assert(m_Text.size() == m_Underscore.size());
+		assert(m_SegmentsText.size() == m_SegmentsUnderline.size());
+	}
+
+	constexpr error_t(string_view line, span<string_view const> segs, string errmsg) noexcept
+		: m_Text{ line }, m_SegmentsText{ std::from_range, segs }, m_ErrorMsg{ std::move(errmsg) }, m_Underscore(m_Text.size(), ' ')
+	{
+		SetupUnderscore();
+
+		assert(m_Text.size() == m_Underscore.size());
+		assert(m_SegmentsText.size() == m_SegmentsUnderline.size());
+	}
+
+	constexpr void Emphasis(std::ptrdiff_t idx) noexcept
+	{
+		m_SegmentsUnderline[idx].front() = '^';
+
+		for (auto& c : m_SegmentsUnderline[idx] | std::views::drop(1))
+			c = '~';
+	}
+
+	constexpr void Underline(std::ptrdiff_t idx, char ch = '~') noexcept
+	{
+		std::ranges::fill(m_SegmentsUnderline[idx], ch);
+	}
+
+	constexpr void ErrorAt(std::ptrdiff_t idx, string what) noexcept
+	{
+		Emphasis(idx);
+		m_ErrorMsg = std::move(what);
+	}
+
+	auto ToString(string_view leading = "") const noexcept -> string
+	{
+		assert(m_Text.size() == m_Underscore.size());
+
+		return std::format(
+			"{2}{0}\n{2}{1}",
+			m_Text, m_Underscore,
+			leading
+		);
+	}
+
+	auto ToString(size_t iSpaceCount, std::ptrdiff_t line_num) const noexcept -> string
+	{
+		assert(m_Text.size() == m_Underscore.size());
+
+		return std::format(
+			"{0:>{4}} | {1}\n{2} | {3}",
+			line_num, m_Text,
+			string(iSpaceCount, ' '), m_Underscore,
+			iSpaceCount
+		);
+	}
+
+	constexpr auto GetText() const noexcept -> string_view const& { return m_Text; }
+	constexpr auto GetUnderscore() const noexcept -> string const& { return m_Underscore; }
+	constexpr auto GetTextSegment(std::ptrdiff_t idx) const noexcept -> string_view { return m_SegmentsText.at(idx); }
+	constexpr auto GetUnderscoreSegment(std::ptrdiff_t idx) const noexcept -> string_view { return string_view{ m_SegmentsUnderline[idx].data(), m_SegmentsUnderline[idx].size() }; }
+	constexpr auto GetSegmentCount() const noexcept -> std::ptrdiff_t { assert(m_SegmentsText.size() == m_SegmentsUnderline.size()); return std::ranges::ssize(m_SegmentsText); }
+
+	string m_ErrorMsg{};
+
+private:
+
+	// This function was for setting up 'm_SegmentsUnderline'
+	// Assumed that m_Text, m_SegmentsText and m_Underscore were setup correctly.
+	constexpr void SetupUnderscore() noexcept
+	{
+		auto const abs_begin = std::addressof(m_Text[0]);
+
+		for (auto&& seg : m_SegmentsText)
+		{
+			auto const seg_first = std::addressof(seg[0]) - abs_begin;
+			auto const seg_length = seg.length();
+
+			m_SegmentsUnderline.emplace_back(span{ std::addressof(m_Underscore[seg_first]), seg_length });
+		}
+
+		assert(m_Text.size() == m_Underscore.size());
+		assert(m_SegmentsText.size() == m_SegmentsUnderline.size());
+	}
+
+	string_view m_Text{};
+	string m_Underscore{};
+	vector<string_view> m_SegmentsText{};
+	vector<span<char>> m_SegmentsUnderline{};
+};
+
+template <
+	auto fnIsCell = [](auto&& s, bool b) noexcept { return IsIdentifier(s) || IsLiteral(s, b); },
+	auto fnIsParenthesis = &IsParenthesis,
+	auto fnIsOperator = &IsOperator
+>
+constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") noexcept -> expected<vector<string_view>, error_t>
 {
 	// 1. Parse the string as long as possible, like pre-c++11
 	// 2. Kicks off the last character then check again.
 
-	expected<vector<string_view>, string> ret{ std::in_place };
-	ret->reserve(s.size());
+	vector<string_view> ret{};
+	ret.reserve(s.size());
 
 	bool bAllowSignOnNext = true;	// Should not being reset inter-tokens
 	for (size_t pos = 0; pos < s.size(); /* Does nothing */)
@@ -891,33 +1018,50 @@ constexpr auto Tokenizer(string_view s) noexcept -> expected<vector<string_view>
 		while (len > 0)
 		{
 			auto const token = s.substr(pos, len);
-			auto const bIsIdentifier = IsIdentifier(token);	// Function must be a valid identifier itself first. Hence no need to add IsFunction() here.
-			auto const bIsLiteral = IsLiteral(token, bAllowSignOnNext);
-			auto const bIsOperator = IsOperator(token) || IsParenthesis(token);
+			auto const bIsCell = fnIsCell(token, bAllowSignOnNext);	// Function must be a valid identifier itself first. Hence no need to add IsFunction() here.
+			auto const bIsOperator = fnIsOperator(token) || fnIsParenthesis(token);
 
-			if (bIsIdentifier || bIsLiteral || bIsOperator)
+			if (bIsCell || bIsOperator)
 			{
-				ret->emplace_back(token);
+				ret.emplace_back(token);
 				bAllowSignOnNext = bIsOperator;	// If it is an operator prev, then a sign is allow. Things like: x ^ -2 (x to the power of neg 2)
 				break;
 			}
-			else if (len == 1 && " \t\f\v\r\n"sv.contains(s[pos]))
+			else if (len == 1 && separators.contains(s[pos]))
 				break;	// space gets skipped without considered as token.
 
 			--len;
 		}
 
 		if (!len)
+		{
 			// The segment was problematically.
-			return std::unexpected(std::format("Unrecognized symbol '{}' found at pos {}", s.substr(pos, 1), pos));
+			// But for the sake of the error reporting module, pack the rest part into one piece.
+			ret.emplace_back(s.substr(pos));
+
+			// No const here because we need to move it. (RVO)
+			error_t err{
+				std::unexpect,	// overload selection
+				s,
+				std::move(ret),
+				std::format("Unrecognized symbol '{}' found at pos {}", UTIL_GraphemeAt(s, pos), pos),
+			};
+
+			return std::unexpected(std::move(err));
+		}
 		else
 			// If parsed, something must be inserted.
 			pos += len;
 	}
 
-	return ret;
+	return std::move(ret);	// Move into expected<>
 }
 
+template <
+	auto fnIsCell = [](auto&& s) noexcept { return IsIdentifier(s) || IsLiteral(s); },
+	auto fnIsOperator = &IsOperator,
+	auto fnIsFunction = &IsFunction
+>
 constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept -> expected<vector<string_view>, string>
 {
 	vector<string_view> ret{};
@@ -925,13 +1069,12 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 
 	for (auto&& token : tokens)
 	{
-		bool const bIsLiteral = IsLiteral(token);
-		bool const bIsIdentifier = IsIdentifier(token);
-		bool const bIsFunction = IsFunction(token);
-		bool const bIsOperator = IsOperator(token);
+		bool const bIsCell = fnIsCell(token);
+		bool const bIsFunction = fnIsFunction(token);
+		bool const bIsOperator = fnIsOperator(token);
 
 		// Is number?
-		if ((bIsLiteral || bIsIdentifier) && !bIsFunction && !bIsOperator)
+		if (bIsCell && !bIsFunction && !bIsOperator)
 		{
 			ret.push_back(token);
 		}
@@ -1025,20 +1168,69 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 	return std::move(ret);	// For constructing expected<> object
 }
 
-constexpr bool UnitTest_ArithmeticExpr() noexcept
+namespace ArithExpr
 {
-	auto const rpn =
-		Tokenizer("3+4*2/(1-5)^2^3")
-		.and_then(&ShuntingYardAlgorithm);
+	__forceinline constexpr auto Tokenizer(string_view const& s) noexcept
+	{
+		return
+			::Tokenizer<
+				[](auto&& s, bool b) noexcept { return ::IsIdentifier(s) || ::IsLiteral(s, b); },
+				&::IsParenthesis,
+				&::IsOperator
+			>(s, " \t\f\v\r\n");
+	}
 
-	auto const concat =
-		*rpn
-		| std::views::join
-		| std::ranges::to<string>();
+	__forceinline constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept
+	{
+		return
+			::ShuntingYardAlgorithm<
+				[](auto&& s) noexcept { return ::IsIdentifier(s) || ::IsLiteral(s); },
+				&::IsOperator,
+				&::IsFunction
+			>(tokens);
+	}
 
-	return concat == "342*15-23^^/+";
+	constexpr bool UnitTest_ArithmeticExpr() noexcept
+	{
+		auto const tokens = Tokenizer("3+4*2/(1-5)^2^3");
+		auto const rpn = ShuntingYardAlgorithm(tokens.value());
+
+		auto const concat =
+			*rpn
+			| std::views::join
+			| std::ranges::to<string>();
+
+		return concat == "342*15-23^^/+";
+	}
+	static_assert(UnitTest_ArithmeticExpr());
 }
-static_assert(UnitTest_ArithmeticExpr());
+
+namespace Instruction
+{
+	__forceinline constexpr auto Tokenizer(string_view const& s) noexcept
+	{
+		// #UPDATE_AT_CPP23_static_in_constexpr
+		constexpr auto fnIsCell =
+			[](string_view const& token, [[maybe_unused]] bool) noexcept
+			{
+				return
+					(token.front() == '[' && token.back() == ']')	// IsExpr
+					|| (token.length() > 1 && token.back() == ':')	// IsLabel
+					|| ::IsIdentifier(token)
+					|| ::IsLiteral(token)
+					;
+			};
+
+		constexpr auto fnAlwaysFalse =
+			[](auto&&...) noexcept -> bool
+			{
+				return false;
+			};
+
+		return
+			::Tokenizer<fnIsCell, fnAlwaysFalse, fnAlwaysFalse>(s, ", \t\f\v\r\n");
+	}
+}
 
 
 
@@ -1105,125 +1297,6 @@ struct Inspector final
 
 		return std::ranges::count(res, true) == std::ssize(res);
 	}
-};
-
-struct error_t final
-{
-	constexpr error_t(error_t const&) noexcept = default;
-	constexpr error_t(error_t&&) noexcept = default;
-	constexpr ~error_t() noexcept = default;
-
-	constexpr error_t& operator=(error_t const&) noexcept = default;
-	constexpr error_t& operator=(error_t&&) noexcept = default;
-
-	constexpr error_t(string_view str) noexcept
-		: m_Text{ UTIL_Trim(str) }, m_Underscore(m_Text.size(), ' ')
-	{
-		for (size_t pos = 0; pos < m_Text.size(); /* Does nothing */)
-		{
-			auto len = m_Text.size() - pos;
-			while (len > 0)
-			{
-				auto const token = m_Text.substr(pos, len);
-				bool const bIsExpr = token.front() == '[' && token.back() == ']';
-				bool const bIsSeparator = len == 1 && ", \t\f\v\r\n"sv.contains(token.front());
-				bool const bIsLabel = len > 1 && token.back() == ':';
-
-				if (bIsExpr || bIsLabel || IsIdentifier(token) || IsLiteral(token))	// Kind of doggy and bug-proning.
-				{
-					m_SegmentsText.emplace_back(token);
-					m_SegmentsUnderline.emplace_back(span{ m_Underscore.data() + pos, len });
-					break;
-				}
-				else if (bIsSeparator)
-					break;	// space gets skipped without considered as token.
-
-				--len;
-			}
-
-			if (!len)
-			{
-				// The segment was problematically.
-				// But we are already the error reporting module, hence we have to continue.
-				m_SegmentsText.emplace_back(m_Text.substr(pos));
-				m_SegmentsUnderline.emplace_back(span{ m_Underscore.data() + pos, m_SegmentsText.back().length() });
-				break;
-			}
-			else
-				// If parsed, something must be inserted.
-				pos += len;
-		}
-
-		assert(m_SegmentsText.size() == m_SegmentsUnderline.size());
-	}
-
-	constexpr error_t(string_view line, std::ptrdiff_t idx, string what) noexcept
-		: error_t(line)
-	{
-		ErrorAt(idx, std::move(what));
-	}
-
-	constexpr error_t(string_view line, std::ptrdiff_t idx) noexcept
-		: error_t(line)
-	{
-		Emphasis(idx);
-	}
-
-	constexpr void Emphasis(std::ptrdiff_t idx) noexcept
-	{
-		m_SegmentsUnderline[idx].front() = '^';
-
-		for (auto& c : m_SegmentsUnderline[idx] | std::views::drop(1))
-			c = '~';
-	}
-
-	constexpr void Underline(std::ptrdiff_t idx, char ch = '~') noexcept
-	{
-		std::ranges::fill(m_SegmentsUnderline[idx], ch);
-	}
-
-	constexpr void ErrorAt(std::ptrdiff_t idx, string what) noexcept
-	{
-		Emphasis(idx);
-		m_ErrorMsg = std::move(what);
-	}
-
-	auto ToString(string_view leading = "") const noexcept -> string
-	{
-		assert(m_Text.size() == m_Underscore.size());
-
-		return std::format(
-			"{2}{0}\n{2}{1}",
-			m_Text, m_Underscore,
-			leading
-		);
-	}
-
-	auto ToString(size_t iSpaceCount, std::ptrdiff_t line_num) const noexcept -> string
-	{
-		assert(m_Text.size() == m_Underscore.size());
-
-		return std::format(
-			"{0:>{4}} | {1}\n{2} | {3}",
-			line_num, m_Text,
-			string(iSpaceCount, ' '), m_Underscore,
-			iSpaceCount
-		);
-	}
-
-	constexpr auto GetText() const noexcept -> string_view const& { return m_Text; }
-	constexpr auto GetUnderscore() const noexcept -> string const& { return m_Underscore; }
-	constexpr auto GetTextSegment(std::ptrdiff_t idx) const noexcept -> string_view { return m_SegmentsText.at(idx); }
-	constexpr auto GetUnderscoreSegment(std::ptrdiff_t idx) const noexcept -> string_view { return string_view{ m_SegmentsUnderline[idx].data(), m_SegmentsUnderline[idx].size() }; }
-	constexpr auto GetSegmentCount() const noexcept -> std::ptrdiff_t { assert(m_SegmentsText.size() == m_SegmentsUnderline.size()); return std::ranges::ssize(m_SegmentsText); }
-
-	string m_ErrorMsg{};
-
-private:
-	string_view m_Text{};
-	string m_Underscore{};
-	vector<string_view> m_SegmentsText{};
-	vector<span<char>> m_SegmentsUnderline{};
 };
 
 struct flag_register_t final
@@ -1294,44 +1367,6 @@ struct script_t final
 
 	// Script parser
 
-	static constexpr auto Tokenizer_Instruction(string_view s) noexcept -> expected<vector<string_view>, error_t>
-	{
-		// Same tokenizer must be used in error_t
-		expected<vector<string_view>, error_t> ret{ std::in_place };
-		ret->reserve(s.size());
-
-		for (size_t pos = 0; pos < s.size(); /* Does nothing */)
-		{
-			auto len = s.size() - pos;
-			while (len > 0)
-			{
-				auto const token = s.substr(pos, len);
-				bool const bIsExpr = token.front() == '[' && token.back() == ']';
-				bool const bIsSeparator = len == 1 && ", \t\f\v\r\n"sv.contains(token.front());
-				bool const bIsLabel = len > 1 && token.back() == ':';
-
-				if (bIsExpr || bIsLabel || IsIdentifier(token) || IsLiteral(token))	// Kind of doggy and bug-proning.
-				{
-					ret->emplace_back(token);
-					break;
-				}
-				else if (bIsSeparator)
-					break;	// space gets skipped without considered as token.
-
-				--len;
-			}
-
-			if (!len)
-				// The segment was problematically.
-				return std::unexpected(error_t{ s, std::ssize(*ret), std::format("Unrecognized symbol '{}' found at pos {}", s.substr(pos, 1), pos)});
-			else
-				// If parsed, something must be inserted.
-				pos += len;
-		}
-
-		return ret;
-	}
-
 	static constexpr auto Parser_GetImmediate(string_view argument) noexcept -> value_t
 	{
 		// IRL constant
@@ -1389,10 +1424,12 @@ struct script_t final
 		if (argument.length() && argument.front() == '[' && argument.back() == ']')
 		{
 			argument = argument.substr(1, argument.size() - 2);
-			auto const PostfixNotation =
-				Tokenizer(argument)
-				.and_then(&ShuntingYardAlgorithm);
 
+			auto const Tokens = ArithExpr::Tokenizer(argument);
+			if (!Tokens)
+				return std::unexpected(std::move(Tokens).error().m_ErrorMsg);	// #TODO #CONTINUE_FROM_HERE should not discard inlined diagnosis message.
+
+			auto const PostfixNotation = ArithExpr::ShuntingYardAlgorithm(Tokens.value());
 			if (!PostfixNotation)
 				return std::unexpected(std::move(PostfixNotation).error());
 
@@ -1499,12 +1536,16 @@ struct script_t final
 		// Verify arg count
 		if (arguments.size() > argc.second)
 		{
-			errors.emplace_back(szLineText, 0, std::format("Expected up to {} operand(s) but {} received", argc.second, arguments.size()));
+			errors.emplace_back(
+				szLineText, arguments, std::format("Expected up to {} operand(s) but {} received", argc.second, arguments.size())
+			).Emphasis(0);
 			return std::unexpected(std::move(errors));
 		}
 		else if (arguments.size() < argc.first)
 		{
-			errors.emplace_back(szLineText, 0, std::format("Expected at least {} operand(s) but {} received", argc.first, arguments.size()));
+			errors.emplace_back(
+				szLineText, arguments, std::format("Expected at least {} operand(s) but {} received", argc.first, arguments.size())
+			).Emphasis(0);
 			return std::unexpected(std::move(errors));
 		}
 
@@ -1548,11 +1589,11 @@ struct script_t final
 
 			// Checker
 			if (res && !Inspector::VerifyArg(parameters[i], *res))
-				errors.emplace_back(szLineText, i, "The argument does not meet the parameter constraint");
+				errors.emplace_back(szLineText, arguments, "The argument does not meet the parameter constraint").Emphasis(i);
 			else if (res)
 				std::visit(result_inserter, std::move(res).value());
 			else
-				errors.emplace_back(szLineText, i, std::move(res).error());
+				errors.emplace_back(szLineText, arguments, std::move(res).error()).Emphasis(i);
 		}
 
 		if (!errors.empty())
@@ -2109,7 +2150,7 @@ struct script_t final
 		{
 			auto const pos = szOrigLine.find_first_of(';');
 			auto const szLine = UTIL_Trim(szOrigLine.substr(0, pos));
-			auto const arguments = Tokenizer_Instruction(szLine);
+			auto const arguments = Instruction::Tokenizer(szLine);
 			bool bLineHandled = false;
 
 			auto const fnPrintError =
@@ -2162,7 +2203,8 @@ struct script_t final
 
 			if (!bLineHandled)
 			{
-				error_t err{ szLine, 0 };
+				error_t err{ szLine, arguments.value(), "" };
+				err.Emphasis(0);
 
 				// Is it a label?
 				if (szLine.front() != ':' && szLine.back() == ':')
@@ -2530,7 +2572,7 @@ MOV [a + b * c - d], EIP
 UNKNOWN A, B, C
 LAB1:	; error here
 CMP [10 @ 8], EDX	; unknown operator@
-WTF a @b c
+WTF ㄚ ㄅ ㄘ	; Testing error on UTF8 symbol.
 MOV EAX, [atan(3)]
 MOV EAX, [arctan(3)]
 MOVS EDI, [strlen(ESI)]
