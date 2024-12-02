@@ -117,7 +117,7 @@ enum struct CodePoint : uint_fast8_t
 
 static constexpr auto UTIL_CodePointOf(char c) noexcept -> CodePoint
 {
-	auto const u = static_cast<uint32_t>(c);
+	auto const u = static_cast<uint32_t>(bit_cast<std::make_unsigned_t<decltype(c)>>(c));
 
 	if (u <= 0x7F)
 		return CodePoint::WHOLE;
@@ -999,9 +999,9 @@ private:
 };
 
 template <
-	auto fnIsCell = [](auto&& s, bool b) noexcept { return IsIdentifier(s) || IsLiteral(s, b); },
-	auto fnIsParenthesis = &IsParenthesis,
-	auto fnIsOperator = &IsOperator
+	auto fnIsCell,			/* Anything that considered as a single token is a cell */
+	auto fnIsParenthesis,	/* Is the string considered as parenthesises? */
+	auto fnIsOperator		/* Is the string considered as an operator? */
 >
 constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") noexcept -> expected<vector<string_view>, error_t>
 {
@@ -1044,7 +1044,7 @@ constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") 
 				std::unexpect,	// overload selection
 				s,
 				std::move(ret),
-				std::format("Unrecognized symbol '{}' found at pos {}", UTIL_GraphemeAt(s, pos), pos),
+				std::format("Tokenizer error: Unrecognized symbol '{}' found at pos {}", UTIL_GraphemeAt(s, pos), pos),
 			};
 
 			return std::unexpected(std::move(err));
@@ -1058,9 +1058,9 @@ constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") 
 }
 
 template <
-	auto fnIsCell = [](auto&& s) noexcept { return IsIdentifier(s) || IsLiteral(s); },
-	auto fnIsOperator = &IsOperator,
-	auto fnIsFunction = &IsFunction
+	auto fnIsCell,			/* Anything that considered as a single token is a cell */
+	auto fnIsOperator,		/* Is the string considered as an operator? Remember in SYA, parenthesises aren't operators. */	
+	auto fnIsFunction		/* Is this cell actually an function? */
 >
 constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept -> expected<vector<string_view>, string>
 {
@@ -1137,7 +1137,7 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 			catch (...)
 			{
 				/* If the stack runs out without finding a left parenthesis, then there are mismatched parentheses. */
-				return std::unexpected("Mismatched parentheses");
+				return std::unexpected("SYA error: Mismatched parentheses");
 			}
 
 			/*
@@ -1152,14 +1152,14 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 		}
 
 		else
-			return std::unexpected("Unreconsized symbol");
+			return std::unexpected(std::format("SYA error: Unreconsized symbol '{}'", token));
 	}
 
 	/* After the while loop, pop the remaining items from the operator stack into the output queue. */
 	while (!op_stack.empty())
 	{
 		if (op_stack.back() == "(")
-			return std::unexpected("If the operator token on the top of the stack is a parenthesis, then there are mismatched parentheses");
+			return std::unexpected("SYA error: If the operator token on the top of the stack is a parenthesis, then there are mismatched parentheses");
 
 		ret.emplace_back(op_stack.back());
 		op_stack.pop_back();
@@ -1402,7 +1402,7 @@ struct script_t final
 		return std::numeric_limits<value_t>::quiet_NaN();
 	}
 
-	auto Parser_ParamNumeric(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, string>
+	auto Parser_ParamNumeric(string_view argument) const noexcept -> expected<variant<valref_t, value_t, expr_t>, variant<string, error_t>>
 	{
 		// Handle references
 		if (argument == "EAX")
@@ -1414,11 +1414,11 @@ struct script_t final
 		if (argument == "EDX")
 			return m_edx;
 		if (argument == "EIP")
-			return std::unexpected("Instruction Pointer ought not to be accessed");
+			return std::unexpected("Compiling error: Instruction Pointer ought not to be accessed");
 		if (argument == "ESI")
-			return std::unexpected("Register ESI cannot be used in arithmetic context");
+			return std::unexpected("Compiling error: Register ESI cannot be used in arithmetic context");
 		if (argument == "EDI")
-			return std::unexpected("Register EDI cannot be used in arithmetic context");
+			return std::unexpected("Compiling error: Register EDI cannot be used in arithmetic context");
 
 		// Handle expr
 		if (argument.length() && argument.front() == '[' && argument.back() == ']')
@@ -1427,7 +1427,7 @@ struct script_t final
 
 			auto const Tokens = ArithExpr::Tokenizer(argument);
 			if (!Tokens)
-				return std::unexpected(std::move(Tokens).error().m_ErrorMsg);	// #TODO #CONTINUE_FROM_HERE should not discard inlined diagnosis message.
+				return std::unexpected(std::move(Tokens).error());
 
 			auto const PostfixNotation = ArithExpr::ShuntingYardAlgorithm(Tokens.value());
 			if (!PostfixNotation)
@@ -1470,7 +1470,7 @@ struct script_t final
 				{
 					auto const arg_count = Func::ArgCount(token);
 					if (arg_count > num_stack.size())
-						return std::unexpected(std::format("Insufficient argument to invoke function '{}'. Expect {} but {} received", token, arg_count, num_stack.size()));
+						return std::unexpected(std::format("ArithExpr error: Insufficient argument to invoke function '{}'. Expect {} but {} received", token, arg_count, num_stack.size()));
 
 					auto const first_arg_pos = std::min(num_stack.size(), num_stack.size() - arg_count);
 					auto const args = span{ num_stack.data() + first_arg_pos, arg_count };
@@ -1481,11 +1481,11 @@ struct script_t final
 					num_stack.push_back(std::move(res));
 				}
 				else
-					return std::unexpected("Unrecognized token found in expression");
+					return std::unexpected(std::format("ArithExpr error: Unrecognized token '{}' found in expression", token));
 			}
 
 			if (num_stack.empty())
-				return std::unexpected("Bad expression");
+				return std::unexpected("ArithExpr error: Bad expression");
 
 			// For invoking move constructor of variant<>
 			return std::move(num_stack.front());
@@ -1495,22 +1495,22 @@ struct script_t final
 		if (auto const val = Parser_GetImmediate(argument); val == val)	// NaN here is no found
 			return val;
 
-		return std::unexpected(std::format("'{}' is not a register, immediate number or expression", argument));
+		return std::unexpected(std::format("Compiling error: '{}' cannot be interpreted in a numeric context", argument));
 	}
 
 	auto Parser_ParamString(string_view argument) const noexcept -> expected<variant<string, string_view, strref_t>, string>
 	{
 		// Handle references
 		if (argument == "EAX")
-			return std::unexpected("Register EAX cannot be used in string context");
+			return std::unexpected("Compiling error: Register EAX cannot be used in string context");
 		if (argument == "EBX")
-			return std::unexpected("Register EBX cannot be used in string context");
+			return std::unexpected("Compiling error: Register EBX cannot be used in string context");
 		if (argument == "ECX")
-			return std::unexpected("Register ECX cannot be used in string context");
+			return std::unexpected("Compiling error: Register ECX cannot be used in string context");
 		if (argument == "EDX")
-			return std::unexpected("Register EDX cannot be used in string context");
+			return std::unexpected("Compiling error: Register EDX cannot be used in string context");
 		if (argument == "EIP")
-			return std::unexpected("Instruction Pointer ought not to be accessed");
+			return std::unexpected("Compiling error: Instruction Pointer ought not to be accessed");
 		if (argument == "ESI")
 			return m_esi;
 		if (argument == "EDI")
@@ -1524,7 +1524,7 @@ struct script_t final
 		if (argument.length() <= 6 && argument.front() == '\'' && argument.back() == '\'')
 			return string{ argument.substr(1, argument.size() - 2) };
 
-		return std::unexpected(std::format("'{}' cannot be evaluated as a string", argument));
+		return std::unexpected(std::format("Compiling error: '{}' cannot be evaluated as a string", argument));
 	}
 
 	auto Parser_ProcArg(span<string_view const> signature, pair<uint8_t, uint8_t> argc, span<string_view const> arguments, string_view szLineText) noexcept -> expected<vector<script_cell_t>, vector<error_t>>
@@ -1537,14 +1537,14 @@ struct script_t final
 		if (arguments.size() > argc.second)
 		{
 			errors.emplace_back(
-				szLineText, arguments, std::format("Expected up to {} operand(s) but {} received", argc.second, arguments.size())
+				szLineText, arguments, std::format("Compiling error: '{}' expect up to {} operand(s) but {} received", signature.front(), argc.second, arguments.size())
 			).Emphasis(0);
 			return std::unexpected(std::move(errors));
 		}
 		else if (arguments.size() < argc.first)
 		{
 			errors.emplace_back(
-				szLineText, arguments, std::format("Expected at least {} operand(s) but {} received", argc.first, arguments.size())
+				szLineText, arguments, std::format("Compiling error: '{}' expect at least {} operand(s) but {} received", signature.front(), argc.first, arguments.size())
 			).Emphasis(0);
 			return std::unexpected(std::move(errors));
 		}
@@ -1564,7 +1564,7 @@ struct script_t final
 
 		for (int i = 1; i < std::ssize(arguments); ++i)
 		{
-			expected<script_cell_t, string> res{ std::unexpect, "Internal Compiler Error: Bad parameter signature" };
+			expected<script_cell_t, variant<string, error_t>> res{ std::unexpect, "Internal Compiler Error: Bad parameter signature" };
 
 			if (parameters[i].contains("%num"))
 			{
@@ -1589,11 +1589,20 @@ struct script_t final
 
 			// Checker
 			if (res && !Inspector::VerifyArg(parameters[i], *res))
-				errors.emplace_back(szLineText, arguments, "The argument does not meet the parameter constraint").Emphasis(i);
+				errors.emplace_back(szLineText, arguments, "Compiling error: The argument does not meet the parameter constraint").Emphasis(i);
 			else if (res)
 				std::visit(result_inserter, std::move(res).value());
 			else
-				errors.emplace_back(szLineText, arguments, std::move(res).error()).Emphasis(i);
+			{
+				auto err_info{ std::move(res).error() };
+
+				if (std::holds_alternative<string>(err_info))
+					errors.emplace_back(szLineText, arguments, std::get<string>(std::move(err_info))).Emphasis(i);
+				else if (std::holds_alternative<error_t>(res.error()))
+					errors.emplace_back(std::get<error_t>(std::move(err_info)));
+				else
+					errors.emplace_back(szLineText, arguments, std::format("Internal Compiler Error: Bad error handling - type index '{}'", err_info.index())).Emphasis(i);
+			}
 		}
 
 		if (!errors.empty())
@@ -1606,7 +1615,7 @@ struct script_t final
 
 	static inline constexpr std::string_view SIG_MOV[] = { "MOV", "%num%out", "%num%in" };
 	static inline constexpr std::string_view SIG_LEA[] = { "LEA", "%num%out", "%num%in" };
-	auto Parser_MOV(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_MOV(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_dest = arguments[0];
 		auto& parsed_src = arguments[1];
@@ -1643,7 +1652,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_XCHG[] = { "XCHG", "%num%in%out", "%num%in%out" };
-	auto Parser_XCHG(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_XCHG(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_lhs = arguments[0];
 		auto& parsed_rhs = arguments[1];
@@ -1660,7 +1669,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_CMPXCHG[] = { "CMPXCHG", "%num%in%out", "%num%in" };
-	auto Parser_CMPXCHG(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_CMPXCHG(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_arg1 = arguments[0];
 		auto& parsed_arg2 = arguments[1];
@@ -1740,7 +1749,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_MOVS[] = { "MOVS", "%str%out", "%str%in" };
-	auto Parser_MOVS(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_MOVS(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_dest = arguments[0];
 		auto& parsed_src = arguments[1];
@@ -1785,7 +1794,7 @@ struct script_t final
 	static inline constexpr std::string_view SIG_CMOVLE[] = { "CMOVLE", "%num%out", "%num%in" };
 
 	template <auto fnCondition>
-	auto Parser_CMOV(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_CMOV(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& parsed_dest = arguments[0];
 		auto& parsed_src = arguments[1];
@@ -1827,7 +1836,7 @@ struct script_t final
 	// Control Flow Instructions
 
 	static inline constexpr std::string_view SIG_TEST[] = { "TEST", "%num%in", "%num%in" };
-	auto Parser_TEST(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_TEST(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& accumulator = arguments[0];
 		auto& reference = arguments[1];
@@ -1871,7 +1880,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_CMP[] = { "CMP", "%num%in", "%num%in" };
-	auto Parser_CMP(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_CMP(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& minuend = arguments[0];
 		auto& subtrahend = arguments[1];
@@ -1917,7 +1926,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_JMP[] = { "JMP", "%label" };
-	auto Parser_JMP(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_JMP(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& label = arguments[0];
 
@@ -1939,7 +1948,7 @@ struct script_t final
 	static inline constexpr std::string_view SIG_JLE[] = { "JLE", "%label" };
 
 	template <auto fnCondition>
-	auto Parser_JMPCC(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_JMPCC(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		static_assert(requires{ { std::invoke(fnCondition, *m_eflags) } -> std::same_as<bool>; }, "Function must be able to test use with EFLAGS!");
 
@@ -1957,7 +1966,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_LOOP[] = { "LOOP", "%label" };
-	auto Parser_LOOP(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_LOOP(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& label = arguments[0];
 
@@ -1985,7 +1994,7 @@ struct script_t final
 	static inline constexpr std::string_view SIG_LOOPNE[] = { "LOOPNE", "%label" };
 
 	template <auto fnCondition>
-	auto Parser_LOOPCC(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_LOOPCC(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		static_assert(requires{ { std::invoke(fnCondition, *m_eflags) } -> std::same_as<bool>; }, "Function must be able to test use with EFLAGS!");
 
@@ -2011,7 +2020,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_CALL[] = { "CALL", "%label", };
-	auto Parser_CALL(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_CALL(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto& label = arguments[0];
 
@@ -2027,7 +2036,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_RET[] = { "RET", };
-	auto Parser_RET(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_RET(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		// It is assumed that no ill-formed argument can reach here.
 		assert(arguments.size() == 0);
@@ -2054,7 +2063,7 @@ struct script_t final
 	}
 
 	static inline constexpr std::string_view SIG_TABLE[] = { "TABLE", "%label...", };
-	auto Parser_TABLE(vector<script_cell_t> arguments, string_view, std::ptrdiff_t) const noexcept -> expected<instruction_t, vector<error_t>>
+	auto Parser_TABLE(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
 		auto labels =
 			arguments
@@ -2080,7 +2089,7 @@ struct script_t final
 	static inline constexpr std::string_view SIG_OUT[] = { "OUTS", "%str%in", };
 
 	// Ownership transfered, hence parser has argument with value type of vector<>
-	using parser_t = expected<instruction_t, vector<error_t>>(script_t::*)(vector<script_cell_t> arguments, string_view szLineText, std::ptrdiff_t iSelfAddr) const noexcept;
+	using parser_t = expected<instruction_t, vector<error_t>>(script_t::*)(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept;
 	static inline constexpr tuple<span<string_view const>, pair<uint8_t, uint8_t>, parser_t> PARSERS[] =
 	{
 		// Data Transfer Instructions
@@ -2156,13 +2165,13 @@ struct script_t final
 			auto const fnPrintError =
 				[&](error_t const& err) noexcept
 				{
-					std::println("Compiling error: {}\n{}\n", err.m_ErrorMsg, err.ToString(8, line_num));
+					std::println("{}\n{}\n", err.m_ErrorMsg, err.ToString(8, line_num));
 				};
 
 			if (!arguments)
 			{
 				std::println(
-					"Tokenizing error: {}\n{}\n",
+					"{}\n{}\n",
 					arguments.error().m_ErrorMsg, arguments.error().ToString(8, line_num)
 				);
 
@@ -2187,7 +2196,7 @@ struct script_t final
 					this->Parser_ProcArg(signature, argc, *arguments, szLine)
 
 					// Call parser with processed args
-					.and_then([&](auto&& args) noexcept { return std::invoke(parser, *this, std::forward<decltype(args)>(args), szLine, iSelfAddr); })
+					.and_then([&](auto&& args) noexcept { return std::invoke(parser, *this, std::forward<decltype(args)>(args), iSelfAddr); })
 
 					// Insert compiled instruction
 					.and_then([&](auto&& insc) noexcept { this->m_Instructions.emplace_back(std::forward<decltype(insc)>(insc)); return expected<void, vector<error_t>>{}; })
@@ -2243,7 +2252,7 @@ struct script_t final
 		{
 			if (pos < 0)
 			{
-				std::println("Error: Label '{}' was referenced but nowhere to be located!\n", szName);
+				std::println("Compiling error: Label '{}' was referenced but nowhere to be located!\n", szName);
 				Reset();
 				return;
 			}
@@ -2559,7 +2568,7 @@ end:
 
 static void UnitTest_Error() noexcept
 {
-	std::println("=============Error Testing begins=============\n");
+	std::println("{0:=^32}\n", "Error Testing begins");
 
 	static constexpr std::string_view SOURCE = u8R"(
 LAB1:
@@ -2587,7 +2596,7 @@ TABLE
 	assert(*script.m_ecx == 0);
 	assert(*script.m_edx == 0);
 
-	std::println("=============Error Testing ends=============\n");
+	std::println("{0:=^32}\n", "Error Testing ends");
 }
 
 #ifdef _MSC_VER
