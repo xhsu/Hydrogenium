@@ -10,6 +10,7 @@
 #include <bit>
 #include <bitset>
 #include <charconv>
+#include <chrono>
 #include <expected>
 #include <functional>
 #include <memory>
@@ -50,6 +51,8 @@ using std::unordered_map;
 using std::variant;
 using std::vector;
 using std::weak_ptr;
+
+namespace ch = ::std::chrono;
 
 using namespace std::literals;
 
@@ -2265,7 +2268,7 @@ struct script_t final
 	{
 		Reset();
 
-		for (volatile auto& EIP = *m_eip; EIP < std::ssize(m_Instructions); /* Does nothing */)
+		for (auto& EIP = *m_eip; EIP < std::ssize(m_Instructions); /* Does nothing */)
 		{
 			auto const sav = EIP;
 
@@ -2278,7 +2281,7 @@ struct script_t final
 				std::println(
 					"Runtime error: {}\n    Exception raised on instruction #{}",
 					e.what(),
-					static_cast<std::remove_cvref_t<decltype(EIP)>>(EIP)
+					EIP
 				);
 				assert(false);
 			}
@@ -2599,6 +2602,58 @@ TABLE
 	std::println("{0:=^32}\n", "Error Testing ends");
 }
 
+static void UnitTest_Performance() noexcept
+{
+	static constexpr auto TEST_COUNT = 0x100'000;
+
+	struct Timer final
+	{
+		decltype(ch::high_resolution_clock::now()) m_start{ ch::high_resolution_clock::now() };
+		decltype(ch::high_resolution_clock::now()) m_end{};
+
+		inline void Stop() noexcept
+		{
+			m_end = ch::high_resolution_clock::now();
+		}
+
+		inline auto NanoSeconds() const noexcept
+		{
+			auto const delta = m_end - m_start;
+			return delta.count();
+		}
+	};
+
+	script_t script{ u8R"(
+JMP main
+
+decre:
+	MOV	EAX, [EAX - 1]
+	RET
+
+main:
+	MOV		EAX, [randomi(10, 20)]
+
+	loop:
+	CMP		EAX, 0
+	JE		end_program
+	CALL	decre
+	JMP		loop
+	; END of loop
+
+end_program:
+)" };
+
+	Timer t;
+
+	for (int i = 0; i < TEST_COUNT; ++i)
+		script.Execute();
+
+	t.Stop();
+
+	std::println("Total time: {:.1f}s", t.NanoSeconds() / 1e9);
+	std::println("Average time: {:.3f}μs", t.NanoSeconds()  / (double)TEST_COUNT / 1e3);
+}
+
 #ifdef _MSC_VER
 int wmain(int argc, wchar_t* argv[], wchar_t* envp[]) noexcept
 #else
@@ -2615,4 +2670,5 @@ int main(int, char*[]) noexcept
 	UnitTest_CALL();
 	UnitTest_TABLE();
 	UnitTest_Error();
+	UnitTest_Performance();
 }
