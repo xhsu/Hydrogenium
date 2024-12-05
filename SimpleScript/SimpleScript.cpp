@@ -297,7 +297,7 @@ constexpr bool Cell_IsOutput(auto const& a) noexcept
 
 // Evaluate argument into value_t
 template <typename proj_t = std::identity>
-struct visitor_script_cell final
+struct cell_to_numeric final
 {
 	static inline constexpr proj_t m_proj{};
 
@@ -515,7 +515,7 @@ namespace Op
 	struct function final
 	{
 		static inline constexpr proj_t m_proj{};
-		static inline constexpr visitor_script_cell<proj_t> m_visitor{};
+		static inline constexpr cell_to_numeric<proj_t> m_visitor{};
 
 		constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
 		{
@@ -555,7 +555,7 @@ namespace Op
 					static auto const factorial =
 						[](this auto&& self, int32_t n) noexcept -> int32_t { return (n == 1 || n == 0) ? 1 : self(n - 1) * n; };
 
-					return (value_t)factorial((int32_t)visitor_script_cell {}(arg));
+					return (value_t)factorial((int32_t)cell_to_numeric {}(arg));
 				};
 		}
 	};
@@ -752,7 +752,7 @@ namespace Func
 		struct functor_impl_t final
 		{
 			static inline constexpr auto m_fun{ FN };
-			static inline constexpr visitor_script_cell<proj_t> m_visitor{};
+			static inline constexpr cell_to_numeric<proj_t> m_visitor{};
 
 			constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
 			{
@@ -1671,6 +1671,23 @@ struct script_t final
 			};
 	}
 
+	static inline constexpr std::string_view SIG_XCHGS[] = { "XCHGS", "%str%in%out", "%str%in%out" };
+	auto Parser_XCHGS(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
+	{
+		auto& parsed_lhs = arguments[0];
+		auto& parsed_rhs = arguments[1];
+
+		// It is assumed that no ill-formed argument can reach here.
+		assert((std::holds_alternative<strref_t>(parsed_lhs)));
+		assert((std::holds_alternative<strref_t>(parsed_rhs)));
+
+		return
+			[lhs{ std::get<strref_t>(parsed_lhs) }, rhs{ std::get<strref_t>(parsed_rhs) }]() noexcept
+			{
+				std::swap(*lhs, *rhs);
+			};
+	}
+
 	static inline constexpr std::string_view SIG_CMPXCHG[] = { "CMPXCHG", "%num%in%out", "%num%in" };
 	auto Parser_CMPXCHG(vector<script_cell_t> arguments, std::ptrdiff_t iSelfAddr) const noexcept -> expected<instruction_t, vector<error_t>>
 	{
@@ -1869,8 +1886,8 @@ struct script_t final
 		return
 			[accu{ std::move(accumulator) }, refe{ std::move(reference) }, eflags{ m_eflags }]() noexcept
 			{
-				auto const lhs = std::bit_cast<uint32_t>(std::visit(visitor_script_cell<Op::adaptor_int32>{}, accu));
-				auto const rhs = std::bit_cast<uint32_t>(std::visit(visitor_script_cell<Op::adaptor_int32>{}, refe));
+				auto const lhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Op::adaptor_int32>{}, accu));
+				auto const rhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Op::adaptor_int32>{}, refe));
 				std::bitset<32> const bits{ lhs & rhs };
 
 				eflags->m_SF = bits[31];
@@ -1915,9 +1932,9 @@ struct script_t final
 			[minuend{ std::move(minuend) }, subtrahend{ std::move(subtrahend) }, eflags{ m_eflags }]() noexcept
 			{
 				auto const diff =
-					std::visit(visitor_script_cell{}, minuend)
+					std::visit(cell_to_numeric{}, minuend)
 					-
-					std::visit(visitor_script_cell{}, subtrahend);
+					std::visit(cell_to_numeric{}, subtrahend);
 
 				eflags->m_SF = diff < 0;
 				eflags->m_ZF = std::abs(diff) < 1e-5;
@@ -2100,6 +2117,7 @@ struct script_t final
 		{ SIG_MOV, Inspector::ArgCount(SIG_MOV).value(), &script_t::Parser_MOV },
 		{ SIG_LEA, Inspector::ArgCount(SIG_LEA).value(), &script_t::Parser_MOV },	// They are the same here, with no difference between register and memory
 		{ SIG_XCHG, Inspector::ArgCount(SIG_XCHG).value(), &script_t::Parser_XCHG },
+		{ SIG_XCHGS, Inspector::ArgCount(SIG_XCHGS).value(), &script_t::Parser_XCHGS },
 		{ SIG_CMPXCHG, Inspector::ArgCount(SIG_CMPXCHG).value(), &script_t::Parser_CMPXCHG },
 		{ SIG_MOVS, Inspector::ArgCount(SIG_MOVS).value(), &script_t::Parser_MOVS },
 		{ SIG_CMOVE, Inspector::ArgCount(SIG_CMOVE).value(), &script_t::Parser_CMOV<&flag_register_t::Equal> },
