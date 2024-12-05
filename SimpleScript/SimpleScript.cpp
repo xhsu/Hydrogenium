@@ -47,6 +47,7 @@ using std::span;
 using std::string;
 using std::string_view;
 using std::tuple;
+using std::unique_ptr;
 using std::unordered_map;
 using std::variant;
 using std::vector;
@@ -256,10 +257,10 @@ constexpr auto variant_cast(std::variant<Args...> v) noexcept -> variant_cast_pr
 using instruction_t = move_only_function<void() const noexcept>;	// Representing an single action
 using value_t = double;
 using expr_t = move_only_function<value_t() const noexcept>;
-using valref_t = shared_ptr<value_t>;
-using strref_t = shared_ptr<string>;
+using valref_t = std::add_pointer_t<value_t>;
+using strref_t = std::add_pointer_t<string>;
 using script_cell_t = variant<valref_t, value_t, expr_t, std::ptrdiff_t*, string, string_view, strref_t>;
-using refobsv_t = variant<valref_t::weak_type, strref_t::weak_type>;
+//using refobsv_t = variant<valref_t::weak_type, strref_t::weak_type>;
 
 constexpr bool Cell_IsNumeric(auto const& a) noexcept
 {
@@ -1352,21 +1353,21 @@ struct script_t final
 	// Script registers
 
 	vector<instruction_t> m_Instructions{};
-	valref_t m_eax{ std::make_shared<value_t>() };	// Accumulator register
-	valref_t m_ebx{ std::make_shared<value_t>() };	// Base register
-	valref_t m_ecx{ std::make_shared<value_t>() };	// Counter register
-	valref_t m_edx{ std::make_shared<value_t>() };	// Data register
+	unique_ptr<value_t> m_eax{ std::make_unique<value_t>() };	// Accumulator register
+	unique_ptr<value_t> m_ebx{ std::make_unique<value_t>() };	// Base register
+	unique_ptr<value_t> m_ecx{ std::make_unique<value_t>() };	// Counter register
+	unique_ptr<value_t> m_edx{ std::make_unique<value_t>() };	// Data register
 
-	shared_ptr<std::ptrdiff_t> m_eip{ std::make_shared<std::ptrdiff_t>() };	// Instruction Pointer
-	shared_ptr<vector<std::ptrdiff_t>> m_esp{ std::make_shared<vector<std::ptrdiff_t>>() };	// Stack Pointer register
-	// shared_ptr<uint32_t> m_ebp{ std::make_shared<uint32_t>() };	// Stack Base Pointer register
+	unique_ptr<ptrdiff_t> m_eip{ std::make_unique<ptrdiff_t>() };	// Instruction Pointer
+	unique_ptr<vector<ptrdiff_t>> m_esp{ std::make_unique<vector<ptrdiff_t>>() };	// Stack Pointer register
+//	shared_ptr<uint32_t> m_ebp{ std::make_shared<uint32_t>() };		// Stack Base Pointer register
 
-	strref_t m_esi{ std::make_shared<string>() };	// Destination Index register
-	strref_t m_edi{ std::make_shared<string>() };	// Source Index register
+	unique_ptr<string> m_esi{ std::make_unique<string>() };	// Destination Index register
+	unique_ptr<string> m_edi{ std::make_unique<string>() };	// Source Index register
 
-	shared_ptr<flag_register_t> m_eflags{ std::make_shared<flag_register_t>() };
-	unordered_map<string, std::ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};	// The allocated memory will never invalidated.
-	unordered_map<string, refobsv_t, std::hash<string_view>, std::equal_to<>> m_Observer{};
+	unique_ptr<flag_register_t> m_eflags{ std::make_unique<flag_register_t>() };
+	unordered_map<string, ptrdiff_t, std::hash<string_view>, std::equal_to<>> m_Labels{};	// The allocated memory will never invalidated.
+//	unordered_map<string, refobsv_t, std::hash<string_view>, std::equal_to<>> m_Observer{};
 
 	// Script parser
 
@@ -1409,13 +1410,13 @@ struct script_t final
 	{
 		// Handle references
 		if (argument == "EAX")
-			return m_eax;
+			return m_eax.get();
 		if (argument == "EBX")
-			return m_ebx;
+			return m_ebx.get();
 		if (argument == "ECX")
-			return m_ecx;
+			return m_ecx.get();
 		if (argument == "EDX")
-			return m_edx;
+			return m_edx.get();
 		if (argument == "EIP")
 			return std::unexpected("Compiling error: Instruction Pointer ought not to be accessed");
 		if (argument == "ESI")
@@ -1515,9 +1516,9 @@ struct script_t final
 		if (argument == "EIP")
 			return std::unexpected("Compiling error: Instruction Pointer ought not to be accessed");
 		if (argument == "ESI")
-			return m_esi;
+			return m_esi.get();
 		if (argument == "EDI")
-			return m_edi;
+			return m_edi.get();
 
 		// Double-quoted string literals
 		if (argument.length() && argument.front() == '"' && argument.back() == '"')
@@ -1631,19 +1632,19 @@ struct script_t final
 		{
 		case 0:	// storage
 			return
-				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<0>(std::move(parsed_src)) }]() noexcept
+				[dest{ std::get<valref_t>(std::move(parsed_dest)) }, src{ std::get<valref_t>(std::move(parsed_src)) }]() noexcept
 				{
 					*dest = *src;
 				};
 		case 1:	// immediate
 			return
-				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<1>(std::move(parsed_src)) }]() noexcept
+				[dest{ std::get<valref_t>(std::move(parsed_dest)) }, src{ std::get<value_t>(std::move(parsed_src)) }]() noexcept
 				{
 					*dest = src;
 				};
 		case 2:	// expression
 			return
-				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<2>(std::move(parsed_src)) }]() noexcept
+				[dest{ std::get<valref_t>(std::move(parsed_dest)) }, src{ std::get<expr_t>(std::move(parsed_src)) }]() noexcept
 				{
 					*dest = std::invoke(src);
 				};
@@ -1702,7 +1703,7 @@ struct script_t final
 		{
 		case 0:
 			return
-				[arg1{ std::get<0>(parsed_arg1) }, arg2{ std::get<0>(parsed_arg2) }, eflags{ m_eflags }, eax{ m_eax }]() noexcept
+				[arg1{ std::get<0>(parsed_arg1) }, arg2{ std::get<0>(parsed_arg2) }, eflags{ m_eflags.get() }, eax{ m_eax.get() }]() noexcept
 				{
 					static constexpr auto I32_MAX = std::numeric_limits<int32_t>::max();
 					static constexpr auto I32_MIN = std::numeric_limits<int32_t>::min();
@@ -1723,7 +1724,7 @@ struct script_t final
 
 		case 1:
 			return
-				[arg1{ std::get<0>(parsed_arg1) }, arg2{ std::get<1>(parsed_arg2) }, eflags{ m_eflags }, eax{ m_eax }]() noexcept
+				[arg1{ std::get<0>(parsed_arg1) }, arg2{ std::get<1>(parsed_arg2) }, eflags{ m_eflags.get() }, eax{ m_eax.get() }]() noexcept
 				{
 					static constexpr auto I32_MAX = std::numeric_limits<int32_t>::max();
 					static constexpr auto I32_MIN = std::numeric_limits<int32_t>::min();
@@ -1744,7 +1745,7 @@ struct script_t final
 
 		case 2:
 			return
-				[arg1{ std::get<0>(parsed_arg1) }, arg2{ std::get<2>(std::move(parsed_arg2)) }, eflags{ m_eflags }, eax{ m_eax }]() noexcept
+				[arg1{ std::get<0>(parsed_arg1) }, arg2{ std::get<2>(std::move(parsed_arg2)) }, eflags{ m_eflags.get() }, eax{ m_eax.get() }]() noexcept
 				{
 					static constexpr auto I32_MAX = std::numeric_limits<int32_t>::max();
 					static constexpr auto I32_MIN = std::numeric_limits<int32_t>::min();
@@ -1827,21 +1828,21 @@ struct script_t final
 		{
 		case 0:	// storage
 			return
-				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<0>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
+				[dest{ std::get<valref_t>(std::move(parsed_dest)) }, src{ std::get<valref_t>(std::move(parsed_src)) }, eflags{ m_eflags.get() }]() noexcept
 				{
 					if (std::invoke(fnCondition, *eflags))
 						*dest = *src;
 				};
 		case 1:	// immediate
 			return
-				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<1>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
+				[dest{ std::get<valref_t>(std::move(parsed_dest)) }, src{ std::get<value_t>(std::move(parsed_src)) }, eflags{ m_eflags.get() }]() noexcept
 				{
 					if (std::invoke(fnCondition, *eflags))
 						*dest = src;
 				};
 		case 2:	// expression
 			return
-				[dest{ std::get<0>(std::move(parsed_dest)) }, src{ std::get<2>(std::move(parsed_src)) }, eflags{ m_eflags }]() noexcept
+				[dest{ std::get<valref_t>(std::move(parsed_dest)) }, src{ std::get<expr_t>(std::move(parsed_src)) }, eflags{ m_eflags.get() }]() noexcept
 				{
 					if (std::invoke(fnCondition, *eflags))
 						*dest = std::invoke(src);
@@ -1872,7 +1873,7 @@ struct script_t final
 			std::bitset<32> const bits{ lhs & rhs };
 
 			return
-				[bits, eflags{ m_eflags }]() noexcept
+				[bits, eflags{ m_eflags.get() }]() noexcept
 				{
 					eflags->m_SF = bits[31];
 					eflags->m_ZF = bits.to_ulong() == 0;
@@ -1884,7 +1885,7 @@ struct script_t final
 		}
 
 		return
-			[accu{ std::move(accumulator) }, refe{ std::move(reference) }, eflags{ m_eflags }]() noexcept
+			[accu{ std::move(accumulator) }, refe{ std::move(reference) }, eflags{ m_eflags.get() }]() noexcept
 			{
 				auto const lhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Op::adaptor_int32>{}, accu));
 				auto const rhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Op::adaptor_int32>{}, refe));
@@ -1917,7 +1918,7 @@ struct script_t final
 			auto const diff = std::get<value_t>(minuend) - std::get<value_t>(subtrahend);
 
 			return
-				[diff, eflags{ m_eflags }]() noexcept
+				[diff, eflags{ m_eflags.get() }]() noexcept
 				{
 					eflags->m_SF = diff < 0;
 					eflags->m_ZF = std::abs(diff) < 1e-5;
@@ -1929,7 +1930,7 @@ struct script_t final
 		}
 
 		return
-			[minuend{ std::move(minuend) }, subtrahend{ std::move(subtrahend) }, eflags{ m_eflags }]() noexcept
+			[minuend{ std::move(minuend) }, subtrahend{ std::move(subtrahend) }, eflags{ m_eflags.get() }]() noexcept
 			{
 				auto const diff =
 					std::visit(cell_to_numeric{}, minuend)
@@ -1954,7 +1955,7 @@ struct script_t final
 		assert(std::holds_alternative<std::ptrdiff_t*>(label));
 
 		return
-			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip }]() noexcept
+			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip.get() }]() noexcept
 			{
 				*eip = *pos;
 			};
@@ -1978,7 +1979,7 @@ struct script_t final
 		assert(std::holds_alternative<std::ptrdiff_t*>(label));
 
 		return
-			[eflags{ m_eflags }, pos{ std::get<3>(std::move(label)) }, eip{ m_eip }]() noexcept
+			[eflags{ m_eflags.get() }, pos{ std::get<std::ptrdiff_t*>(std::move(label)) }, eip{ m_eip.get() }]() noexcept
 			{
 				if (std::invoke(fnCondition, *eflags))
 					*eip = *pos;
@@ -1994,7 +1995,7 @@ struct script_t final
 		assert(std::holds_alternative<std::ptrdiff_t*>(label));
 
 		return
-			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip }, ecx{ m_ecx }]() noexcept
+			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip.get() }, ecx{ m_ecx.get() }]() noexcept
 			{
 				/*
 				The loop instruction decrements ECX and jumps to the address specified by arg unless decrementing ECX caused its value to become zero.
@@ -2024,7 +2025,7 @@ struct script_t final
 		assert(std::holds_alternative<std::ptrdiff_t*>(label));
 
 		return
-			[eflags{ m_eflags }, pos{ std::get<3>(std::move(label)) }, eip{ m_eip }, ecx{ m_ecx }]() noexcept
+			[eflags{ m_eflags.get() }, pos{ std::get<std::ptrdiff_t*>(std::move(label)) }, eip{ m_eip.get() }, ecx{ m_ecx.get() }]() noexcept
 			{
 				auto const cx = (int32_t)(*ecx) - 1;
 
@@ -2048,7 +2049,7 @@ struct script_t final
 		assert(std::holds_alternative<std::ptrdiff_t*>(label));
 
 		return
-			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip }, esp{ m_esp }, addr{ iSelfAddr + 1 }]() noexcept
+			[pos{ std::get<3>(std::move(label)) }, eip{ m_eip.get() }, esp{ m_esp.get() }, addr{ iSelfAddr + 1 }]() noexcept
 			{
 				esp->push_back(addr);	// push ret_address
 				*eip = *pos;			// jmp func_label
@@ -2062,7 +2063,7 @@ struct script_t final
 		assert(arguments.size() == 0);
 
 		return
-			[eip{ m_eip }, esp{ m_esp }, iSelfAddr]() noexcept
+			[eip{ m_eip.get() }, esp{ m_esp.get() }, iSelfAddr]() noexcept
 			{
 #ifdef _DEBUG
 				assert(!esp->empty());
@@ -2094,7 +2095,7 @@ struct script_t final
 		assert(labels.size() > 0);
 
 		return
-			[labels{ std::move(labels) }, ebx{ m_ebx }, eip{ m_eip }]() noexcept
+			[labels{ std::move(labels) }, ebx{ m_ebx.get() }, eip{ m_eip.get() }]() noexcept
 			{
 				auto const iebx = static_cast<int32_t>(*ebx);
 				if (iebx < 0 || iebx >= std::ssize(labels))
@@ -2164,15 +2165,15 @@ struct script_t final
 	{
 		m_Instructions.clear();
 		m_Labels.clear();
-		m_Observer.clear();
+		//m_Observer.clear();
 
-		m_Observer.try_emplace("EAX", m_eax);
-		m_Observer.try_emplace("EBX", m_ebx);
-		m_Observer.try_emplace("ECX", m_ecx);
-		m_Observer.try_emplace("EDX", m_edx);
+		//m_Observer.try_emplace("EAX", m_eax);
+		//m_Observer.try_emplace("EBX", m_ebx);
+		//m_Observer.try_emplace("ECX", m_ecx);
+		//m_Observer.try_emplace("EDX", m_edx);
 
-		m_Observer.try_emplace("ESI", m_esi);
-		m_Observer.try_emplace("EDI", m_edi);
+		//m_Observer.try_emplace("ESI", m_esi);
+		//m_Observer.try_emplace("EDI", m_edi);
 
 		auto const rgszLines = UTIL_Split(SourceText, "\r\n");
 
@@ -2622,7 +2623,7 @@ TABLE
 
 static void UnitTest_Performance() noexcept
 {
-	static constexpr auto TEST_COUNT = 0x100'000;
+	static constexpr auto TEST_COUNT = 0x1'000'000;
 
 	struct Timer final
 	{
