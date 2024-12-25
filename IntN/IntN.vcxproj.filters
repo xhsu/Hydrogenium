@@ -15,13 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SimpleScript.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\UtlRandom.ixx">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\UtlConcepts.ixx">
+    <ClCompile Include="IntN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

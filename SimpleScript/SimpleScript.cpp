@@ -1004,7 +1004,7 @@ private:
 
 template <
 	auto fnIsCell,			/* Anything that considered as a single token is a cell */
-	auto fnIsParenthesis,	/* Is the string considered as parenthesises? */
+	auto fnIsParenthesis,	/* Is the string considered as parenthesizes? */
 	auto fnIsOperator		/* Is the string considered as an operator? */
 >
 constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") noexcept -> expected<vector<string_view>, error_t>
@@ -1063,7 +1063,7 @@ constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") 
 
 template <
 	auto fnIsCell,			/* Anything that considered as a single token is a cell */
-	auto fnIsOperator,		/* Is the string considered as an operator? Remember in SYA, parenthesises aren't operators. */	
+	auto fnIsOperator,		/* Is the string considered as an operator? Remember in SYA, parenthesizes aren't operators. */	
 	auto fnIsFunction		/* Is this cell actually an function? */
 >
 constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept -> expected<vector<string_view>, string>
