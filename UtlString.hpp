@@ -994,7 +994,7 @@ namespace Hydrogenium
 		return CT::ToFullWidth(bytes);
 	}
 
-	EXPORT constexpr auto UtfSlicing(std::ranges::input_range auto&& str, int32_t pos1, std::optional<int16_t> pos2) noexcept
+	EXPORT constexpr auto UtfSlicing(std::ranges::input_range auto&& str, int32_t pos1, std::optional<int16_t> pos2 = std::nullopt) noexcept
 	{
 		using CT = CType<decltype(str[0])>;
 

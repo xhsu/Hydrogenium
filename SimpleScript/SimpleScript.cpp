@@ -585,12 +585,12 @@ namespace Op
 		Right = 0,
 	};
 
-	template <fixed_string ID, EAssoc ASSOCIATIVITY = EAssoc::Undefined, int_fast8_t PRECED = 0, uint_fast8_t ARG_COUNT = 0, typename FN = std::identity>
+	template <fixed_string ID, EAssoc ASSOCIATIVITY = EAssoc::Undefined, int_fast8_t PRECEDENCE = 0, uint_fast8_t ARG_COUNT = 0, typename FN = std::identity>
 	struct script_operator_t final
 	{
 		static inline constexpr std::string_view m_id{ ID };
 		static inline constexpr auto m_associativity = ASSOCIATIVITY;
-		static inline constexpr auto m_preced = PRECED;
+		static inline constexpr auto m_precedence = PRECEDENCE;
 		static inline constexpr auto m_arg_count = ARG_COUNT;
 		static inline constexpr auto functor = FN{};
 	};
@@ -645,7 +645,7 @@ namespace Op
 		);
 	}
 
-	constexpr auto Preced(std::string_view s) noexcept -> int_fast8_t
+	constexpr auto Precedence(std::string_view s) noexcept -> int_fast8_t
 	{
 		return impl_all_op_wrapper(
 			[&]<typename... Tys>() noexcept -> int_fast8_t
@@ -654,7 +654,7 @@ namespace Op
 
 				// Ref: https://stackoverflow.com/questions/46450054/retrieve-value-out-of-cascading-ifs-fold-expression
 				[[maybe_unused]] auto const _
-					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_preced), true)));
+					= (... || ((Tys::m_id == s) && (void(ret = Tys::m_precedence), true)));
 
 				return ret;
 			}
@@ -1086,7 +1086,7 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 		// operator? Remember that parenthesis is not an operator.
 		else if (bIsOperator)
 		{
-			auto const o1_preced = Op::Preced(token);
+			auto const o1_preced = Op::Precedence(token);
 
 			/*
 			while (
@@ -1098,7 +1098,7 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 			*/
 
 			while (!op_stack.empty() && op_stack.back() != "("
-				&& (Op::Preced(op_stack.back()) > o1_preced || (Op::Preced(op_stack.back()) == o1_preced && Op::Associativity(token) == Op::EAssoc::Left))
+				&& (Op::Precedence(op_stack.back()) > o1_preced || (Op::Precedence(op_stack.back()) == o1_preced && Op::Associativity(token) == Op::EAssoc::Left))
 				)
 			{
 				ret.push_back(op_stack.back());
@@ -1128,7 +1128,12 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 					op_stack.pop_back();
 				}
 
+#ifdef _DEBUG
 				assert(op_stack.back()[0] == '(');
+#else
+				if (op_stack.back()[0] != '(') [[unlikely]]
+					return std::unexpected("SYA error: Top of the stack is not a '(' - assertion failed");
+#endif
 				// pop the left parenthesis from the operator stack and discard it
 				op_stack.pop_back();
 			}
@@ -1142,7 +1147,7 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 			if there is a function token at the top of the operator stack, then:
 				pop the function from the operator stack into the output queue
 			*/
-			if (!op_stack.empty() && IsFunction(op_stack.back()))
+			if (!op_stack.empty() && fnIsFunction(op_stack.back()))
 			{
 				ret.push_back(op_stack.back());
 				op_stack.pop_back();
