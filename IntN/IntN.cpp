@@ -308,15 +308,6 @@ constexpr auto chars_to_bigint(std::string_view str) noexcept
 	return ret;
 }
 
-template <std::integral T>
-constexpr auto int_to_bigint(T val) noexcept
-{
-	return std::vector<uint8_t>(
-		std::from_range,
-		std::bit_cast<std::array<uint8_t, sizeof(T)>>(val)
-	);
-}
-
 [[nodiscard]]
 constexpr auto word_multiplier(std::span<uint8_t const> lhs, std::span<uint8_t const> rhs) noexcept -> std::vector<uint8_t>
 {
@@ -325,20 +316,116 @@ constexpr auto word_multiplier(std::span<uint8_t const> lhs, std::span<uint8_t c
 
 	auto const lhs_size = bit_size(lhs);
 	std::vector<uint8_t> last_res{}, final_ans{};
+
+	final_ans.reserve(std::ranges::max(lhs.size(), rhs.size()) * 2);
+
 	for (uint8_t i = 0; i < lhs_size; ++i)
 	{
 		if (bit_at(lhs, i))
 		{
 			last_res = word_lsh(rhs, i);
+			word_adder(&final_ans, last_res);
 		}
 		else
 			last_res.clear();
-
-		word_adder(&final_ans, last_res);
 	}
 
 	return final_ans;
 }
+
+static void UnitTest_WordMultiplier() noexcept
+{
+	constexpr auto fn =
+		[]() noexcept -> bool
+		{
+			constexpr auto num1 = std::bit_cast<std::array<uint8_t, 2>>((uint16_t)1920);
+			constexpr auto num2 = std::bit_cast<std::array<uint8_t, 2>>((uint16_t)1080);
+			constexpr auto prod = std::bit_cast<std::array<uint8_t, 4>>(1920 * 1080);
+
+			auto const res = word_multiplier(num1, num2);
+			return std::ranges::equal(res, prod);
+		};
+
+	static_assert(fn());
+}
+
+struct dyn_bytes_t final
+{
+	union
+	{
+		struct
+		{
+			uint8_t* m_data{};
+			size_t m_length{};
+		} m_heap;
+
+		std::array<uint8_t, sizeof(m_heap)> m_stack{};	// Activated by default.
+	};
+};
+
+struct bigint_t
+{
+#pragma region Plus
+	[[nodiscard]]
+	friend constexpr bigint_t operator+(bigint_t const& lhs, bigint_t const& rhs) noexcept
+	{
+		return bigint_t{
+			word_adder(lhs.m_bytes, rhs.m_bytes),
+		};
+	}
+
+	[[nodiscard]]
+	friend constexpr bigint_t operator+(std::integral auto lhs, bigint_t const& rhs) noexcept
+	{
+		auto const cvt = std::bit_cast<std::array<uint8_t, sizeof(lhs)>>(lhs);
+		return {
+			word_adder(cvt, rhs.m_bytes),
+		};
+	}
+
+	[[nodiscard]]
+	friend constexpr bigint_t operator+(bigint_t const& lhs, std::integral auto rhs) noexcept
+	{
+		auto const cvt = std::bit_cast<std::array<uint8_t, sizeof(rhs)>>(rhs);
+		return {
+			word_adder(lhs.m_bytes, cvt),
+		};
+	}
+
+	constexpr bigint_t& operator+=(bigint_t const& rhs) noexcept
+	{
+		word_adder(&m_bytes, rhs.m_bytes);
+		return *this;
+	}
+
+	constexpr bigint_t& operator+=(std::integral auto rhs) noexcept
+	{
+		auto const cvt = std::bit_cast<std::array<uint8_t, sizeof(rhs)>>(rhs);
+		word_adder(&m_bytes, cvt);
+		return *this;
+	}
+#pragma endregion Plus
+
+#pragma region Maker
+	[[nodiscard]]
+	static constexpr bigint_t make(std::span<uint8_t const> bytes) noexcept
+	{
+		return bigint_t{
+			.m_bytes{ std::from_range, bytes },
+		};
+	}
+
+	[[nodiscard]]
+	static constexpr bigint_t make(std::integral auto val) noexcept
+	{
+		return bigint_t{
+			.m_bytes{ std::from_range, std::bit_cast<std::array<uint8_t, sizeof(val)>>(val) },
+		};
+	}
+#pragma endregion Maker
+
+	std::vector<uint8_t> m_bytes{};
+};
 
 int main(int, char*[]) noexcept
 {
@@ -346,9 +433,14 @@ int main(int, char*[]) noexcept
 	UnitTest_BitAssign();
 	UnitTest_ByteAdder();
 	UnitTest_WordAdder();
+	UnitTest_WordMultiplier();
 
-	std::vector<uint8_t> num1{ std::from_range, std::bit_cast<std::array<uint8_t, 2>>((uint16_t)1024) };
-	std::vector<uint8_t> num2{ std::from_range, std::bit_cast<std::array<uint8_t, 2>>((uint16_t)768) };
-	auto const res = word_multiplier(num1, num2);
-	auto const rep = *reinterpret_cast<int32_t const*>(res.data());
+	auto const val = bigint_t::make(9527);
+	auto const val2 = val + 3;
+	auto const val3 = 500 + val;
+	auto const cvt2 = *reinterpret_cast<uint16_t const*>(val2.m_bytes.data());
+	auto const cvt3 = *reinterpret_cast<uint16_t const*>(val3.m_bytes.data());
+
+	assert(cvt2 == 9527 + 3);
+	assert(cvt3 == 9527 + 500);
 }

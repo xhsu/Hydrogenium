@@ -1,6 +1,8 @@
 ﻿// SimpleScript.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#define HYDROGENIUM_UTL_SIMPLE_SCRIPT 20241214L
+
 #ifdef __INTELLISENSE__
 #define _MSVC_TESTING_NVCC
 #include <__msvc_all_public_headers.hpp>
@@ -368,7 +370,7 @@ constexpr bool IsIdentifier(string_view s) noexcept
 	return true;
 }
 
-namespace Def
+namespace Cnst
 {
 	struct script_constant_t final
 	{
@@ -441,7 +443,7 @@ constexpr bool IsLiteral(string_view s, bool const bAllowSign = true) noexcept
 		return false;
 
 	// Is IRL constant?
-	if (std::ranges::find(Def::INFO, s, &Def::script_constant_t::m_id) != std::ranges::cend(Def::INFO))
+	if (std::ranges::find(Cnst::INFO, s, &Cnst::script_constant_t::m_id) != std::ranges::cend(Cnst::INFO))
 		return true;
 
 	bool const bHex = s.starts_with("0x") || s.starts_with("0X");
@@ -680,14 +682,6 @@ namespace Op
 		using ret_t = std::ranges::range_value_t<decltype(args)>;
 		expected<expr_t, value_t> res{};
 
-		/*
-		if (op == "id")
-		{
-			if (typeof(op)::arg_count == 2)
-				typeof(op)::functor(args[0], args[1]);
-		}
-		*/
-
 		auto const impl_invoke = [&]<typename T>() noexcept
 		{
 			if constexpr (T::m_arg_count == 0)
@@ -713,7 +707,7 @@ namespace Op
 		if (res)
 			return ret_t{ std::move(res).value() };
 		else
-			return ret_t{ res.error() };
+			return ret_t{ std::move(res).error() };
 	}
 }
 
@@ -1374,7 +1368,7 @@ struct script_t final
 	static constexpr auto Parser_GetImmediate(string_view argument) noexcept -> value_t
 	{
 		// IRL constant
-		if (auto const res = Def::ToValue(argument); res == res)	// NaN is no found.
+		if (auto const res = Cnst::ToValue(argument); res == res)	// NaN is no found.
 			return res;
 
 		// Convert to unicode point, as a hex number.
@@ -2423,7 +2417,7 @@ MOV EBX, ΔνCs
 	assert(script.m_eflags->m_AF == false);
 
 	assert(*script.m_eax == 0);
-	assert(*script.m_ebx == Def::ToValue("ΔνCs"));
+	assert(*script.m_ebx == Cnst::ToValue("ΔνCs"));
 }
 
 static void UnitTest_CMP() noexcept

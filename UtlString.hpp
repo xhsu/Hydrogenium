@@ -17,9 +17,11 @@
 #include <concepts>
 #include <functional>
 #include <limits>
+#include <map>		// Hydrogenium::Dictionary
 #include <optional>	// Str::Tok()
 #include <random>	// Str::detail::Fry()
 #include <ranges>
+#include <set>		// Hydrogenium::Glossary
 #include <string_view>
 #include <typeinfo>
 #include <utility>
@@ -3246,6 +3248,36 @@ namespace Hydrogenium
 
 	EXPORT inline constexpr auto as_generator = StringPolicy::Result::as_generator_t{};
 	EXPORT inline constexpr auto as_vector = StringPolicy::Result::as_vector_t{};
+}
+
+// STL Extentions
+namespace Hydrogenium
+{
+	namespace detail
+	{
+		template <CharacterType T>
+		struct dict_case_ignored
+		{
+			template <typename CFinal, typename Base>
+			using info_this = String::Components::wrapper_info<CFinal, Base, T>;
+
+			using toolset = String::Utils<info_this, String::Components::iter_multibytes, String::Components::cmp_case_ignored>;
+
+			// #UPDATE_AT_CPP23 static operator()
+			constexpr bool operator()(CType<T>::view_type lhs, CType<T>::view_type rhs) const noexcept
+			{
+				return toolset::Cmp(lhs, rhs) < 0;
+			}
+
+			using is_transparent = int;
+		};
+	}
+
+	template <CharacterType C, typename V, template <typename> class mgr_t = std::basic_string>
+	using Dictionary = std::map<mgr_t<C>, V, detail::dict_case_ignored<C>>;
+
+	template <CharacterType C, template <typename> class mgr_t = std::basic_string>
+	using Glossary = std::set<mgr_t<C>, detail::dict_case_ignored<C>>;
 }
 
 #ifdef GENERATOR_TY
