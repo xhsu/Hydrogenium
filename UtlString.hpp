@@ -3253,7 +3253,7 @@ namespace Hydrogenium
 // STL Extentions
 namespace Hydrogenium
 {
-	namespace detail
+	namespace String::Functors
 	{
 		template <CharacterType T>
 		struct dict_case_ignored
@@ -3274,10 +3274,10 @@ namespace Hydrogenium
 	}
 
 	template <CharacterType C, typename V, template <typename> class mgr_t = std::basic_string>
-	using Dictionary = std::map<mgr_t<C>, V, detail::dict_case_ignored<C>>;
+	using Dictionary = std::map<mgr_t<C>, V, String::Functors::dict_case_ignored<C>>;
 
 	template <CharacterType C, template <typename> class mgr_t = std::basic_string>
-	using Glossary = std::set<mgr_t<C>, detail::dict_case_ignored<C>>;
+	using Glossary = std::set<mgr_t<C>, String::Functors::dict_case_ignored<C>>;
 }
 
 #ifdef GENERATOR_TY
@@ -3285,7 +3285,6 @@ namespace Hydrogenium
 #endif
 
 
-// #TODO Str::ReplaceAll maybe??
 EXPORT template <typename C>
 constexpr void UTIL_ReplaceAll(std::basic_string<C>* psz, std::basic_string_view<C> const& from, std::basic_string_view<C> const& to) noexcept
 {
