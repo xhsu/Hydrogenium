@@ -24,6 +24,8 @@
 #include <set>		// Hydrogenium::Glossary
 #include <string_view>
 #include <typeinfo>
+#include <unordered_map>	// Container templates in Hydrogenium::String::Util<>
+#include <unordered_set>	// Container templates in Hydrogenium::String::Util<>
 #include <utility>
 
 #if __has_include(<generator>)	// #UPDATE_AT_CPP23 generator
@@ -3112,6 +3114,20 @@ namespace Hydrogenium::String::Components
 
 namespace Hydrogenium::String
 {
+	template <CharacterType C>
+	struct StringHasher
+	{
+		using is_transparent = int;
+
+		static inline constexpr auto m_Hasher = std::hash<std::basic_string_view<C>>{};
+
+		[[nodiscard]]
+		inline std::size_t operator()(std::string_view str) const noexcept
+		{
+			return m_Hasher(str);
+		}
+	};
+
 	template <
 		template <typename, typename> class TInfo = Components::info_narrow,
 		template <typename, typename> class TIterPolicy = Components::iter_default,
@@ -3133,7 +3149,7 @@ namespace Hydrogenium::String
 		template <template <typename, typename> class TFirst>
 		struct Composer<TFirst> : TFirst<empty_comp_t, base_comp_t> { using TFirst<empty_comp_t, base_comp_t>::operator(); };
 
-
+		// Algorithms
 		static inline constexpr auto Chr = Composer<Components::alg_chr, TQueryPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
 		static inline constexpr auto Cmp = Composer<Components::alg_cmp, TTestPP, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
 		static inline constexpr auto Cnt = Composer<Components::alg_cnt, TCountingPP, TIterPolicy, TRangePolicy, TInfo>{};
@@ -3148,6 +3164,40 @@ namespace Hydrogenium::String
 		static inline constexpr auto Tok = Composer<Components::alg_tok, TIterPolicy, TRangePolicy, TComparator, TInfo>{};
 		static inline constexpr auto Trm = Composer<Components::alg_trm, TInfo>{};
 		static inline constexpr auto Upr = Composer<Components::alg_upr, TModifyPP, TIterPolicy, TRangePolicy, TInfo>{};
+
+		// Container Helpers: For std::map/set
+		struct OpLessThan
+		{
+			using is_transparent = int;	// Make STL happy.
+
+			// #UPDATE_AT_CPP23 static operator()
+			constexpr bool operator()(Composer<TInfo>::view_type lhs, Composer<TInfo>::view_type rhs) const noexcept
+			{
+				return Cmp(std::move(lhs), std::move(rhs)) < 0;
+			}
+		};
+
+		// Container Helpers: For std::unordered_map/set
+		struct OpEqualTo
+		{
+			using is_transparent = int;	// Make STL happy.
+
+			// #UPDATE_AT_CPP23 static operator()
+			constexpr bool operator()(Composer<TInfo>::view_type lhs, Composer<TInfo>::view_type rhs) const noexcept
+			{
+				return Cmp(std::move(lhs), std::move(rhs)) == 0;
+			}
+		};
+
+		// Containers
+		using Glossary = std::set<typename Composer<TInfo>::owner_type, OpLessThan>;
+		using GlossaryView = std::set<typename Composer<TInfo>::view_type, OpLessThan>;
+		using Set = std::unordered_set<typename Composer<TInfo>::owner_type, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
+		using SetView = std::unordered_set<typename Composer<TInfo>::view_type, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
+		template <typename V> using Dictionary = std::map<typename Composer<TInfo>::owner_type, V, OpLessThan>;
+		template <typename V> using DictionaryView = std::map<typename Composer<TInfo>::view_type, V, OpLessThan>;
+		template <typename V> using Map = std::unordered_map<typename Composer<TInfo>::owner_type, V, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
+		template <typename V> using MapView = std::unordered_map<typename Composer<TInfo>::view_type, V, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
 	};
 }
 
@@ -3250,35 +3300,7 @@ namespace Hydrogenium
 	EXPORT inline constexpr auto as_vector = StringPolicy::Result::as_vector_t{};
 }
 
-// STL Extentions
-namespace Hydrogenium
-{
-	namespace String::Functors
-	{
-		template <CharacterType T>
-		struct dict_case_ignored
-		{
-			template <typename CFinal, typename Base>
-			using info_this = String::Components::wrapper_info<CFinal, Base, T>;
 
-			using toolset = String::Utils<info_this, String::Components::iter_multibytes, String::Components::cmp_case_ignored>;
-
-			// #UPDATE_AT_CPP23 static operator()
-			constexpr bool operator()(CType<T>::view_type lhs, CType<T>::view_type rhs) const noexcept
-			{
-				return toolset::Cmp(lhs, rhs) < 0;
-			}
-
-			using is_transparent = int;
-		};
-	}
-
-	template <CharacterType C, typename V, template <typename> class mgr_t = std::basic_string>
-	using Dictionary = std::map<mgr_t<C>, V, String::Functors::dict_case_ignored<C>>;
-
-	template <CharacterType C, template <typename> class mgr_t = std::basic_string>
-	using Glossary = std::set<mgr_t<C>, String::Functors::dict_case_ignored<C>>;
-}
 
 #ifdef GENERATOR_TY
 #undef GENERATOR_TY
