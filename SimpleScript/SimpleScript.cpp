@@ -619,7 +619,7 @@ namespace Op
 	constexpr auto impl_all_op_wrapper(auto&& impl) noexcept
 	{
 		return impl.template operator() <
-			Op::degree_t,
+			Op::degree_t, Op::celsius_t, Op::fahrenheit_t,
 			Op::factorial_t,
 			Op::power_t, Op::sqrt_t, Op::cbrt_t,
 			Op::multiply_t, Op::divide_t, Op::modulo_t,
@@ -997,7 +997,7 @@ private:
 };
 
 template <
-	auto fnIsCell,			/* Anything that considered as a single token is a cell */
+	auto fnIsCell,			/* Anything that considered as a single token is a cell. SIG: bool fnIsCell(string_view token, bool allow_sign); */
 	auto fnIsParenthesis,	/* Is the string considered as parenthesizes? */
 	auto fnIsOperator		/* Is the string considered as an operator? */
 >
@@ -1056,9 +1056,11 @@ constexpr auto Tokenizer(string_view s, string_view separators = " \t\f\v\r\n") 
 }
 
 template <
-	auto fnIsCell,			/* Anything that considered as a single token is a cell */
-	auto fnIsOperator,		/* Is the string considered as an operator? Remember in SYA, parenthesizes aren't operators. */	
-	auto fnIsFunction		/* Is this cell actually an function? */
+	auto fnIsCell,				/* Anything that considered as a single token is a cell */
+	auto fnIsOperator,			/* Is the string considered as an operator? Remember in SYA, parenthesizes aren't operators. */	
+	auto fnIsFunction,			/* Is this cell actually an function? */
+	auto fnIsLeftAssociative,	/* Is the operator left associative? */
+	auto fnGetPrecedence		/* Get associativity of an operator. */
 >
 constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept -> expected<vector<string_view>, string>
 {
@@ -1086,7 +1088,7 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 		// operator? Remember that parenthesis is not an operator.
 		else if (bIsOperator)
 		{
-			auto const o1_preced = Op::Precedence(token);
+			auto const o1_preced = fnGetPrecedence(token);
 
 			/*
 			while (
@@ -1098,7 +1100,7 @@ constexpr auto ShuntingYardAlgorithm(span<string_view const> tokens) noexcept ->
 			*/
 
 			while (!op_stack.empty() && op_stack.back() != "("
-				&& (Op::Precedence(op_stack.back()) > o1_preced || (Op::Precedence(op_stack.back()) == o1_preced && Op::Associativity(token) == Op::EAssoc::Left))
+				&& (fnGetPrecedence(op_stack.back()) > o1_preced || (fnGetPrecedence(op_stack.back()) == o1_preced && fnIsLeftAssociative(token)))
 				)
 			{
 				ret.push_back(op_stack.back());
@@ -1189,7 +1191,9 @@ namespace ArithExpr
 			::ShuntingYardAlgorithm<
 				[](auto&& s) noexcept { return ::IsIdentifier(s) || ::IsLiteral(s); },
 				&::IsOperator,
-				&::IsFunction
+				&::IsFunction,
+				[](auto&& s) noexcept { return Op::Associativity(s) == Op::EAssoc::Left; },
+				&Op::Precedence
 			>(tokens);
 	}
 
