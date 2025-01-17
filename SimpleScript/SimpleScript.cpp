@@ -455,7 +455,7 @@ constexpr bool IsLiteral(string_view s, bool const bAllowSign = true) noexcept
 	auto const hexdig_count = std::ranges::count_if(s, [](char c) noexcept { return "0123456789ABCDEFabcdef"sv.contains(c); });
 	auto const dot_count = std::ranges::count(s, '.');
 	auto const e_count = std::ranges::count(s, 'e') + std::ranges::count(s, 'E');
-	auto const sign_count = std::ranges::count(s, '+') + std::ranges::count(s, '-');
+	auto const sign_count = std::ranges::count(s, '+') + std::ranges::count(s, '-');	// this sign is not for overall sign, it's the sign of power -- like in '1e-9'
 
 	// It must be starting from 0-9 even if you are doing hex, as it starts as '0x'
 	bool const bIsFrontDigit = '0' <= s.front() && s.front() <= '9';
@@ -522,11 +522,14 @@ namespace Op
 
 		constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
 		{
+			// If everything is a knowing value, just compute it right here.
 			if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
 			{
 				static_assert(requires{ { pfn(m_proj(args)...) } -> std::convertible_to<value_t>; });
 				return std::unexpected(pfn(m_proj(args)...));
 			}
+
+			// Otherwise, it is stateful, hence we pack it into a function and evaluate within context.
 			else
 			{
 				static_assert(requires{ { pfn(m_visitor(std::forward<decltype(args)>(args))...) } -> std::convertible_to<value_t>; });

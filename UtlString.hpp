@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <bit>		// u8buffer, bit_cast
+#include <charconv>	// UTIL_StrToNum
 #include <concepts>
 #include <functional>
 #include <limits>
@@ -3307,16 +3308,19 @@ namespace Hydrogenium
 #endif
 
 
-EXPORT template <typename C>
-constexpr void UTIL_ReplaceAll(std::basic_string<C>* psz, std::basic_string_view<C> const& from, std::basic_string_view<C> const& to) noexcept
+EXPORT template <typename T>
+[[nodiscard]] constexpr T UTIL_StrToNum(std::string_view sz, T defVal = {}) noexcept
 {
-	if (from.empty())
-		return;
-
-	std::size_t start_pos = 0;
-	while ((start_pos = psz->find(from, start_pos)) != psz->npos)
+	if constexpr (std::is_enum_v<T>)
 	{
-		psz->replace(start_pos, from.length(), to);
-		start_pos += to.length();	// In case 'to' contains 'from', like replacing 'x' with 'yx'
+		if (std::underlying_type_t<T> ret{}; std::from_chars(sz.data(), sz.data() + sz.size(), ret).ec == std::errc{})
+			return static_cast<T>(ret);
 	}
+	else
+	{
+		if (T ret{}; std::from_chars(sz.data(), sz.data() + sz.size(), ret).ec == std::errc{})
+			return ret;
+	}
+
+	return defVal;
 }
