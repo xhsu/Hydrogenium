@@ -2,7 +2,7 @@
 	Created at: May 10 2024
 */
 
-#define HYDROGENIUM_UTL_STRING 20241105L
+#define HYDROGENIUM_UTL_STRING 20250120L
 
 #if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
 #pragma once
@@ -18,15 +18,11 @@
 #include <concepts>
 #include <functional>
 #include <limits>
-#include <map>		// Hydrogenium::Dictionary
 #include <optional>	// Str::Tok()
 #include <random>	// Str::detail::Fry()
 #include <ranges>
-#include <set>		// Hydrogenium::Glossary
 #include <string_view>
 #include <typeinfo>
-#include <unordered_map>	// Container templates in Hydrogenium::String::Util<>
-#include <unordered_set>	// Container templates in Hydrogenium::String::Util<>
 #include <utility>
 
 #if __has_include(<generator>)	// #UPDATE_AT_CPP23 generator
@@ -42,6 +38,38 @@
 
 #if __has_include("UtlUnicode.hpp")
 #include "UtlUnicode.hpp"
+#endif
+
+// Hydrogenium::Dictionary
+#if __has_include(<flat_map>)
+#include <flat_map>
+#elif __has_include(<Boost/container/flat_map.hpp>)
+#include <Boost/container/flat_map.hpp>
+#elif __has_include(<map>)
+#include <map>
+#endif
+
+// Hydrogenium::Glossary
+#if __has_include(<flat_set>)
+#include <flat_map>
+#elif __has_include(<Boost/container/flat_set.hpp>)
+#include <Boost/container/flat_set.hpp>
+#elif __has_include(<set>)
+#include <set>
+#endif
+
+// Hydrogenium::Map
+#if __has_include(<Boost/unordered/unordered_flat_map.hpp>)
+#include <Boost/unordered/unordered_flat_map.hpp>
+#elif __has_include(<unordered_map>)
+#include <unordered_map>
+#endif
+
+// Hydrogenium::Set
+#if __has_include(<Boost/unordered/unordered_flat_set.hpp>)
+#include <Boost/unordered/unordered_flat_set.hpp>
+#elif __has_include(<unordered_set>)
+#include <unordered_set>
 #endif
 
 #else
@@ -1085,6 +1113,10 @@ namespace Hydrogenium::StringPolicy
 	{
 		{ T{}.ChCmp(c, c) } -> std::same_as<int>;
 		{ T{}.ChEql(c, c) } -> std::same_as<bool>;
+
+		typename T::Hasher;
+		typename T::Hasher::is_transparent;
+		{ typename T::Hasher{}(std::basic_string_view<C>{}) } -> std::convertible_to<size_t>;
 	};
 
 	template <typename T, typename C>
@@ -1614,6 +1646,12 @@ namespace Hydrogenium::StringPolicy::Comparing
 				rhs = CType<U>::ToLower(rhs);
 #endif
 			}
+
+			template <typename T>
+			__forceinline static constexpr auto tolower(T lhs) noexcept
+			{
+				return CType<T>::ToLower(lhs);
+			}
 		};
 
 		template <CharacterType T, CharacterType U> [[nodiscard]]
@@ -1655,6 +1693,26 @@ namespace Hydrogenium::StringPolicy::Comparing
 
 			std::unreachable();
 		}
+
+		struct Hasher
+		{
+			using is_transparent = int;
+
+			template <CharacterType C>
+			[[nodiscard]] inline std::size_t operator()(std::basic_string_view<C> str) const noexcept
+			{
+				static constexpr auto m_Hasher = std::hash<std::basic_string_view<C>>{};
+
+				std::basic_string<C> const LowerStr{ std::from_range, str | std::views::transform([](auto c) noexcept { return detail::tolower(c); }) };
+				return m_Hasher(LowerStr);
+			}
+
+			[[nodiscard]] inline std::size_t operator()(auto&& str) const noexcept
+				requires (requires{ std::basic_string_view{ str }; })
+			{
+				return this->operator()(std::basic_string_view{ str });
+			}
+		};
 	};
 
 	inline constexpr auto case_ignored = case_ignored_t{};
@@ -1672,6 +1730,24 @@ namespace Hydrogenium::StringPolicy::Comparing
 		{
 			return lhs == rhs;
 		}
+
+		struct Hasher
+		{
+			using is_transparent = int;
+
+			template <typename C>
+			[[nodiscard]] inline std::size_t operator()(std::basic_string_view<C> str) const noexcept
+			{
+				static constexpr auto m_Hasher = std::hash<std::basic_string_view<C>>{};
+				return m_Hasher(str);
+			}
+
+			[[nodiscard]] inline std::size_t operator()(auto&& str) const noexcept
+				requires (requires{ std::basic_string_view{ str }; })
+			{
+				return this->operator()(std::basic_string_view{ str });
+			}
+		};
 	};
 
 	inline constexpr auto regular = regular_t{};
@@ -2142,9 +2218,11 @@ namespace Hydrogenium::String::Components
 	{
 		static_assert(!requires{ typename Base::policy_cmp; }, "Only one comparing policy allowed!");
 		using policy_cmp = CWrapped;
+		using policy_hashing = typename CWrapped::Hasher;
 
 		using CWrapped::ChCmp;
 		using CWrapped::ChEql;
+		using typename CWrapped::Hasher;
 	};
 
 	template <typename CFinal, typename Base>
@@ -3113,22 +3191,54 @@ namespace Hydrogenium::String::Components
 #undef REQ_MODIFY_PP
 }
 
+// Container helper
+namespace Hydrogenium::Container
+{
+// Hydrogenium::Dictionary
+#if __has_include(<flat_map>)
+	template <typename K, typename V, typename Compare>
+	using Dictionary = ::std::flat_map<K, V, Compare>;
+#elif __has_include(<Boost/container/flat_map.hpp>)
+	template <typename K, typename V, typename Compare>
+	using Dictionary = ::boost::container::flat_map<K, V, Compare>;
+#elif __has_include(<map>)
+	template <typename K, typename V, typename Compare>
+	using Dictionary = ::std::map<K, V, Compare>;
+#endif
+
+// Hydrogenium::Glossary
+#if __has_include(<flat_set>)
+	template <typename K, typename Compare>
+	using Glossary = ::std::flat_set<K, Compare>;
+#elif __has_include(<Boost/container/flat_set.hpp>)
+	template <typename K, typename Compare>
+	using Glossary = ::boost::container::flat_set<K, Compare>;
+#elif __has_include(<set>)
+	template <typename K, typename Compare>
+	using Glossary = ::std::set<K, Compare>;
+#endif
+
+// Hydrogenium::Map
+#if __has_include(<Boost/unordered/unordered_flat_map.hpp>)
+	template <typename K, typename T, typename Hasher, typename Eql>
+	using Map = ::boost::unordered::unordered_flat_map<K, T, Hasher, Eql>;
+#elif __has_include(<unordered_map>)
+	template <typename K, typename T, typename Hasher, typename Eql>
+	using Map = ::std::unordered_map<K, T, Hasher, Eql>;
+#endif
+
+// Hydrogenium::Set
+#if __has_include(<Boost/unordered/unordered_flat_set.hpp>)
+	template <typename K, typename Hasher, typename Eql>
+	using Set = ::boost::unordered::unordered_flat_set<K, Hasher, Eql>;
+#elif __has_include(<unordered_set>)
+	template <typename K, typename Hasher, typename Eql>
+	using Set = ::std::unordered_set<K, Hasher, Eql>;
+#endif
+}
+
 namespace Hydrogenium::String
 {
-	template <CharacterType C>
-	struct StringHasher
-	{
-		using is_transparent = int;
-
-		static inline constexpr auto m_Hasher = std::hash<std::basic_string_view<C>>{};
-
-		[[nodiscard]]
-		inline std::size_t operator()(std::string_view str) const noexcept
-		{
-			return m_Hasher(str);
-		}
-	};
-
 	template <
 		template <typename, typename> class TInfo = Components::info_narrow,
 		template <typename, typename> class TIterPolicy = Components::iter_default,
@@ -3190,15 +3300,17 @@ namespace Hydrogenium::String
 			}
 		};
 
+		using Hasher = typename Composer<TComparator>::Hasher;
+
 		// Containers
-		using Glossary = std::set<typename Composer<TInfo>::owner_type, OpLessThan>;
-		using GlossaryView = std::set<typename Composer<TInfo>::view_type, OpLessThan>;
-		using Set = std::unordered_set<typename Composer<TInfo>::owner_type, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
-		using SetView = std::unordered_set<typename Composer<TInfo>::view_type, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
-		template <typename V> using Dictionary = std::map<typename Composer<TInfo>::owner_type, V, OpLessThan>;
-		template <typename V> using DictionaryView = std::map<typename Composer<TInfo>::view_type, V, OpLessThan>;
-		template <typename V> using Map = std::unordered_map<typename Composer<TInfo>::owner_type, V, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
-		template <typename V> using MapView = std::unordered_map<typename Composer<TInfo>::view_type, V, StringHasher<typename Composer<TInfo>::char_type>, OpEqualTo>;
+		using Glossary = Container::Glossary<typename Composer<TInfo>::owner_type, OpLessThan>;
+		using GlossaryView = Container::Glossary<typename Composer<TInfo>::view_type, OpLessThan>;
+		using Set = Container::Set<typename Composer<TInfo>::owner_type, Hasher, OpEqualTo>;
+		using SetView = Container::Set<typename Composer<TInfo>::view_type, Hasher, OpEqualTo>;
+		template <typename V> using Dictionary = Container::Dictionary<typename Composer<TInfo>::owner_type, V, OpLessThan>;
+		template <typename V> using DictionaryView = Container::Dictionary<typename Composer<TInfo>::view_type, V, OpLessThan>;
+		template <typename V> using Map = Container::Map<typename Composer<TInfo>::owner_type, V, Hasher, OpEqualTo>;
+		template <typename V> using MapView = Container::Map<typename Composer<TInfo>::view_type, V, Hasher, OpEqualTo>;
 	};
 }
 
