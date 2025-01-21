@@ -2395,11 +2395,11 @@ namespace Hydrogenium::String::Components
 namespace Hydrogenium::String::Components
 {
 #define REQ_TYPE_INFO	static_assert(StringPolicy::TypingPolicy<Base>, "Requires a type info component!")
-#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base, Base::char_type>, "Requires a direction manager component!")
-#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base, Base::char_type>, "Requires a iterator manager component!")
-#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base, Base::char_type>, "Requires a comparator!")
-#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base, Base::char_type>, "Requires a query-functor compatible postprocessor!")
-#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base, Base::char_type>, "Requires a modifying-functor compatible postprocessor!")
+#define REQ_DIR_MGR		static_assert(StringPolicy::DirectionPolicy<Base, typename Base::char_type>, "Requires a direction manager component!")
+#define REQ_ITER_MGR	static_assert(StringPolicy::IteratingPolicy<Base, typename Base::char_type>, "Requires a iterator manager component!")
+#define REQ_COMPARATOR	static_assert(StringPolicy::ComparingPolicy<Base, typename Base::char_type>, "Requires a comparator!")
+#define REQ_QUERY_PP	static_assert(StringPolicy::QueryPostProcessor<Base, typename Base::char_type>, "Requires a query-functor compatible postprocessor!")
+#define REQ_MODIFY_PP	static_assert(StringPolicy::ModifyPostProcessor<Base, typename Base::char_type>, "Requires a modifying-functor compatible postprocessor!")
 
 	inline constexpr auto MAX_COUNT = std::numeric_limits<std::ptrdiff_t>::max();
 
