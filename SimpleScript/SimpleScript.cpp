@@ -1,7 +1,7 @@
 ﻿// SimpleScript.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
-#define HYDROGENIUM_UTL_SIMPLE_SCRIPT 20241214L
+#define HYDROGENIUM_UTL_SIMPLE_SCRIPT 20250123L
 
 #ifdef __INTELLISENSE__
 #define _MSVC_TESTING_NVCC
@@ -299,18 +299,18 @@ constexpr bool Cell_IsOutput(auto const& a) noexcept
 }
 
 // Evaluate argument into value_t
-template <typename proj_t = std::identity>
+template <typename adaptor_t = std::identity>
 struct cell_to_numeric final
 {
-	static inline constexpr proj_t m_proj{};
+	static inline constexpr adaptor_t m_adaptor{};
 
-	using proj_res_t = std::remove_cvref_t<decltype(std::invoke(m_proj, value_t{}))>;
+	using proj_res_t = std::remove_cvref_t<decltype(std::invoke(m_adaptor, value_t{}))>;
 
 	constexpr auto operator()(auto&& a) const noexcept -> proj_res_t
 	{
 		if constexpr (requires { { *a } -> std::convertible_to<value_t>; })
 		{
-			return std::invoke(m_proj, *a);
+			return std::invoke(m_adaptor, *a);
 		}
 		else if constexpr (requires { { *a } -> std::convertible_to<string_view>; })
 		{
@@ -318,7 +318,7 @@ struct cell_to_numeric final
 		}
 		else if constexpr (requires { { std::invoke(a) } -> std::convertible_to<value_t>; })
 		{
-			return std::invoke(m_proj, std::invoke(a));
+			return std::invoke(m_adaptor, std::invoke(a));
 		}
 		else if constexpr (std::is_convertible_v<decltype(a), string_view>)
 		{
@@ -328,11 +328,11 @@ struct cell_to_numeric final
 			value_t ret{};
 			std::from_chars(pBegin, pEnd, ret);
 
-			return m_proj(ret);
+			return m_adaptor(ret);
 		}
 		else
 		{
-			return std::invoke(m_proj, a);
+			return std::invoke(m_adaptor, a);
 		}
 	}
 };
@@ -496,7 +496,7 @@ constexpr bool IsParenthesis(string_view s) noexcept
 	return s == "("sv || s == ")"sv;
 }
 
-namespace Op
+namespace Binder
 {
 	struct adaptor_int32 final
 	{
@@ -514,19 +514,19 @@ namespace Op
 		}
 	};
 
-	template <auto pfn, typename proj_t = std::identity>
-	struct function final
+	template <auto pfn, typename adaptor_t = std::identity>
+	struct wrap final
 	{
-		static inline constexpr proj_t m_proj{};
-		static inline constexpr cell_to_numeric<proj_t> m_visitor{};
+		static inline constexpr adaptor_t m_adaptor{};
+		static inline constexpr cell_to_numeric<adaptor_t> m_visitor{};
 
 		constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
 		{
 			// If everything is a knowing value, just compute it right here.
 			if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
 			{
-				static_assert(requires{ { pfn(m_proj(args)...) } -> std::convertible_to<value_t>; });
-				return std::unexpected(pfn(m_proj(args)...));
+				static_assert(requires{ { pfn(m_adaptor(args)...) } -> std::convertible_to<value_t>; });
+				return std::unexpected(pfn(m_adaptor(args)...));
 			}
 
 			// Otherwise, it is stateful, hence we pack it into a function and evaluate within context.
@@ -542,7 +542,10 @@ namespace Op
 			}
 		}
 	};
+}
 
+namespace Op
+{
 	struct functor_factorial final
 	{
 		constexpr expected<expr_t, value_t> operator()(value_t num) const noexcept
@@ -598,30 +601,30 @@ namespace Op
 		static inline constexpr auto functor = FN{};
 	};
 
-	using degree_t = script_operator_t<u8"°", EAssoc::Left, 7, 1, function<&to_radian>>;	// Different from sign, this symbol has no ambiguity.
-	using celsius_t = script_operator_t<u8"℃", EAssoc::Left, 7, 1, function<&celsius_to_kelvin>>;
-	using fahrenheit_t = script_operator_t<u8"℉", EAssoc::Left, 7, 1, function<&fahrenheit_to_kelvin>>;
+	using degree_t = script_operator_t<u8"°", EAssoc::Left, 7, 1, Binder::wrap<&to_radian>>;	// Different from sign, this symbol has no ambiguity.
+	using celsius_t = script_operator_t<u8"℃", EAssoc::Left, 7, 1, Binder::wrap<&celsius_to_kelvin>>;
+	using fahrenheit_t = script_operator_t<u8"℉", EAssoc::Left, 7, 1, Binder::wrap<&fahrenheit_to_kelvin>>;
 
 	using factorial_t = script_operator_t<"!", EAssoc::Left, 6, 1, functor_factorial>;
 
-	using power_t = script_operator_t<"^", EAssoc::Right, 5, 2, function<static_cast<value_t(*)(value_t, value_t)>(&std::pow)>>;
-	using sqrt_t = script_operator_t<u8"√", EAssoc::Right, 5, 1, function<static_cast<value_t(*)(value_t)>(&std::sqrt)>>;
-	using cbrt_t = script_operator_t<u8"∛", EAssoc::Right, 5, 1, function<static_cast<value_t(*)(value_t)>(&std::cbrt)>>;
+	using power_t = script_operator_t<"^", EAssoc::Right, 5, 2, Binder::wrap<static_cast<value_t(*)(value_t, value_t)>(&std::pow)>>;
+	using sqrt_t = script_operator_t<u8"√", EAssoc::Right, 5, 1, Binder::wrap<static_cast<value_t(*)(value_t)>(&std::sqrt)>>;
+	using cbrt_t = script_operator_t<u8"∛", EAssoc::Right, 5, 1, Binder::wrap<static_cast<value_t(*)(value_t)>(&std::cbrt)>>;
 
-	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, function<std::multiplies{}>> ;
-	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, function<std::divides{}>>;
-	using modulo_t = script_operator_t<"%", EAssoc::Left, 4, 2, function<std::modulus{}, adaptor_int32>>;	// Only int can take remainder.
+	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, Binder::wrap <std::multiplies{}>> ;
+	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, Binder::wrap<std::divides{}>>;
+	using modulo_t = script_operator_t<"%", EAssoc::Left, 4, 2, Binder::wrap<std::modulus{}, Binder::adaptor_int32>>;	// Only int can take remainder.
 
-	using plus_t = script_operator_t<"+", EAssoc::Left, 3, 2, function<std::plus{}>>;
-	using minus_t = script_operator_t<"-", EAssoc::Left, 3, 2, function<std::minus{}>>;
+	using plus_t = script_operator_t<"+", EAssoc::Left, 3, 2, Binder::wrap<std::plus{}>>;
+	using minus_t = script_operator_t<"-", EAssoc::Left, 3, 2, Binder::wrap<std::minus{}>>;
 
-	using assign_t = script_operator_t<"=", EAssoc::Right, 2, 2, functor_dummy>;	// Placeholder & dummy right now.
+	using assign_t = script_operator_t<"=", EAssoc::Right, 2, 2, Binder::functor_dummy>;	// Placeholder & dummy right now.
 
-	using comma_t = script_operator_t<",", EAssoc::Left, 1, 1, function<std::identity{}>>;
+	using comma_t = script_operator_t<",", EAssoc::Left, 1, 1, Binder::wrap<std::identity{}>>;
 
 	constexpr auto impl_all_op_wrapper(auto&& impl) noexcept
 	{
-		return impl.template operator() <
+		return impl.template operator()<
 			Op::degree_t, Op::celsius_t, Op::fahrenheit_t,
 			Op::factorial_t,
 			Op::power_t, Op::sqrt_t, Op::cbrt_t,
@@ -680,29 +683,24 @@ namespace Op
 		);
 	}
 
-	constexpr auto Functor(std::string_view op, span<variant<valref_t, value_t, expr_t>> args) noexcept -> std::ranges::range_value_t<decltype(args)>
+	constexpr auto Functor(std::string_view op_name, span<variant<valref_t, value_t, expr_t>> args) noexcept -> std::ranges::range_value_t<decltype(args)>
 	{
 		using ret_t = std::ranges::range_value_t<decltype(args)>;
 		expected<expr_t, value_t> res{};
 
-		auto const impl_invoke = [&]<typename T>() noexcept
+		// REF: https://youtu.be/Ny9-516Gh28
+		auto const impl_invoke = [&]<typename T, size_t... I>(std::index_sequence<I...>) noexcept
 		{
-			if constexpr (T::m_arg_count == 0)
+			if constexpr (sizeof...(I) == 0)
 				return T::functor();
-			else if constexpr (T::m_arg_count == 1)
-				return std::visit(T::functor, std::move(args[0]));
-			else if constexpr (T::m_arg_count == 2)
-				return std::visit(T::functor, std::move(args[0]), std::move(args[1]));
-			else if constexpr (T::m_arg_count == 3)
-				return std::visit(T::functor, std::move(args[0]), std::move(args[1]), std::move(args[2]));
 			else
-				static_assert(false, "Only up to 3 args supported for any operator.");
+				return std::visit(T::functor, std::move(args[I])...);
 		};
 
 		auto const impl_dispatcher = [&]<typename... Tys>() noexcept
 		{
 			[[maybe_unused]] auto const _ =
-				(... || ((Tys::m_id == op) && (void(res = impl_invoke.template operator()<Tys>()), true)));
+				(... || ((Tys::m_id == op_name) && (void(res = impl_invoke.template operator()<Tys>(std::make_index_sequence<Tys::m_arg_count>{})), true)));
 		};
 
 		impl_all_op_wrapper(impl_dispatcher);
@@ -744,34 +742,11 @@ namespace Func
 		return func_param_counter(&T::operator());
 	}
 
-	template <fixed_string ID, auto FN, typename proj_t = std::identity>
+	template <fixed_string ID, auto FN, typename adaptor_t = std::identity>
 	struct script_fn_t final
 	{
-		struct functor_impl_t final
-		{
-			static inline constexpr auto m_fun{ FN };
-			static inline constexpr cell_to_numeric<proj_t> m_visitor{};
-
-			constexpr expected<expr_t, value_t> operator()(auto&&... args) const noexcept
-			{
-				if constexpr ((... && (std::same_as<std::remove_cvref_t<decltype(args)>, value_t>)))
-				{
-					return std::unexpected(m_fun(args...));
-				}
-				else
-				{
-					return
-						// Ref: https://stackoverflow.com/questions/47496358/c-lambdas-how-to-capture-variadic-parameter-pack-from-the-upper-scope
-						[...args{ std::move(args) }]() noexcept -> value_t
-						{
-							return m_fun(m_visitor(args)...);
-						};
-				}
-			}
-		};
-
 		static inline constexpr std::string_view m_id{ ID };
-		static inline constexpr auto functor = functor_impl_t{};
+		static inline constexpr auto functor = Binder::wrap<FN, adaptor_t>{};
 		static inline constexpr auto m_arg_count = func_param_counter(FN);
 	};
 
@@ -817,17 +792,17 @@ namespace Func
 
 	// Random
 	using randomf_t = script_fn_t<"randomf", &UTIL_Random<value_t>>;
-	using randomi_t = script_fn_t<"randomi", &UTIL_Random<int32_t>, Op::adaptor_int32>;
+	using randomi_t = script_fn_t<"randomi", &UTIL_Random<int32_t>, Binder::adaptor_int32>;
 
 	constexpr auto impl_all_fun_wrapper(auto&& impl) noexcept
 	{
-		return impl.template operator() <
+		return impl.template operator()<
 			abs_t, remainder_t, quotient_t, max_t, min_t, clamp_t,
 			pow_t, log_t, sqrt_t, hypot2_t, hypot3_t,
 			sine_t, cosine_t, tangent_t, arcsine_t, arccosine_t, arctangent_t,
 			ceil_t, floor_t, round_t,
 			randomf_t, randomi_t
-		> ();
+		>();
 	}
 
 	constexpr auto ArgCount(std::string_view s) noexcept -> uint_fast8_t
@@ -852,24 +827,18 @@ namespace Func
 		using ret_t = std::ranges::range_value_t<decltype(args)>;
 		expected<expr_t, value_t> res{};
 
-		auto const impl_invoke = [&]<typename T>() noexcept
+		auto const impl_invoke = [&]<typename T, size_t... I>(std::index_sequence<I...>) noexcept
 		{
-			if constexpr (T::m_arg_count == 0)
+			if constexpr (sizeof...(I) == 0)
 				return T::functor();
-			else if constexpr (T::m_arg_count == 1)
-				return std::visit(T::functor, std::move(args[0]));
-			else if constexpr (T::m_arg_count == 2)
-				return std::visit(T::functor, std::move(args[0]), std::move(args[1]));
-			else if constexpr (T::m_arg_count == 3)
-				return std::visit(T::functor, std::move(args[0]), std::move(args[1]), std::move(args[2]));
 			else
-				static_assert(false, "Only up to 3 args supported for any built-in function.");
+				return std::visit(T::functor, std::move(args[I])...);
 		};
 
 		auto const impl_dispatcher = [&]<typename... Tys>() noexcept
 		{
 			[[maybe_unused]] auto const _ =
-				(... || ((Tys::m_id == fn_name) && (void(res = impl_invoke.template operator()<Tys>()), true)));
+				(... || ((Tys::m_id == fn_name) && (void(res = impl_invoke.template operator()<Tys>(std::make_index_sequence<Tys::m_arg_count>{})), true)));
 		};
 
 		impl_all_fun_wrapper(impl_dispatcher);
@@ -1893,8 +1862,8 @@ struct script_t final
 		return
 			[accu{ std::move(accumulator) }, refe{ std::move(reference) }, eflags{ m_eflags.get() }]() noexcept
 			{
-				auto const lhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Op::adaptor_int32>{}, accu));
-				auto const rhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Op::adaptor_int32>{}, refe));
+				auto const lhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Binder::adaptor_int32>{}, accu));
+				auto const rhs = std::bit_cast<uint32_t>(std::visit(cell_to_numeric<Binder::adaptor_int32>{}, refe));
 				std::bitset<32> const bits{ lhs & rhs };
 
 				eflags->m_SF = bits[31];
