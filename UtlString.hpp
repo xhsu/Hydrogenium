@@ -2041,8 +2041,8 @@ namespace Hydrogenium::StringPolicy::Result
 	// Dup(Rev), Lwr, Upr
 	struct as_unmanaged_t
 	{
-		template <typename proj_t = std::identity> [[nodiscard]]
-		static constexpr auto Transform(auto&& first, auto&& last, auto IterPolicy, proj_t&& proj = {}) noexcept
+		template <typename adaptor_t = std::identity> [[nodiscard]]
+		static constexpr auto Transform(auto&& first, auto&& last, auto IterPolicy, adaptor_t&& proj = {}) noexcept
 		{
 			using char_type = std::remove_cvref_t<decltype(*first)>;
 			using value_type = decltype(IterPolicy.ValueOf(first));
@@ -2051,7 +2051,7 @@ namespace Hydrogenium::StringPolicy::Result
 			auto i = 0;
 
 			// remove cvref comparison
-			static_assert(typeid(std::invoke_result_t<proj_t, value_type>) == typeid(value_type));
+			static_assert(typeid(std::invoke_result_t<adaptor_t, value_type>) == typeid(value_type));
 
 			for (auto it = first; it < last; IterPolicy.Arithmetic(it, first, last, 1))
 			{
@@ -2079,8 +2079,8 @@ namespace Hydrogenium::StringPolicy::Result
 	};
 	struct as_marshaled_t
 	{
-		template <typename proj_t = std::identity> [[nodiscard]]
-		static constexpr auto Transform(auto&& first, auto&& last, auto IterPolicy, proj_t&& proj = {}) noexcept
+		template <typename adaptor_t = std::identity> [[nodiscard]]
+		static constexpr auto Transform(auto&& first, auto&& last, auto IterPolicy, adaptor_t&& proj = {}) noexcept
 		{
 			using char_type = std::remove_cvref_t<decltype(*first)>;
 			using value_type = decltype(IterPolicy.ValueOf(first));
@@ -2089,7 +2089,7 @@ namespace Hydrogenium::StringPolicy::Result
 			ret.reserve(IterPolicy.NativeSize(first, last));
 
 			// remove cvref comparison
-			static_assert(typeid(std::invoke_result_t<proj_t, value_type>) == typeid(value_type));
+			static_assert(typeid(std::invoke_result_t<adaptor_t, value_type>) == typeid(value_type));
 
 			for (auto it = first; it < last; IterPolicy.Arithmetic(it, first, last, 1))
 			{
@@ -2335,10 +2335,10 @@ namespace Hydrogenium::String::Components
 
 		// Modify
 
-		template <typename proj_t = std::identity>
+		template <typename adaptor_t = std::identity>
 		[[nodiscard]]
 		__forceinline static constexpr auto Transform(
-			std::bidirectional_iterator auto const& first, std::bidirectional_iterator auto const& last, proj_t&& proj = {}
+			std::bidirectional_iterator auto const& first, std::bidirectional_iterator auto const& last, adaptor_t&& proj = {}
 		) noexcept -> decltype(CWrapped::Transform(first, last, policy_iter{}, std::move(proj))) requires (requires{ std::invoke(proj, policy_iter::ValueOf(first)); })
 		{
 			return CWrapped::Transform(first, last, policy_iter{}, std::move(proj));
