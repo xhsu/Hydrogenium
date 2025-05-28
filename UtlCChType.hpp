@@ -8,12 +8,10 @@
 
 namespace Hydrogenium::CCType
 {
-	// #UPDATE_AT_CPP23 if consteval
-
 	// int isalnum(int c);
 	constexpr bool IsAlNum(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return
 				('0' <= c && c <= '9')
@@ -29,7 +27,7 @@ namespace Hydrogenium::CCType
 	// int isalpha(int c);
 	constexpr bool IsAlpha(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return
 				('a' <= c && c <= 'z')
@@ -44,7 +42,7 @@ namespace Hydrogenium::CCType
 	//int isblank(int c);
 	constexpr bool IsBlank(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return c == '\t' || c == ' ';
 		}
@@ -57,7 +55,7 @@ namespace Hydrogenium::CCType
 	//int iscntrl(int c);
 	constexpr bool IsCntrl(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return
 				('\x00' <= c && c <= '\x1F')
@@ -72,7 +70,7 @@ namespace Hydrogenium::CCType
 	//int isdigit(int c);
 	constexpr bool IsDigit(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return ('0' <= c && c <= '9');
 		}
@@ -85,7 +83,7 @@ namespace Hydrogenium::CCType
 	//int isgraph(int c);
 	constexpr bool IsGraph(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return ('\x21' <= c && c <= '\x7E');
 		}
@@ -98,7 +96,7 @@ namespace Hydrogenium::CCType
 	//int islower(int c);
 	constexpr bool IsLower(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return 'a' <= c && c <= 'z';
 		}
@@ -111,7 +109,7 @@ namespace Hydrogenium::CCType
 	//int isprint(int c);
 	constexpr bool IsPrint(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return ('\x20' <= c && c <= '\x7E');
 		}
@@ -124,7 +122,7 @@ namespace Hydrogenium::CCType
 	//int ispunct(int c);
 	constexpr bool IsPunct(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return
 				('\x21' <= c && c <= '\x2F')		// !"#$%&'()*+,-./
@@ -142,7 +140,7 @@ namespace Hydrogenium::CCType
 	//int isspace(int c);
 	constexpr bool IsSpace(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return
 				c == ' '
@@ -162,7 +160,7 @@ namespace Hydrogenium::CCType
 	//int isupper(int c);
 	constexpr bool IsUpper(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return 'A' <= c && c <= 'Z';
 		}
@@ -175,7 +173,7 @@ namespace Hydrogenium::CCType
 	//int isxdigit(int c);
 	constexpr bool IsXDigit(unsigned char c) noexcept
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			return
 				('0' <= c && c <= '9')
@@ -191,7 +189,7 @@ namespace Hydrogenium::CCType
 	//int tolower(int c);
 	constexpr auto ToLower(unsigned char c) noexcept -> decltype(c)
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			if ('A' <= c && c <= 'Z')
 				return static_cast<decltype(c)>(c - 'A' + 'a');
@@ -207,7 +205,7 @@ namespace Hydrogenium::CCType
 	//int toupper(int c);
 	constexpr auto ToUpper(unsigned char c) noexcept -> decltype(c)
 	{
-		if (std::is_constant_evaluated())
+		if consteval
 		{
 			if ('a' <= c && c <= 'z')
 				return static_cast<decltype(c)>(c - 'a' + 'A');

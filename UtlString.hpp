@@ -2,7 +2,7 @@
 	Created at: May 10 2024
 */
 
-#define HYDROGENIUM_UTL_STRING 20250120L
+#define HYDROGENIUM_UTL_STRING 20250528L
 
 #if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
 #pragma once
@@ -25,7 +25,7 @@
 #include <typeinfo>
 #include <utility>
 
-#if __has_include(<generator>)	// #UPDATE_AT_CPP23 generator
+#if __has_include(<generator>)
 #include <generator>
 #define GENERATOR_TY ::std::generator
 #elif __has_include(<experimental/generator>)
@@ -75,8 +75,7 @@
 #else
 
 import <cassert>;
-import <experimental/generator>;
-import std;
+import std.compat;
 
 import UtlUnicode;
 
@@ -316,7 +315,6 @@ namespace Hydrogenium
 		static inline constexpr bool is_utf32 = sizeof(char_type) == sizeof(u32char);
 
 		using param_type = std::conditional_t<is_narrow, unsigned char, std::conditional_t<is_wide, wchar_t, std::conditional_t<is_utf8, unsigned char, std::conditional_t<is_utf16, char16_t, std::conditional_t<is_utf32, char32_t, void>>>>>;
-		using eof_type = std::common_type_t<decltype(EOF), decltype(WEOF)>;
 		using view_type = std::basic_string_view<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
 		using owner_type = std::basic_string<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
 		using traits_type = ::std::char_traits<std::conditional_t<sizeof(char_type) == 1, char, std::conditional_t<sizeof(char_type) == 2, u16char, u32char>>>;
@@ -324,7 +322,10 @@ namespace Hydrogenium
 		using mutable_span_t = std::span<char_type>;
 		using const_span_t = std::span<std::add_const_t<char_type>>;
 
+#if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
+		using eof_type = std::common_type_t<decltype(EOF), decltype(WEOF)>;
 		static inline constexpr eof_type eof = is_narrow ? EOF : WEOF;
+#endif
 
 		//int isalnum(int c);
 		//int iswalnum( std::wint_t ch );
@@ -1171,8 +1172,6 @@ namespace Hydrogenium::StringPolicy::Typing
 
 namespace Hydrogenium::StringPolicy::Iterating
 {
-	// #UPDATE_AT_CPP23 static operator()
-
 	enum struct APRES : std::uint_fast8_t
 	{
 		ADVANCED = (1 << 0),
@@ -1699,18 +1698,16 @@ namespace Hydrogenium::StringPolicy::Comparing
 			using is_transparent = int;
 
 			template <CharacterType C>
-			[[nodiscard]] inline std::size_t operator()(std::basic_string_view<C> str) const noexcept
+			[[nodiscard]] static inline std::size_t operator()(std::basic_string_view<C> str) noexcept
 			{
 				static constexpr auto m_Hasher = std::hash<std::basic_string_view<C>>{};
 
-				std::basic_string<C> const LowerStr{ std::from_range, str | std::views::transform([](auto c) noexcept { return detail::tolower(c); }) };
-				return m_Hasher(LowerStr);
-			}
+				std::basic_string<C> const LowerStr{ std::from_range,
+					str
+					| std::views::transform([](auto c) static noexcept { return detail::tolower(c); })
+				};
 
-			[[nodiscard]] inline std::size_t operator()(auto&& str) const noexcept
-				requires (requires{ std::basic_string_view{ str }; })
-			{
-				return this->operator()(std::basic_string_view{ str });
+				return m_Hasher(LowerStr);
 			}
 		};
 	};
@@ -1735,17 +1732,11 @@ namespace Hydrogenium::StringPolicy::Comparing
 		{
 			using is_transparent = int;
 
-			template <typename C>
-			[[nodiscard]] inline std::size_t operator()(std::basic_string_view<C> str) const noexcept
-			{
-				static constexpr auto m_Hasher = std::hash<std::basic_string_view<C>>{};
-				return m_Hasher(str);
-			}
-
+			// #MSVC_BUGGED_Incorrect_concept_evaluation_with_static_operator()
 			[[nodiscard]] inline std::size_t operator()(auto&& str) const noexcept
-				requires (requires{ std::basic_string_view{ str }; })
 			{
-				return this->operator()(std::basic_string_view{ str });
+				static constexpr auto m_Hasher = std::hash<std::remove_cvref_t<decltype(str)>>{};
+				return m_Hasher(std::forward<decltype(str)>(str));
 			}
 		};
 	};
@@ -2117,7 +2108,7 @@ namespace Hydrogenium::StringPolicy::Result
 	static_assert(ModifyPostProcessor<as_marshaled_t, char>);	// this one is the default, as_it_is_t doesn't applys here.
 
 	// Tok
-	struct as_generator_t final {};	// #UPDATE_AT_CPP23 generator
+	struct as_generator_t final {};
 	struct as_vector_t final {};	// These are only used for overload selection
 }
 
@@ -2129,7 +2120,8 @@ namespace Hydrogenium::String::Components
 		// Only for non-dependented name, quick diagnosis.
 		// https://en.cppreference.com/w/cpp/language/dependent_name
 		// Just keep compiler happy.
-		void operator()(...) const noexcept = delete;
+		// It must be a static member, because non-static members are always favored than static members.
+		static void operator()(...) noexcept = delete;
 	};
 
 	struct empty_comp_t {};
@@ -2426,7 +2418,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = MAX_COUNT) const noexcept
+		static constexpr auto operator()(view_type str, param_type ch, ptrdiff_t until = MAX_COUNT) noexcept
 			-> decltype(Transform(str.begin(), str.end(), str.begin(), str.end(), str.end()))
 		{
 			auto [begin, it, end] = Get(str, until);
@@ -2466,7 +2458,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr transformed_ret_type operator()(view_type lhs, view_type rhs, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr transformed_ret_type operator()(view_type lhs, view_type rhs, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			auto [b1, s1, e1] = Get(lhs, count);
 			auto [b2, s2, e2] = Get(rhs, count);
@@ -2513,7 +2505,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr transformed_ret_type operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr transformed_ret_type operator()(view_type str, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			auto [begin, it, end] = Get(str, count);
 
@@ -2549,7 +2541,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) noexcept
 			-> decltype(Transform(str.begin(), str.end()))
 		{
 			auto [_, it, end] = Get(str, count);
@@ -2577,10 +2569,10 @@ namespace Hydrogenium::String::Components
 		using Base::Transform;
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, view_type charset, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr auto operator()(view_type str, view_type charset, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			// The count is capping the str, not charset
-			auto [b1, s1, e1] = this->Get(str, count);
+			auto [b1, s1, e1] = Get(str, count);
 			auto const b2 = charset.begin(), e2 = charset.end();	// And it's not directional. It's a set.
 
 			for (; s1 < e1; Arithmetic(s1, b1, e1, 1))
@@ -2617,7 +2609,7 @@ namespace Hydrogenium::String::Components
 
 		/// <summary>psz must be a marshaled object, like std::string</summary>
 		template <typename T> requires(std::convertible_to<T&, std::span<char_type>>)
-		T* operator()(T* psz, ptrdiff_t until = MAX_COUNT) const noexcept
+		static T* operator()(T* psz, ptrdiff_t until = MAX_COUNT) noexcept
 		{
 			using int_type = std::conditional_t<sizeof(char_type) == 1, int8_t, std::conditional_t<sizeof(char_type) == 2, int16_t, int32_t>>;
 			constexpr auto UTF_MAX = std::min<int32_t>(std::numeric_limits<int_type>::max(), 0x10FFFF);
@@ -2655,7 +2647,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr auto operator()(view_type str, ptrdiff_t count = MAX_COUNT) noexcept
 			-> decltype(Transform(str.begin(), str.end(), &CType<deref_type>::ToLower))
 		{
 			auto [_, it, end] = Get(str, count);
@@ -2664,7 +2656,7 @@ namespace Hydrogenium::String::Components
 		}
 
 		// return type is void, in the case of in-place mode.
-		constexpr void operator()(owner_type* pstr, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr void operator()(owner_type* pstr, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			// explictly create a view, such that compiler won't complain about const& object expiring.
 			view_type const str{ *pstr };
@@ -2787,7 +2779,7 @@ namespace Hydrogenium::String::Components
 			return { str.npos, str.npos };
 		}
 
-		constexpr void operator()(owner_type* pstr, view_type from, view_type to, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr void operator()(owner_type* pstr, view_type from, view_type to, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			if (from.empty())
 				return;
@@ -2812,7 +2804,7 @@ namespace Hydrogenium::String::Components
 		}
 
 		template <size_t N>
-		constexpr void operator()(char_type(&rgsz)[N], view_type from, view_type to, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr void operator()(char_type(&rgsz)[N], view_type from, view_type to, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			owner_type res{ rgsz };
 			operator()(&res, from, to, count);
@@ -2826,7 +2818,7 @@ namespace Hydrogenium::String::Components
 				rgsz[N - 1] = '\0';
 		}
 
-		constexpr auto operator()(std::same_as<view_type> auto str, view_type from, view_type to, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr auto operator()(std::same_as<view_type> auto str, view_type from, view_type to, ptrdiff_t count = MAX_COUNT) noexcept
 			-> decltype(Base::Transform(str.begin(), str.end())) requires (StringPolicy::ModifyPostProcessor<Base, char_type>)
 		{
 			owner_type res{ str };
@@ -2906,7 +2898,7 @@ namespace Hydrogenium::String::Components
 		}
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type str, view_type substr, ptrdiff_t until = MAX_COUNT) const noexcept
+		static constexpr auto operator()(view_type str, view_type substr, ptrdiff_t until = MAX_COUNT) noexcept
 			-> decltype(Transform(str.begin(), str.end(), str.begin(), str.end(), str.end()))
 		{
 			// Searching direction has nothing to do with comparing direction!!
@@ -2956,7 +2948,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr view_type operator()(view_type str, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr view_type operator()(view_type str, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			// the moving iter is already included in this function. No additional loop needed!
 			auto [begin, it, end] = Get(str, count);
@@ -3044,7 +3036,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		auto operator()(std::optional<view_type> psz, view_type delim, ptrdiff_t until = MAX_COUNT) const noexcept
+		static auto operator()(std::optional<view_type> psz, view_type delim, ptrdiff_t until = MAX_COUNT) noexcept
 			-> decltype(detail_tok(psz->begin(), std::declval<typename view_type::iterator&>(), psz->end(), delim))
 		{
 			// improve compared to original strtok(): thread safe.
@@ -3060,7 +3052,7 @@ namespace Hydrogenium::String::Components
 
 #ifdef GENERATOR_TY
 		[[nodiscard]]
-		auto operator()(StringPolicy::Result::as_generator_t, view_type str, view_type delim, ptrdiff_t until = MAX_COUNT) const noexcept
+		static auto operator()(StringPolicy::Result::as_generator_t, view_type str, view_type delim, ptrdiff_t until = MAX_COUNT) noexcept
 			-> GENERATOR_TY<view_type>
 		{
 			auto [begin, it, end] = Get(str, until);
@@ -3075,7 +3067,7 @@ namespace Hydrogenium::String::Components
 #endif
 
 		[[nodiscard]]
-		constexpr auto operator()(StringPolicy::Result::as_vector_t, view_type str, view_type delim, ptrdiff_t until = MAX_COUNT) const noexcept
+		static constexpr auto operator()(StringPolicy::Result::as_vector_t, view_type str, view_type delim, ptrdiff_t until = MAX_COUNT) noexcept
 			-> std::vector<view_type>
 		{
 			auto [begin, it, end] = Get(str, until);
@@ -3103,7 +3095,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr view_type operator()(view_type str) const noexcept
+		static constexpr view_type operator()(view_type str) noexcept
 		{
 			auto ret =
 				str
@@ -3122,7 +3114,7 @@ namespace Hydrogenium::String::Components
 		}
 
 		// return type is void, in the case of in-place mode.
-		constexpr void operator()(owner_type* pstr) const noexcept
+		static constexpr void operator()(owner_type* pstr) noexcept
 		{
 			if (pstr->empty())
 				return;
@@ -3159,7 +3151,7 @@ namespace Hydrogenium::String::Components
 		using Base::operator();	// Just watch out for overload resolution
 
 		[[nodiscard]]
-		constexpr auto operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr auto operator()(view_type const& str, ptrdiff_t count = MAX_COUNT) noexcept
 			-> decltype(Transform(str.begin(), str.end(), &CType<deref_type>::ToUpper))
 		{
 			auto [_, it, end] = Get(str, count);
@@ -3168,7 +3160,7 @@ namespace Hydrogenium::String::Components
 		}
 
 		// return type is void, in the case of in-place mode.
-		constexpr void operator()(owner_type* pstr, ptrdiff_t count = MAX_COUNT) const noexcept
+		static constexpr void operator()(owner_type* pstr, ptrdiff_t count = MAX_COUNT) noexcept
 		{
 			// explictly create a view, such that compiler won't complain about const& object expiring.
 			view_type const str{ *pstr };
@@ -3281,8 +3273,7 @@ namespace Hydrogenium::String
 		{
 			using is_transparent = int;	// Make STL happy.
 
-			// #UPDATE_AT_CPP23 static operator()
-			constexpr bool operator()(Composer<TInfo>::view_type lhs, Composer<TInfo>::view_type rhs) const noexcept
+			static constexpr bool operator()(Composer<TInfo>::view_type lhs, Composer<TInfo>::view_type rhs) noexcept
 			{
 				return Cmp(std::move(lhs), std::move(rhs)) < 0;
 			}
@@ -3293,8 +3284,7 @@ namespace Hydrogenium::String
 		{
 			using is_transparent = int;	// Make STL happy.
 
-			// #UPDATE_AT_CPP23 static operator()
-			constexpr bool operator()(Composer<TInfo>::view_type lhs, Composer<TInfo>::view_type rhs) const noexcept
+			static constexpr bool operator()(Composer<TInfo>::view_type lhs, Composer<TInfo>::view_type rhs) noexcept
 			{
 				return Cmp(std::move(lhs), std::move(rhs)) == 0;
 			}

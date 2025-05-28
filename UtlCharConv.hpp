@@ -278,7 +278,7 @@ constexpr double UTIL_strtof(std::string_view dec) noexcept
 	using namespace Hydrogenium::detail_charconv;
 
 	constexpr auto TenToThePowerOf =
-		[](uint8_t count) /*#UPDATE_AT_CPP23 static*/ noexcept -> uint32_t
+		[](uint8_t count) static noexcept -> uint32_t
 		{
 			uint32_t ret{ 1 };
 			for (uint8_t i = 0; i < count; ++i)

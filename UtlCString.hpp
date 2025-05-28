@@ -15,8 +15,6 @@ namespace Hydrogenium::CString
 	using std::string;
 	using std::string_view;
 
-	// #UPDATE_AT_CPP23 if consteval
-
 	//void* memcpy(void* s1, const void* s2, size_t n);      // freestanding
 	//void* memmove(void* s1, const void* s2, size_t n);     // freestanding
 

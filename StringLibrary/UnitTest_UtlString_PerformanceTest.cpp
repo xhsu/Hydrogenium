@@ -4,7 +4,7 @@
 struct Timer final
 {
 	Timer() noexcept = default;
-	Timer(uint32_t count) noexcept : m_count{ count } {}
+	Timer(std::uint32_t count) noexcept : m_count{ count } {}
 	~Timer() noexcept
 	{
 		auto const last =
@@ -24,7 +24,7 @@ struct Timer final
 	}
 
 	std::chrono::high_resolution_clock::time_point m_start{ std::chrono::high_resolution_clock::now() };
-	uint64_t m_count{ 1 };
+	std::uint64_t m_count{ 1 };
 };
 
 void UnitTest_UtlString_PerformanceTest() noexcept

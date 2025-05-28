@@ -1,107 +1,39 @@
 
 #pragma warning(push)
-#pragma warning(disable : 5244) // '#include <meow>' in the purview of module 'std' appears erroneous.
+#pragma warning(1 : 4668) // 'MEOW' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
 
-// "C++ library headers" [tab:headers.cpp]
-#include <algorithm>
-#if _HAS_STATIC_RTTI
-#include <any>
-#endif // _HAS_STATIC_RTTI
-#include <array>
-#include <atomic>
-#include <barrier>
+// All STL headers should protect themselves from macroized new.
+#if !(defined(__CUDACC__) && defined(__clang__))
+#pragma push_macro("new")
+#undef new
+#define new WILL NOT COMPILE
+#endif // !(defined(__CUDACC__) && defined(__clang__))
+
+#ifndef _SILENCE_CXX17_C_HEADER_DEPRECATION_WARNING
+#define _SILENCE_CXX17_C_HEADER_DEPRECATION_WARNING
+#endif // !defined(_SILENCE_CXX17_C_HEADER_DEPRECATION_WARNING)
+
+#define _SILENCE_CXX20_CISO646_REMOVED_WARNING
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+#define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
+
+// Core STL Headers
 #include <bit>
-#include <bitset>
-#include <charconv>
-#include <chrono>
-#include <codecvt>
 #include <compare>
-#include <complex>
 #include <concepts>
-#include <condition_variable>
 #include <coroutine>
-#include <deque>
-#include <exception>
-#include <execution>
-#if _HAS_CXX23
-#include <expected>
-#endif // _HAS_CXX23
-#include <filesystem>
-#include <format>
-#include <forward_list>
-#include <fstream>
-#include <functional>
-#include <future>
 #include <initializer_list>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <latch>
 #include <limits>
-#include <list>
-#include <locale>
-#include <map>
-#if _HAS_CXX23
-#include <mdspan>
-#endif // _HAS_CXX23
-#include <memory>
-#include <memory_resource>
-#include <mutex>
-#include <new>
 #include <numbers>
-#include <numeric>
-#include <optional>
-#include <ostream>
-#if _HAS_CXX23
-#include <print>
-#endif // _HAS_CXX23
-#include <queue>
-#include <random>
-#include <ranges>
 #include <ratio>
-#include <regex>
-#include <scoped_allocator>
-#include <semaphore>
-#include <set>
-#include <shared_mutex>
 #include <source_location>
-#include <span>
-#if _HAS_CXX23
-#include <spanstream>
-#endif // _HAS_CXX23
-#include <sstream>
-#include <stack>
-#if _HAS_CXX23
-#include <stacktrace>
-#endif // _HAS_CXX23
-#include <stdexcept>
-#if _HAS_CXX23
 #include <stdfloat>
-#endif // _HAS_CXX23
-#include <stop_token>
-#include <streambuf>
-#include <string>
-#include <string_view>
-#include <strstream>
-#include <syncstream>
-#include <system_error>
-#include <thread>
 #include <tuple>
 #include <type_traits>
-#include <typeindex>
-#include <typeinfo>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
-#include <valarray>
-#include <variant>
-#include <vector>
 #include <version>
 
-// "C++ headers for C library facilities" [tab:headers.cpp.c]
+// Core C Wrapper Headers
 #include <cassert>
 #include <cctype>
 #include <cerrno>
@@ -110,7 +42,6 @@
 #include <cinttypes>
 #include <climits>
 #include <clocale>
-#include <cmath>
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
@@ -124,8 +55,87 @@
 #include <cwchar>
 #include <cwctype>
 
-// #UPDATE_AT_CPP23 generator
-#include <experimental/generator>
+// Non-Core STL Headers
+#include <algorithm>
+#include <any>
+#include <array>
+#include <bitset>
+#include <charconv>
+#include <chrono>
+#include <codecvt>
+#include <complex>
+#include <deque>
+#include <exception>
+#include <expected>
+#include <filesystem>
+#include <format>
+#include <forward_list>
+#include <fstream>
+#include <functional>
+#include <generator>
+#include <hash_map>
+#include <hash_set>
+#include <iomanip>
+#include <ios>
+#include <iosfwd>
+#include <iostream>
+#include <istream>
+#include <iterator>
+#include <list>
+#include <locale>
+#include <map>
+#include <mdspan>
+#include <memory>
+#include <memory_resource>
+#include <new>
+#include <numeric>
+#include <optional>
+#include <ostream>
+#include <print>
+#include <queue>
+#include <random>
+#include <ranges>
+#include <regex>
+#include <scoped_allocator>
+#include <set>
+#include <span>
+#include <spanstream>
+#include <sstream>
+#include <stack>
+#include <stacktrace>
+#include <stdexcept>
+#include <streambuf>
+#include <string>
+#include <string_view>
+#include <strstream>
+#include <syncstream>
+#include <system_error>
+#include <typeindex>
+#include <typeinfo>
+#include <unordered_map>
+#include <unordered_set>
+#include <valarray>
+#include <variant>
+#include <vector>
+
+#ifndef _M_CEE_PURE
+#include <__msvc_cxx_stdatomic.hpp>
+#include <atomic>
+#include <barrier>
+#include <condition_variable>
+#include <execution>
+#include <future>
+#include <latch>
+#include <mutex>
+#include <semaphore>
+#include <shared_mutex>
+#include <stop_token>
+#include <thread>
+#endif // !defined(_M_CEE_PURE)
+
+#if !(defined(__CUDACC__) && defined(__clang__))
+#pragma pop_macro("new")
+#endif // !(defined(__CUDACC__) && defined(__clang__))
 
 #pragma warning(pop)
 

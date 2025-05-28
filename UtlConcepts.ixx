@@ -421,7 +421,7 @@ auto UTIL_Fountainize(GeneratorTy&& GenRange) noexcept
 {
 	using Ty = GeneratorTy::iterator::value_type;
 
-	return [GenRange = std::move(GenRange), iter = GenRange.begin(), itEnd = GenRange.end()]() mutable -> std::optional<Ty>	// #UPDATE_AT_CPP23 static operator().
+	return [GenRange = std::move(GenRange), iter = GenRange.begin(), itEnd = GenRange.end()]() mutable -> std::optional<Ty>
 	{
 		if (iter != itEnd)
 		{
