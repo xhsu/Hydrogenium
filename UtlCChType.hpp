@@ -1,15 +1,32 @@
+/*
+	Formalized at: May 28 2025
+*/
+
+#ifndef EXPORT
+#define EXPORT
+#endif
+
+#if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
 #pragma once
+
+#define HYDROGENIUM_UTL_C_CHTYPE 20250528L
 
 #include <cctype>
 #include <cwctype>
 
-#include <utility>	// remove on update to 'if consteval'
+#else
+
+import std.compat;
+
+EXPORT inline constexpr auto HYDROGENIUM_UTL_C_CHTYPE = 20250528L;
+
+#endif
 
 
 namespace Hydrogenium::CCType
 {
 	// int isalnum(int c);
-	constexpr bool IsAlNum(unsigned char c) noexcept
+	EXPORT constexpr bool IsAlNum(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -25,7 +42,7 @@ namespace Hydrogenium::CCType
 	}
 
 	// int isalpha(int c);
-	constexpr bool IsAlpha(unsigned char c) noexcept
+	EXPORT constexpr bool IsAlpha(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -40,7 +57,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isblank(int c);
-	constexpr bool IsBlank(unsigned char c) noexcept
+	EXPORT constexpr bool IsBlank(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -53,7 +70,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int iscntrl(int c);
-	constexpr bool IsCntrl(unsigned char c) noexcept
+	EXPORT constexpr bool IsCntrl(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -68,7 +85,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isdigit(int c);
-	constexpr bool IsDigit(unsigned char c) noexcept
+	EXPORT constexpr bool IsDigit(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -81,7 +98,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isgraph(int c);
-	constexpr bool IsGraph(unsigned char c) noexcept
+	EXPORT constexpr bool IsGraph(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -94,7 +111,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int islower(int c);
-	constexpr bool IsLower(unsigned char c) noexcept
+	EXPORT constexpr bool IsLower(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -107,7 +124,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isprint(int c);
-	constexpr bool IsPrint(unsigned char c) noexcept
+	EXPORT constexpr bool IsPrint(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -120,7 +137,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int ispunct(int c);
-	constexpr bool IsPunct(unsigned char c) noexcept
+	EXPORT constexpr bool IsPunct(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -138,7 +155,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isspace(int c);
-	constexpr bool IsSpace(unsigned char c) noexcept
+	EXPORT constexpr bool IsSpace(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -158,7 +175,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isupper(int c);
-	constexpr bool IsUpper(unsigned char c) noexcept
+	EXPORT constexpr bool IsUpper(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -171,7 +188,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int isxdigit(int c);
-	constexpr bool IsXDigit(unsigned char c) noexcept
+	EXPORT constexpr bool IsXDigit(unsigned char c) noexcept
 	{
 		if consteval
 		{
@@ -187,7 +204,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int tolower(int c);
-	constexpr auto ToLower(unsigned char c) noexcept -> decltype(c)
+	EXPORT constexpr auto ToLower(unsigned char c) noexcept -> decltype(c)
 	{
 		if consteval
 		{
@@ -203,7 +220,7 @@ namespace Hydrogenium::CCType
 	}
 
 	//int toupper(int c);
-	constexpr auto ToUpper(unsigned char c) noexcept -> decltype(c)
+	EXPORT constexpr auto ToUpper(unsigned char c) noexcept -> decltype(c)
 	{
 		if consteval
 		{

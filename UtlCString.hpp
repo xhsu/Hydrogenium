@@ -1,4 +1,15 @@
-﻿#pragma once
+﻿/*
+	Formalized at: May 28 2025
+*/
+
+#ifndef EXPORT
+#define EXPORT
+#endif
+
+#if !defined(INCLUDED_IN_MODULE) || defined(__INTELLISENSE__)
+#pragma once
+
+#define HYDROGENIUM_UTL_C_STRING 20250528L
 
 #include "UtlCChType.hpp"
 
@@ -7,6 +18,15 @@
 #include <ranges>
 #include <string_view>
 #include <string>
+
+#else
+
+import std.compat;
+import UtlCChType;
+
+EXPORT inline constexpr auto HYDROGENIUM_UTL_C_STRING = 20250528L;
+
+#endif
 
 namespace Hydrogenium::CString
 {
@@ -19,14 +39,14 @@ namespace Hydrogenium::CString
 	//void* memmove(void* s1, const void* s2, size_t n);     // freestanding
 
 	//char* strcpy(char* s1, const char* s2);                // freestanding
-	constexpr string* StrCpy(string* dest, string_view src) noexcept
+	EXPORT constexpr string* StrCpy(string* dest, string_view src) noexcept
 	{
 		dest->assign(src);
 		return dest;
 	}
 
 	//char* strncpy(char* s1, const char* s2, size_t n);     // freestanding
-	constexpr string* StrNCpy(string* dest, string_view src, size_t count) noexcept
+	EXPORT constexpr string* StrNCpy(string* dest, string_view src, size_t count) noexcept
 	{
 		dest->assign(
 			src.data(),
@@ -39,14 +59,14 @@ namespace Hydrogenium::CString
 	}
 
 	//char* strcat(char* s1, const char* s2);                // freestanding
-	constexpr string* StrCat(string* dest, string_view src) noexcept
+	EXPORT constexpr string* StrCat(string* dest, string_view src) noexcept
 	{
 		dest->append(src);
 		return dest;
 	}
 
 	//char* strncat(char* s1, const char* s2, size_t n);     // freestanding
-	constexpr string* StrNCat(string* dest, string_view src, size_t count) noexcept
+	EXPORT constexpr string* StrNCat(string* dest, string_view src, size_t count) noexcept
 	{
 		dest->append(
 			src.data(),
@@ -59,7 +79,7 @@ namespace Hydrogenium::CString
 	//int memcmp(const void* s1, const void* s2, size_t n);  // freestanding
 
 	//int strcmp(const char* s1, const char* s2);            // freestanding
-	constexpr int StrCmp(string_view lhs, string_view rhs) noexcept
+	EXPORT constexpr int StrCmp(string_view lhs, string_view rhs) noexcept
 	{
 		return string_view::traits_type::compare(
 			lhs.data(),
@@ -74,7 +94,7 @@ namespace Hydrogenium::CString
 	//int strcoll(const char* s1, const char* s2);
 
 	//int strncmp(const char* s1, const char* s2, size_t n); // freestanding
-	constexpr int StrNCmp(string_view lhs, string_view rhs, size_t count) noexcept
+	EXPORT constexpr int StrNCmp(string_view lhs, string_view rhs, size_t count) noexcept
 	{
 		return string_view::traits_type::compare(
 			lhs.data(),
@@ -95,7 +115,7 @@ namespace Hydrogenium::CString
 
 	//const char* strchr(const char* s, int c);              // freestanding
 	//char* strchr(char* s, int c);                          // freestanding
-	constexpr optional<string_view> StrChr(string_view str, unsigned char ch) noexcept
+	EXPORT constexpr optional<string_view> StrChr(string_view str, unsigned char ch) noexcept
 	{
 		if (auto const pos = str.find_first_of(ch); pos != str.npos)
 			return optional<string_view>{ std::in_place, str.substr(pos) };
@@ -106,7 +126,7 @@ namespace Hydrogenium::CString
 	static_assert(!StrChr("Try not", 'N'));
 
 	//size_t strcspn(const char* s1, const char* s2);        // freestanding
-	constexpr size_t StrCSpn(string_view dest, string_view src) noexcept
+	EXPORT constexpr size_t StrCSpn(string_view dest, string_view src) noexcept
 	{
 		if (auto const pos = dest.find_first_of(src); pos != string_view::npos)
 			return pos;
@@ -117,7 +137,7 @@ namespace Hydrogenium::CString
 
 	//const char* strpbrk(const char* s1, const char* s2);   // freestanding
 	//char* strpbrk(char* s1, const char* s2);               // freestanding
-	constexpr optional<string_view> StrPBrk(string_view dest, string_view breakset) noexcept
+	EXPORT constexpr optional<string_view> StrPBrk(string_view dest, string_view breakset) noexcept
 	{
 		if (auto const pos = dest.find_first_of(breakset); pos != dest.npos)
 			return optional<string_view>{ std::in_place, dest.substr(pos) };
@@ -129,7 +149,7 @@ namespace Hydrogenium::CString
 
 	//const char* strrchr(const char* s, int c);             // freestanding
 	//char* strrchr(char* s, int c);                         // freestanding
-	constexpr optional<string_view> StrRChr(string_view str, unsigned char ch) noexcept
+	EXPORT constexpr optional<string_view> StrRChr(string_view str, unsigned char ch) noexcept
 	{
 		if (auto const pos = str.find_last_of(ch); pos != str.npos)
 			return optional<string_view>{ std::in_place, str.substr(pos) };
@@ -140,7 +160,7 @@ namespace Hydrogenium::CString
 	static_assert(!StrRChr("/home/user/hello.c", '\\').has_value());
 
 	//size_t strspn(const char* s1, const char* s2);         // freestanding
-	constexpr size_t StrSpn(string_view dest, string_view src) noexcept
+	EXPORT constexpr size_t StrSpn(string_view dest, string_view src) noexcept
 	{
 		if (auto const pos = dest.find_first_not_of(src); pos != string_view::npos)
 			return pos;
@@ -151,7 +171,7 @@ namespace Hydrogenium::CString
 
 	//const char* strstr(const char* s1, const char* s2);    // freestanding
 	//char* strstr(char* s1, const char* s2);                // freestanding
-	constexpr optional<string_view> StrStr(string_view haystack, string_view needle) noexcept
+	EXPORT constexpr optional<string_view> StrStr(string_view haystack, string_view needle) noexcept
 	{
 		if (auto const pos = haystack.find(needle); pos != string_view::npos)
 			return optional<string_view>{ std::in_place, haystack.substr(pos) };
@@ -162,7 +182,7 @@ namespace Hydrogenium::CString
 	static_assert(!StrStr("haystack", "needle"));
 
 	//char* strtok(char* s1, const char* s2);                // freestanding
-	optional<string_view> StrTok(optional<string_view> str, string_view delim)
+	EXPORT optional<string_view> StrTok(optional<string_view> str, string_view delim)
 	{
 		static thread_local const char* buffer = nullptr, * last_excl = nullptr;
 
@@ -207,20 +227,20 @@ namespace Hydrogenium::CString
 	//char* strerror(int errnum);
 
 	//size_t strlen(const char* s);                          // freestanding
-	constexpr size_t StrLen(string_view str) noexcept
+	EXPORT constexpr size_t StrLen(string_view str) noexcept
 	{
 		return str.length();
 	}
 	static_assert(StrLen("dog cat\0mouse") == 7);
 
 	//char *strdup( const char *src );						// (since C23)
-	constexpr string StrDup(string_view str) noexcept
+	EXPORT constexpr string StrDup(string_view str) noexcept
 	{
 		return string{ str };
 	}
 
 	//char *strndup( const char *src, size_t size );		// (since C23)
-	constexpr string StrNDup(string_view src, size_t size) noexcept
+	EXPORT constexpr string StrNDup(string_view src, size_t size) noexcept
 	{
 		return string{ src.substr(size) };
 	}
@@ -239,7 +259,7 @@ namespace Hydrogenium::CString
 	}
 
 	//int _stricmp(const char* string1, const char* string2);	// MSVC
-	constexpr int StrICmp(string_view lhs, string_view rhs) noexcept
+	EXPORT constexpr int StrICmp(string_view lhs, string_view rhs) noexcept
 	{
 		auto s1 = lhs.cbegin(), s2 = rhs.cbegin();
 		auto const e1 = lhs.cend(), e2 = rhs.cend();
@@ -271,7 +291,7 @@ namespace Hydrogenium::CString
 	static_assert(StrICmp(u8"你好", u8"你好") == 0 && StrICmp(u8"你好", u8"你好嗎") < 0);
 
 	//char *_strlwr(char* str);								// MSVC
-	constexpr string StrLwr(string_view str) noexcept
+	EXPORT constexpr string StrLwr(string_view str) noexcept
 	{
 		string ret{};
 		ret.reserve(str.length());
@@ -281,7 +301,7 @@ namespace Hydrogenium::CString
 
 		return ret;
 	}
-	constexpr string* StrLwr(string* str) noexcept
+	EXPORT constexpr string* StrLwr(string* str) noexcept
 	{
 		for (auto& c : *str)
 			c = CCType::ToLower(c);
@@ -291,7 +311,7 @@ namespace Hydrogenium::CString
 	static_assert(StrLwr(u8"AbCdEfG01234") == u8"abcdefg01234");	// UTF-8 Tested. MSVC is bugged in compile-time UTF.
 
 	//int _strnicmp(const char* string1, const char* string2, size_t count);	// MSVC
-	constexpr int StrNICmp(string_view lhs, string_view rhs, size_t count) noexcept
+	EXPORT constexpr int StrNICmp(string_view lhs, string_view rhs, size_t count) noexcept
 	{
 		return StrICmp(
 			lhs | std::views::take(count),
@@ -308,14 +328,14 @@ namespace Hydrogenium::CString
 	//char *_strninc(const char* str, size_t count);		// MSVC
 
 	//char *_strrev(char* str);								// MSVC
-	constexpr string StrRev(string_view str) noexcept
+	EXPORT constexpr string StrRev(string_view str) noexcept
 	{
 		return
 			str
 			| std::views::reverse
 			| std::ranges::to<string>();
 	}
-	constexpr string* StrRev(string* str) noexcept
+	EXPORT constexpr string* StrRev(string* str) noexcept
 	{
 		auto ret = StrRev(*str);
 		std::swap(*str, ret);
@@ -336,7 +356,7 @@ namespace Hydrogenium::CString
 	static_assert(StrSpnP("01234", "0123456789").empty());
 
 	//char *_strupr(char* str);								// MSVC
-	constexpr string StrUpr(string_view str) noexcept
+	EXPORT constexpr string StrUpr(string_view str) noexcept
 	{
 		string ret{};
 		ret.reserve(str.length());
@@ -346,7 +366,7 @@ namespace Hydrogenium::CString
 
 		return ret;
 	}
-	constexpr string* StrUpr(string* str) noexcept
+	EXPORT constexpr string* StrUpr(string* str) noexcept
 	{
 		for (auto& c : *str)
 			c = CCType::ToUpper(c);
@@ -356,7 +376,7 @@ namespace Hydrogenium::CString
 	static_assert(StrUpr(u8"AbCdEfG01234") == u8"ABCDEFG01234");	// UTF-8 Tested. MSVC is bugged in compile-time UTF.
 
 	//char *stristr(char* str, const char* substr);			// Quake
-	constexpr optional<string_view> StrIStr(string_view haystack, string_view needle) noexcept
+	EXPORT constexpr optional<string_view> StrIStr(string_view haystack, string_view needle) noexcept
 	{
 		optional<string_view> opt{ std::nullopt };
 

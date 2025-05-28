@@ -585,6 +585,7 @@ namespace Hydrogenium
 					return static_cast<decltype(c)>(std::towlower(c));
 			}
 #else
+			// Greek letter issue, so dont just call ToUpper()
 			return static_cast<param_type>(Hydrogenium::Unicode::ToLower_Source1(c));
 #endif
 		}
@@ -609,6 +610,7 @@ namespace Hydrogenium
 					return static_cast<decltype(c)>(std::towupper(c));
 			}
 #else
+			// Greek letter issue, so dont just call ToUpper()
 			return static_cast<param_type>(Hydrogenium::Unicode::ToUpper_Source1(c));
 #endif
 		}
@@ -1044,14 +1046,14 @@ namespace Hydrogenium
 	}
 
 	EXPORT inline constexpr auto UTF8_TO_UTF16 =
-		std::views::chunk_by([](auto, char rhs) { return CType<char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
+		std::views::chunk_by([](auto, char rhs) static noexcept { return CType<char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
 		| std::views::transform(&CType<char>::ToFullWidth)
 		| std::views::transform(&CType<u16char>::ToMultiBytes)
 		| std::views::join
 		| std::ranges::to<std::basic_string>();
 
 	EXPORT inline constexpr auto UTF16_TO_UTF8 =
-		std::views::chunk_by([](auto, u16char rhs) { return CType<u16char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
+		std::views::chunk_by([](auto, u16char rhs) static noexcept { return CType<u16char>::CodePointOf(rhs) > CodePoint::BEGIN_OF_4; })
 		| std::views::transform(&CType<u16char>::ToFullWidth)
 		| std::views::transform(&CType<char>::ToMultiBytes)
 		| std::views::join
@@ -3313,19 +3315,19 @@ namespace Hydrogenium
 		using namespace String::Components;
 
 		using Str	= Utils<>;
-		using StrI	= Utils<info_narrow,	iter_default,	cmp_case_ignored>;
-		using StrR	= Utils<info_narrow,	iter_default,	cmp_default,		dir_backward>;
-		using StrIR	= Utils<info_narrow,	iter_default,	cmp_case_ignored,	dir_backward>;
+		using StrI	= Utils<info_narrow,	iter_default,		cmp_case_ignored>;
+		using StrR	= Utils<info_narrow,	iter_default,		cmp_default,		dir_backward>;
+		using StrIR	= Utils<info_narrow,	iter_default,		cmp_case_ignored,	dir_backward>;
 
 		using Wcs	= Utils<info_wide>;
-		using WcsI	= Utils<info_wide,	iter_default,	cmp_case_ignored>;
-		using WcsR	= Utils<info_wide,	iter_default,	cmp_default,		dir_backward>;
-		using WcsIR	= Utils<info_wide,	iter_default,	cmp_case_ignored,	dir_backward>;
+		using WcsI	= Utils<info_wide,		iter_default,		cmp_case_ignored>;
+		using WcsR	= Utils<info_wide,		iter_default,		cmp_default,		dir_backward>;
+		using WcsIR	= Utils<info_wide,		iter_default,		cmp_case_ignored,	dir_backward>;
 
-		using Mbs	= Utils<info_u8,	iter_multibytes>;
-		using MbsI	= Utils<info_u8,	iter_multibytes,	cmp_case_ignored>;
-		using MbsR	= Utils<info_u8,	iter_multibytes,	cmp_default,		dir_backward>;
-		using MbsIR	= Utils<info_u8,	iter_multibytes,	cmp_case_ignored,	dir_backward>;
+		using Mbs	= Utils<info_u8,		iter_multibytes>;
+		using MbsI	= Utils<info_u8,		iter_multibytes,	cmp_case_ignored>;
+		using MbsR	= Utils<info_u8,		iter_multibytes,	cmp_default,		dir_backward>;
+		using MbsIR	= Utils<info_u8,		iter_multibytes,	cmp_case_ignored,	dir_backward>;
 
 		inline constexpr auto StrLen = Linker<
 			empty_comp_t,

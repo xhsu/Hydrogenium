@@ -44,6 +44,12 @@
     <ClCompile Include="..\UtlString.ixx">
       <Filter>Modules</Filter>
     </ClCompile>
+    <ClCompile Include="..\UtlCString.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\UtlCChType.ixx">
+      <Filter>Modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UtlString.hpp">
