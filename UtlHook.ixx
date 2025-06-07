@@ -8,24 +8,21 @@ module;
 #include <cassert>
 
 #define WIN32_LEAN_AND_MEAN
+#define NOWINRES
+#define NOSERVICE
+#define NOMCX
+#define NOIME
 #define NOMINMAX
 #include <Windows.h>
 
-#ifdef __INTELLISENSE__
-#include <array>
-#include <bit>
-#include <ranges>
-#include <vector>
-#endif
-
 export module UtlHook;
 
-#ifndef __INTELLISENSE__
-export import <array>;
-export import <bit>;
-export import <ranges>;
-export import <vector>;
-#endif
+import std;
+
+using std::uint8_t;
+using std::uint16_t;
+using std::uint32_t;
+using std::int32_t;
 
 using std::array;
 using std::bit_cast;
