@@ -1,6 +1,6 @@
 module;
 
-#define HYDROGENIUM_APPLICATION_VERMGR_VER 20241007L
+#define HYDROGENIUM_APPLICATION_VERMGR_VER 20250603L
 
 #ifdef __INTELLISENSE__
 #include <ranges>
@@ -33,12 +33,12 @@ namespace Hydrogenium::appl_details
 		auto ptr = buf.end();
 		*--ptr = '\0';
 
-		if (N != 0)
+		if constexpr (N != 0)
 		{
 			for (auto n = N; n; n /= 10)
 				*--ptr = "0123456789"[(N < 0 ? -1 : 1) * (n % 10)];
 
-			if (N < 0)
+			if constexpr (N < 0)
 				*--ptr = '-';
 		}
 		else

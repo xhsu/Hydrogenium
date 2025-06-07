@@ -10,10 +10,13 @@ module;
 
 #include <fmt/ranges.h>	// fmt::join
 
+// Still bugged as per May 31 2025.
+// #MSVC_BUG_GENERATOR https://developercommunity.visualstudio.com/t/Coroutine-compilation-resulting-in-erro/1510427
+#include <experimental/generator>
+
 export module UtlKeyValues;
 
 import std;
-import <experimental/generator>;	// #UPDATE_AT_CPP23
 
 // Friendly modules
 import UtlConcepts;
@@ -28,7 +31,7 @@ using Value_t = double;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-std::experimental::generator<std::string_view> TokenGenerator(std::string_view StrV) noexcept
+static std::experimental::generator<std::string_view> TokenGenerator(std::string_view StrV)
 {
 	for (std::size_t iCur = 0, iSegmentEnds = 0, iSize = StrV.size();
 		iCur < iSize && iSegmentEnds < iSize;
@@ -80,7 +83,7 @@ std::experimental::generator<std::string_view> TokenGenerator(std::string_view S
 	co_return;
 }
 
-auto TokenFountain(std::experimental::generator<std::string_view>&& GenObj) noexcept
+static auto TokenFountain(std::experimental::generator<std::string_view>&& GenObj) noexcept
 {
 	return [GenObj = std::move(GenObj), iter = GenObj.begin(), Sentinel = GenObj.end()]() mutable noexcept -> std::string_view
 	{
@@ -144,8 +147,7 @@ export struct ValveKeyValues
 	ValveKeyValues& operator=(ValveKeyValues&&) = delete;
 
 	// set/get name
-	string& Name(void) noexcept { return m_szName; }	// #UPDATE_AT_CPP23 explict this
-	const string& Name(void) const noexcept { return m_szName; }
+	decltype(auto) Name(this auto&& self) noexcept { return self.m_szName; }
 
 	// load/save file
 	bool LoadFromFile(const char* pszFile) noexcept
@@ -511,7 +513,7 @@ export struct ValveKeyValues
 		static auto const fnTakeAdaptor = []<typename GeneratorTy>(GeneratorTy && gen) noexcept requires(requires{ typename GeneratorTy::iterator::value_type; })
 		{
 			return [gen = std::move(gen)](std::ptrdiff_t iTakeCount) mutable noexcept
-				-> std::experimental::generator<typename GeneratorTy::iterator::value_type>
+				-> std::generator<typename GeneratorTy::iterator::value_type>
 			{
 				decltype(iTakeCount) i = 0;
 
