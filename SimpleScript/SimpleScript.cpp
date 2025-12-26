@@ -611,7 +611,7 @@ namespace Op
 	using sqrt_t = script_operator_t<u8"√", EAssoc::Right, 5, 1, Binder::wrap<static_cast<value_t(*)(value_t)>(&std::sqrt)>>;
 	using cbrt_t = script_operator_t<u8"∛", EAssoc::Right, 5, 1, Binder::wrap<static_cast<value_t(*)(value_t)>(&std::cbrt)>>;
 
-	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, Binder::wrap <std::multiplies{}>> ;
+	using multiply_t = script_operator_t<"*", EAssoc::Left, 4, 2, Binder::wrap<std::multiplies{}>>;
 	using divide_t = script_operator_t<"/", EAssoc::Left, 4, 2, Binder::wrap<std::divides{}>>;
 	using modulo_t = script_operator_t<"%", EAssoc::Left, 4, 2, Binder::wrap<std::modulus{}, Binder::adaptor_int32>>;	// Only int can take remainder.
 
@@ -2349,6 +2349,7 @@ LEA EDX, [ECX % 3!]
 LEA EAX, [√2]
 LEA EBX, [∛3]
 LEA ECX, [(1 + √5)/2]
+LEA EDX, [hypot2(5 - max(0, 4), 3)]
 )";
 	script.Compile(SOURCE2);
 	script.Execute();
@@ -2356,6 +2357,7 @@ LEA ECX, [(1 + √5)/2]
 	assert(*script.m_eax == std::numbers::sqrt2);
 	assert(*script.m_ebx == std::pow(3.0, 1.0 / 3.0));
 	assert(*script.m_ecx == std::numbers::phi);
+	assert(*script.m_edx == std::hypot(5 - std::max(0, 4), 3));
 }
 
 static void UnitTest_Exchange() noexcept
@@ -2654,6 +2656,9 @@ int wmain(int argc, wchar_t* argv[], wchar_t* envp[]) noexcept
 int main(int, char*[]) noexcept
 #endif
 {
+	script_t script{ u8"LEA EDX, [hypot2(5 - max(0, 4), 3)]"};
+	script.Execute();
+
 	UnitTest_Literals();
 	UnitTest_Expression();
 	UnitTest_Exchange();

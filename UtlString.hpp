@@ -1711,6 +1711,45 @@ namespace Hydrogenium::StringPolicy::Comparing
 
 				return m_Hasher(LowerStr);
 			}
+
+			template <typename T>
+			[[nodiscard]] static inline std::size_t operator()(T&& str) noexcept
+			{
+				if constexpr (std::convertible_to<T, std::basic_string_view<char>>)
+				{
+					return operator()(std::basic_string_view<char>(std::forward<T>(str)));
+				}
+				else if constexpr (std::convertible_to<T, std::basic_string_view<signed char>>)
+				{
+					return operator()(std::basic_string_view<signed char>(std::forward<T>(str)));
+				}
+				else if constexpr (std::convertible_to<T, std::basic_string_view<unsigned char>>)
+				{
+					return operator()(std::basic_string_view<unsigned char>(std::forward<T>(str)));
+				}
+#ifdef __cpp_char8_t
+				else if constexpr (std::convertible_to<T, std::basic_string_view<char8_t>>)
+				{
+					return operator()(std::basic_string_view<char8_t>(std::forward<T>(str)));
+				}
+#endif
+				else if constexpr (std::convertible_to<T, std::basic_string_view<wchar_t>>)
+				{
+					return operator()(std::basic_string_view<wchar_t>(std::forward<T>(str)));
+				}
+				else if constexpr (std::convertible_to<T, std::basic_string_view<char16_t>>)
+				{
+					return operator()(std::basic_string_view<char16_t>(std::forward<T>(str)));
+				}
+				else if constexpr (std::convertible_to<T, std::basic_string_view<char32_t>>)
+				{
+					return operator()(std::basic_string_view<char32_t>(std::forward<T>(str)));
+				}
+				else
+				{
+					static_assert(false, "Bad string type.");
+				}
+			}
 		};
 	};
 
